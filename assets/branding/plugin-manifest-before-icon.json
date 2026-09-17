@@ -21,10 +21,7 @@
       "用 Codex Cut 制作这条视频，按六步方法设计，逐段给我确认。",
       "继续当前视频，只修改我指出的段落，保留已确认版本。"
     ],
-    "brandColor": "#5C6B45",
-    "composerIcon": "./assets/codex-cut-icon-v1.png",
-    "logo": "./assets/codex-cut-icon-v1.png",
-    "logoDark": "./assets/codex-cut-icon-v1.png"
+    "brandColor": "#5C6B45"
   },
   "mcpServers": "./.mcp.json"
 }
