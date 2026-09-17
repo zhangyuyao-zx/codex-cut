@@ -1,0 +1,27 @@
+{
+  "name": "codex-cut",
+  "version": "0.1.0",
+  "description": "Codex 驱动的本地视频工作台：六步画面设计、口播同步、逐段确认与合成。",
+  "author": {
+    "name": "Codex Cut"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Cut",
+    "shortDescription": "在 Codex 里沟通，在工作台里看、改和确认视频",
+    "longDescription": "连接现有本地 Codex Cut 工作台，保留剪辑、素材和组件能力。由 Codex 理解内容与设计动画，用户逐段审阅确认，最后复用确认画面合成整片。",
+    "developerName": "Codex Cut",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "打开 Codex Cut，读取当前项目和待确认段落。",
+      "用 Codex Cut 制作这条视频，按六步方法设计，逐段给我确认。",
+      "继续当前视频，只修改我指出的段落，保留已确认版本。"
+    ],
+    "brandColor": "#5C6B45"
+  },
+  "mcpServers": "./.mcp.json"
+}

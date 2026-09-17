@@ -1,0 +1,827 @@
+/* The rough-cut transcript stays readable while every word remains seekable. */
+.app .roughcut-file-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .roughcut-segment-strip {
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.app .roughcut-segment-strip .roughcut-segment {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 38px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+.app .roughcut-segment-strip .roughcut-segment.selected {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.12);
+}
+
+.app .roughcut-segment-index {
+  color: var(--wb-text-soft);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.app .roughcut-segment-time {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .roughcut-precise-delete {
+  margin: 16px 0 10px;
+  border-top: 1px solid var(--wb-line);
+  border-bottom: 1px solid var(--wb-line);
+}
+
+.app .roughcut-precise-delete > summary {
+  padding: 10px 0;
+  color: var(--wb-text-soft);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.app .roughcut-precise-delete > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app .roughcut-precise-delete > summary::after {
+  content: "⌄";
+  float: right;
+  color: var(--wb-text-muted);
+}
+
+.app .roughcut-precise-delete[open] > summary::after {
+  content: "⌃";
+}
+
+.app .roughcut-precise-delete-body {
+  display: grid;
+  gap: 9px;
+  padding: 0 0 12px;
+}
+
+.app .roughcut-precise-delete-body .hint {
+  margin: 0;
+}
+
+.app .roughcut-precise-delete-body .field {
+  margin: 0;
+}
+
+.app .roughcut-tools {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.app .roughcut-tools > summary {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--wb-text-soft);
+  cursor: pointer;
+  font-size: 11px;
+  list-style: none;
+}
+
+.app .roughcut-tools > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app .roughcut-tools > summary::after {
+  content: "⌄";
+  margin-left: 6px;
+  color: var(--wb-text-muted);
+}
+
+.app .roughcut-tools[open] > summary {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  color: var(--wb-text);
+}
+
+.app .roughcut-tools-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  gap: 7px;
+  min-width: 200px;
+  padding: 10px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 11px;
+  background: var(--wb-glass-wash-strong);
+  box-shadow: var(--wb-panel-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+}
+
+.app .roughcut-tools-popover small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.app .roughcut-tools-popover .upload {
+  justify-content: center;
+  width: 100%;
+}
+
+.app .roughcut-transcript {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.app .roughcut-paragraph {
+  margin: 0;
+  color: var(--wb-text);
+  font-size: 14px;
+  line-height: 2;
+}
+
+.app .roughcut-paragraph + .roughcut-paragraph {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(71, 94, 119, 0.1);
+}
+
+.app .roughcut-transcript .roughcut-word {
+  display: inline;
+  margin: 0;
+  padding: 2px 1px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  outline: 0;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.app .roughcut-transcript .roughcut-word:hover {
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.app .roughcut-transcript .roughcut-word:focus-visible {
+  outline: 2px solid var(--wb-blue-line);
+  outline-offset: 2px;
+}
+
+.app .roughcut-transcript .roughcut-word.chosen {
+  background: rgba(10, 132, 255, 0.14);
+  box-shadow: inset 0 -2px var(--wb-blue);
+}
+
+.app .roughcut-transcript .roughcut-word.speaking {
+  box-shadow: inset 0 -2px #8197b5;
+}
+
+.app .roughcut-transcript .roughcut-word.chosen.speaking {
+  box-shadow: inset 0 -2px var(--wb-blue);
+}
+
+.app .roughcut-transcript .roughcut-word.removed {
+  opacity: 0.62;
+  color: var(--wb-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: var(--wb-danger);
+}
+
+.app .roughcut-selection-menu {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 7px 8px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 11px;
+  background: var(--wb-glass-wash-strong);
+  box-shadow: var(--wb-panel-shadow);
+  color: var(--wb-text);
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.app .roughcut-selection-menu > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wb-text-soft);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .roughcut-selection-menu button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.app .roughcut-selection-preview,
+.app .roughcut-segment-inspector {
+  display: grid;
+  gap: 9px;
+  margin: 10px 0 14px;
+  padding: 11px;
+  border: 1px solid var(--wb-blue-line);
+  border-radius: 11px;
+  background: rgba(10, 132, 255, 0.06);
+}
+
+.app .roughcut-inspector-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app .roughcut-inspector-heading button {
+  min-height: 24px;
+  padding: 3px 7px;
+  font-size: 10px;
+}
+
+.app .roughcut-selection-preview p {
+  margin: 0;
+  color: var(--wb-text-soft);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.app .roughcut-selection-preview small,
+.app .roughcut-segment-inspector small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.app .roughcut-selection-preview > button {
+  width: 100%;
+}
+
+.app .roughcut-selection-preview > button + button {
+  margin-top: -3px;
+}
+
+.app .roughcut-segment-inspector > b {
+  color: var(--wb-text);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+@media (max-width: 760px) {
+  .app .roughcut-selection-menu {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .app .roughcut-selection-menu > span {
+    flex: 1 0 100%;
+  }
+
+  .app .roughcut-tools-popover {
+    right: auto;
+    left: 0;
+  }
+}
+
+/* Multi-asset rough cut.  The editor owns only the timeline controls; the
+ * rendered composition remains the service-side continuous preview. */
+.app .multi-asset-editor {
+  display: grid;
+  grid-template-columns: 220px minmax(360px, 1fr) 280px;
+  min-height: calc(100vh - 122px);
+  background: var(--wb-panel-wash);
+}
+
+.app .multi-asset-library,
+.app .multi-asset-right {
+  min-width: 0;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.app .multi-asset-library {
+  border-right: 1px solid var(--wb-line);
+}
+
+.app .multi-asset-right {
+  border-left: 1px solid var(--wb-line);
+}
+
+.app .multi-asset-library h2,
+.app .multi-asset-inspector h2,
+.app .multi-asset-section-heading h2 {
+  margin: 4px 0 10px;
+  color: var(--wb-text);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.app .multi-asset-library h2 small,
+.app .multi-asset-section-heading h2 small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.app .multi-asset-upload {
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.app .multi-asset-list,
+.app .multi-asset-clip-list {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.app .multi-asset-row,
+.app .multi-asset-clip-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.app .multi-asset-row.selected,
+.app .multi-asset-clip-row.selected {
+  border-radius: 9px;
+  background: var(--wb-blue-soft);
+}
+
+.app .multi-asset-select,
+.app .multi-clip-select {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.app .multi-asset-select:hover:not(:disabled),
+.app .multi-clip-select:hover:not(:disabled),
+.app .multi-asset-row.selected .multi-asset-select,
+.app .multi-asset-clip-row.selected .multi-clip-select {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  box-shadow: none;
+}
+
+.app .multi-asset-select b,
+.app .multi-clip-select b {
+  overflow: hidden;
+  color: var(--wb-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .multi-asset-select small,
+.app .multi-clip-select small {
+  overflow: hidden;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .multi-asset-add,
+.app .multi-clip-order-actions button {
+  flex: 0 0 auto;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--wb-text-muted);
+}
+
+.app .multi-asset-add:hover:not(:disabled),
+.app .multi-clip-order-actions button:hover:not(:disabled) {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  color: var(--wb-blue);
+  box-shadow: none;
+}
+
+.app .multi-asset-transcript-actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app .multi-asset-transcript-actions b {
+  color: var(--wb-text);
+  font-size: 12px;
+}
+
+.app .multi-asset-transcript-actions small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .multi-asset-transcript-actions button,
+.app .multi-asset-transcript-actions .upload {
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+  text-align: center;
+}
+
+.app .multi-asset-center {
+  min-width: 0;
+  padding: 18px;
+  overflow: auto;
+}
+
+.app .multi-asset-preview-panel,
+.app .multi-asset-clips,
+.app .multi-asset-transcript,
+.app .multi-asset-inspector {
+  min-width: 0;
+}
+
+.app .multi-asset-preview-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: #000;
+  box-shadow: var(--wb-preview-shadow);
+}
+
+.app .multi-asset-preview-stage > .empty {
+  min-height: 100%;
+  color: #b6c1ce;
+}
+
+.app .multi-asset-preview-transform {
+  position: absolute;
+  overflow: visible;
+  transform-origin: center;
+}
+
+.app .multi-asset-preview-measure {
+  position: absolute;
+  overflow: hidden;
+}
+
+.app .multi-asset-preview-measure-crop {
+  width: 100%;
+  height: 100%;
+}
+
+.app .multi-asset-preview-crop {
+  position: absolute;
+  overflow: hidden;
+  transform-origin: center;
+}
+
+.app .multi-asset-preview-crop video {
+  position: absolute;
+  display: block;
+  max-width: none;
+  object-fit: fill;
+  pointer-events: none;
+  transform-origin: center;
+}
+
+.app .multi-asset-preview-measure-crop video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  max-width: none;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.app .multi-asset-preview-loading {
+  position: absolute;
+  inset: auto 0 12px;
+  color: #b6c1ce;
+  font-size: 11px;
+  text-align: center;
+}
+
+.app .multi-asset-preview-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.app .multi-asset-preview-controls button {
+  min-height: 28px;
+  padding: 5px 9px;
+  font-size: 10px;
+}
+
+.app .multi-asset-preview-controls input[type="range"] {
+  width: 100%;
+  margin: 0;
+}
+
+.app .multi-asset-preview-controls span {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.app .multi-asset-preview-note {
+  margin: 8px 0 0;
+}
+
+.app .multi-asset-preview-warning {
+  color: var(--wb-warning);
+}
+
+.app .multi-asset-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app .multi-asset-section-heading h2 {
+  margin-bottom: 0;
+}
+
+.app .multi-asset-section-heading .hint {
+  margin: 3px 0 10px;
+}
+
+.app .multi-asset-clips {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app .multi-asset-clip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.app .multi-asset-clip-actions button {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.app .multi-asset-undo-hint {
+  margin: 6px 0 0;
+  color: var(--wb-warning);
+}
+
+.app .multi-asset-clip-list {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.app .multi-clip-order-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.app .multi-asset-transcript {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app .multi-asset-transcript p {
+  max-height: 150px;
+  margin: 8px 0 0;
+  overflow: auto;
+  color: var(--wb-text-soft);
+  font-size: 12px;
+  line-height: 2;
+}
+
+.app .multi-asset-transcript p span {
+  margin-right: 4px;
+}
+
+.app .multi-asset-inspector {
+  padding: 14px;
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.app .multi-asset-inspector h2 {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app .multi-asset-number-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.app .multi-asset-number-field {
+  min-width: 0;
+  margin: 0;
+}
+
+.app .multi-asset-number-field span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .multi-asset-number-field input {
+  min-width: 0;
+  padding: 6px 7px;
+  font-size: 11px;
+}
+
+.app .multi-asset-crop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app .multi-asset-crop-grid > b {
+  grid-column: 1 / -1;
+  color: var(--wb-text-soft);
+  font-size: 11px;
+}
+
+.app .multi-asset-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.app .multi-asset-inspector-actions button {
+  min-height: 28px;
+  padding: 5px 7px;
+  font-size: 10px;
+}
+
+.app .multi-asset-inspector-actions .primary {
+  flex: 1 0 100%;
+}
+
+.app .multi-asset-error,
+.app .multi-asset-message {
+  margin-top: 10px;
+}
+
+.app .roughcut-clip-entry {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--wb-line);
+  border-bottom: 1px solid var(--wb-line);
+}
+
+.app .roughcut-clip-entry > button {
+  width: 100%;
+}
+
+.app .roughcut-clip-entry > small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.app .multi-asset-editor.compact {
+  display: block;
+  min-height: 0;
+  background: transparent;
+}
+
+.app .multi-asset-editor.compact .multi-asset-library,
+.app .multi-asset-editor.compact .multi-asset-center,
+.app .multi-asset-editor.compact .multi-asset-right {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.app .multi-asset-editor.compact .multi-asset-library {
+  margin-bottom: 12px;
+}
+
+.app .multi-asset-editor.compact .multi-asset-library h2 {
+  font-size: 13px;
+}
+
+.app .multi-asset-editor.compact .multi-asset-list {
+  max-height: 160px;
+  overflow: auto;
+}
+
+.app .multi-asset-editor.compact .multi-asset-preview-panel {
+  margin-top: 12px;
+}
+
+.app .multi-asset-editor.compact .multi-asset-preview-stage {
+  min-width: 0;
+}
+
+.app .multi-asset-editor.compact .multi-asset-transcript {
+  display: none;
+}
+
+.app .multi-asset-editor.compact .multi-asset-clips {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.app .multi-asset-editor.compact .multi-asset-inspector {
+  margin-top: 12px;
+}
+
+@media (max-width: 1120px) {
+  .app .multi-asset-editor {
+    grid-template-columns: 190px minmax(300px, 1fr) 250px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app .multi-asset-editor {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .app .multi-asset-library,
+  .app .multi-asset-center,
+  .app .multi-asset-right {
+    border: 0;
+    padding: 12px;
+  }
+
+  .app .multi-asset-library {
+    max-height: 280px;
+    overflow: auto;
+    border-bottom: 1px solid var(--wb-line);
+  }
+
+  .app .multi-asset-right {
+    border-top: 1px solid var(--wb-line);
+  }
+}

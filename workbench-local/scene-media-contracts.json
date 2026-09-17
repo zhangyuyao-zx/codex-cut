@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "modules": {
+    "directed-narration": "7a167455c5502ba928bd3c8fe4a5857b7e9f00eb8dde301016d9dbff84368c1b",
+    "hero-keyword": "8ea9bdfa3e8b69f51fcec860dc765040ca5d7daac943383a3c7350053a493567",
+    "talking-head-story": "87574baea6761a2dcf4e5d9c4074a8d04d802c002b95f6fd85fc548089b2a2b9",
+    "transcript-workflow": "814be11f3f14c0114795cd0cb072d95eea73ccde65d8c2271b97c5fa3044e6a0",
+    "word-flow": "558d960293277be725ba8d619557ddbb150bbfa9f64e87e68f84633cd118e615"
+  }
+}

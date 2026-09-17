@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "codex-cut": {
+      "command": "node",
+      "cwd": ".",
+      "args": [
+        "./scripts/bridge.mjs",
+        "--mcp"
+      ]
+    }
+  }
+}

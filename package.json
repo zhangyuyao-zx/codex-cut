@@ -1,0 +1,39 @@
+{
+  "name": "codex-cut-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node workbench-local/launcher.mjs start",
+    "stop": "node workbench-local/launcher.mjs stop",
+    "status": "node workbench-local/launcher.mjs status",
+    "dev": "tsx workbench-local/server.ts",
+    "typecheck": "tsc -p workbench-local/tsconfig.json",
+    "test": "vitest run --config workbench-local/vitest.config.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.489",
+    "@remotion/player": "4.0.489",
+    "@remotion/renderer": "4.0.489",
+    "@types/express": "5.0.3",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/supertest": "6.0.3",
+    "esbuild": "0.28.2",
+    "express": "5.1.0",
+    "immer": "10.1.1",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "remotion": "4.0.489",
+    "supertest": "7.1.4",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vite": "8.0.13",
+    "vitest": "3.2.4",
+    "zod": "4.3.6"
+  }
+}

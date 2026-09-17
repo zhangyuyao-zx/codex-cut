@@ -1,0 +1,7 @@
+import React from 'react';
+export function emptyValue(sample:any):any {return Array.isArray(sample)?[]:sample&&typeof sample==='object'?Object.fromEntries(Object.entries(sample).map(([k,v])=>[k,emptyValue(v)])):typeof sample==='number'?0:typeof sample==='boolean'?false:'';}
+export function ComplexParameter({value,sample,onChange}:{value:any;sample:any;onChange:(v:any)=>void}){
+ if(Array.isArray(value))return <div>{value.map((v,i)=><div key={i} style={{border:'1px solid #ddd',padding:8,marginBottom:8}}><ComplexParameter value={v} sample={sample?.[0]} onChange={n=>onChange(value.map((x,j)=>i===j?n:x))}/><button type="button" onClick={()=>onChange(value.filter((_,j)=>j!==i))}>移除第 {i+1} 项</button></div>)}<button type="button" onClick={()=>onChange([...value,emptyValue(sample?.[0]??'')])}>添加一项</button></div>;
+ if(value&&typeof value==='object')return <div>{Object.entries(value).map(([k,v])=><label key={k} style={{display:'block'}}>{({label:'名称',value:'数值',text:'文字',title:'标题',id:'标识',color:'颜色'} as any)[k]||k}<ComplexParameter value={v} sample={sample?.[k]} onChange={n=>onChange({...value,[k]:n})}/></label>)}</div>;
+ return <input type={typeof value==='number'?'number':typeof value==='boolean'?'checkbox':'text'} checked={typeof value==='boolean'?value:undefined} value={typeof value==='boolean'?undefined:value??''} onChange={e=>onChange(typeof value==='number'?Number(e.target.value):typeof value==='boolean'?e.target.checked:e.target.value)}/>;
+}

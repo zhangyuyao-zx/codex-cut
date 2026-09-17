@@ -1,0 +1,72 @@
+{
+  "id": "word-flow",
+  "label": "按口播展开重点",
+  "entry": "WordFlow.tsx",
+  "exportName": "WordFlow",
+  "controls": [
+    {
+      "key": "accent",
+      "label": "强调色",
+      "type": "color",
+      "default": "#dff4a3"
+    },
+    {
+      "key": "fontSize",
+      "label": "标题字号",
+      "type": "number",
+      "default": 68,
+      "min": 32,
+      "max": 100
+    },
+    {
+      "key": "personScale",
+      "label": "人物大小",
+      "type": "number",
+      "default": 1,
+      "min": 0.25,
+      "max": 2
+    },
+    {
+      "key": "personX",
+      "label": "人物水平位置",
+      "type": "number",
+      "default": 0,
+      "min": -960,
+      "max": 960
+    },
+    {
+      "key": "personY",
+      "label": "人物垂直位置",
+      "type": "number",
+      "default": 0,
+      "min": -540,
+      "max": 540
+    }
+  ],
+  "acceptsMaterials": true,
+  "objects": [
+    {
+      "id": "person",
+      "label": "人物画面",
+      "parameters": [
+        "personScale",
+        "personX",
+        "personY"
+      ]
+    },
+    {
+      "id": "headline",
+      "label": "标题文字",
+      "parameters": [
+        "fontSize"
+      ]
+    },
+    {
+      "id": "cards",
+      "label": "步骤卡片",
+      "parameters": [
+        "accent"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1588 @@
+/*
+ * Codex Cut workbench shell
+ *
+ * This file is intentionally an override layer.  It is imported after
+ * style.css so the existing production/cut/library markup keeps its behavior
+ * while sharing one quiet, light workspace shell.  Keep preview content out
+ * of the selectors below: glass belongs to navigation and inspector panels,
+ * not to rendered frames.
+ */
+
+.app {
+  --wb-glass-background: #edf4fb;
+  --wb-glass-wash: rgba(255, 255, 255, 0.58);
+  --wb-glass-wash-strong: rgba(255, 255, 255, 0.78);
+  --wb-glass-panel: rgba(246, 250, 255, 0.64);
+  --wb-glass-panel-solid: #f6f9fd;
+  --wb-surface: rgba(255, 255, 255, 0.74);
+  --wb-surface-strong: #ffffff;
+  --wb-text: #1d2733;
+  --wb-text-soft: #556373;
+  --wb-text-muted: #617083;
+  --wb-line: rgba(71, 94, 119, 0.17);
+  --wb-line-strong: rgba(65, 88, 112, 0.27);
+  --wb-blue: #0a84ff;
+  --wb-blue-soft: rgba(10, 132, 255, 0.11);
+  --wb-blue-line: rgba(10, 132, 255, 0.32);
+  --wb-warning: #9a6514;
+  --wb-danger: #b24f45;
+  --wb-success: #367f59;
+  --wb-panel-shadow: 0 8px 28px rgba(55, 77, 102, 0.08),
+    0 1px 2px rgba(38, 59, 83, 0.06);
+  --wb-preview-shadow: 0 18px 42px rgba(31, 47, 66, 0.14),
+    0 1px 2px rgba(23, 35, 49, 0.12);
+  color: var(--wb-text);
+  background:
+    radial-gradient(circle at 12% -12%, rgba(255, 255, 255, 0.95), transparent 38%),
+    radial-gradient(circle at 100% 4%, rgba(195, 222, 249, 0.46), transparent 42%),
+    linear-gradient(135deg, #f5f9fd 0%, var(--wb-glass-background) 52%, #e6f0f9 100%);
+  min-width: 0;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+/* The new header owns navigation.  The old modebar is left in the source for
+ * compatibility with saved workbench sessions, but is no longer part of the
+ * shell layout. */
+.app > .modebar {
+  display: none;
+}
+
+.app-header {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  height: 76px;
+  flex: 0 0 76px;
+  padding: 0 18px;
+  border: 0;
+  border-bottom: 1px solid var(--wb-line);
+  background: var(--wb-glass-wash);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  backdrop-filter: blur(26px) saturate(150%);
+}
+
+/* A compact fallback keeps a partially upgraded local session usable while
+ * the React shell migrates from the original header markup. */
+.app > header:not(.app-header) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  height: 76px;
+  padding: 0 18px;
+  border: 0;
+  border-bottom: 1px solid var(--wb-line);
+  background: var(--wb-glass-wash);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  backdrop-filter: blur(26px) saturate(150%);
+}
+
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 178px;
+  white-space: nowrap;
+}
+
+.app-header .brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border: 1px solid rgba(10, 132, 255, 0.22);
+  border-radius: 9px;
+  background: linear-gradient(145deg, #ffffff 0%, #dbeeff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 7px rgba(35, 90, 143, 0.12);
+  color: #0868ca;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.app-header .brand > div {
+  display: grid;
+  gap: 2px;
+}
+
+.app-header .brand strong {
+  min-width: 0;
+  color: var(--wb-text);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.app-header .brand small {
+  display: block;
+  margin: 0;
+  color: var(--wb-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-tabs button {
+  min-height: 34px;
+  padding: 7px 13px;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wb-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workspace-tabs button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--wb-text);
+}
+
+.workspace-tabs button.active,
+.workspace-tabs button[aria-current="page"] {
+  border-color: rgba(10, 132, 255, 0.16);
+  background: var(--wb-blue-soft);
+  color: #0868ca;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.36);
+}
+
+.shell-tools,
+.sample-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.shell-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wb-text-soft);
+}
+
+.shell-icon svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+
+.shell-icon:hover:not(:disabled),
+.appearance-menu[open] > summary.shell-icon {
+  border-color: var(--wb-line);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--wb-text);
+}
+
+.appearance-menu {
+  position: relative;
+}
+
+.appearance-menu > summary {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wb-text-soft);
+  list-style: none;
+  cursor: pointer;
+}
+
+.appearance-menu > summary svg {
+  width: 20px;
+  height: 20px;
+}
+
+.appearance-menu > summary:hover,
+.appearance-menu[open] > summary {
+  border-color: var(--wb-line);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--wb-text);
+}
+
+.appearance-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.appearance-menu > .appearance-popover,
+.appearance-menu > div,
+.appearance-menu > form {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(260px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 13px;
+  background: var(--wb-glass-wash-strong);
+  box-shadow: var(--wb-panel-shadow);
+  color: var(--wb-text);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  backdrop-filter: blur(24px) saturate(145%);
+}
+
+.appearance-menu .appearance-popover {
+  display: grid;
+  gap: 9px;
+  color: var(--wb-text-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.appearance-menu .appearance-popover > b {
+  color: var(--wb-text);
+  font-size: 12px;
+}
+
+.appearance-menu .appearance-popover > label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.appearance-menu .appearance-popover > p {
+  margin: 0;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.appearance-menu .appearance-popover > details {
+  padding-top: 8px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.appearance-menu .appearance-popover > details > summary {
+  cursor: pointer;
+  color: var(--wb-text-soft);
+  font-size: 11px;
+}
+
+.appearance-menu .appearance-popover > details > button {
+  width: 100%;
+  margin-top: 7px;
+  font-size: 11px;
+}
+
+.sample-actions {
+  margin-left: auto;
+}
+
+.draft-indicator {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 4px 8px;
+  border: 1px solid rgba(154, 101, 20, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 246, 221, 0.7);
+  color: #7d5519;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+/* The shell has three direct columns.  Each column owns its own scroll area;
+ * this prevents an overflowing inspector from pushing the 16:9 preview away. */
+.app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 280px;
+  gap: 12px;
+  width: auto;
+  height: calc(100dvh - 96px);
+  min-height: 0;
+  margin: 12px;
+  align-items: stretch;
+}
+
+.app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+  > :is(.left, .right) {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 16px;
+  background: var(--wb-glass-panel);
+  box-shadow: var(--wb-panel-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+  > :is(main, .production-center) {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px 4px 26px;
+}
+
+.app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+  > .left {
+  grid-column: 1;
+}
+
+.app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+  > :is(main, .production-center) {
+  grid-column: 2;
+}
+
+.app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+  > .right {
+  grid-column: 3;
+}
+
+/* Collapse controls remove a panel from layout while keeping its React node
+ * mounted, so open form state and selection state survive a toggle. */
+.app[data-left-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.app[data-left-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > .left,
+    > .left {
+  display: none;
+}
+
+.app[data-left-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(main, .production-center) {
+  grid-column: 1;
+}
+
+.app[data-left-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > .right {
+  grid-column: 2;
+}
+
+.app[data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+  grid-template-columns: 210px minmax(0, 1fr);
+}
+
+.app[data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > .right {
+  display: none;
+}
+
+.app[data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(main, .production-center) {
+  grid-column: 2;
+}
+
+.app[data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > .left {
+  grid-column: 1;
+}
+
+.app[data-left-collapsed="true"][data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app[data-left-collapsed="true"][data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(main, .production-center) {
+  grid-column: 1;
+}
+
+.app[data-left-collapsed="true"][data-right-collapsed="true"]
+    > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(.left, .right) {
+  display: none;
+}
+
+/* Shared controls stay crisp.  Only the header and inspector panels use
+ * backdrop blur; nested fields do not inherit a blurred surface. */
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+.app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+.app select:not(:where(.canvas *, .cut-canvas *, .library-preview *)) {
+  color: var(--wb-text);
+}
+
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)) {
+  min-height: 32px;
+  padding: 7px 11px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 1px 1px rgba(40, 58, 77, 0.03);
+  line-height: 1.35;
+  transition: background-color 140ms ease, border-color 140ms ease,
+    box-shadow 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)):hover:not(:disabled) {
+  border-color: rgba(70, 111, 151, 0.36);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 3px 10px rgba(57, 82, 108, 0.08);
+}
+
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)):active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.app button.primary:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+.app a.primary:not(:where(.canvas *, .cut-canvas *, .library-preview *)) {
+  border-color: #0878e6;
+  background: var(--wb-blue);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(10, 132, 255, 0.23);
+}
+
+.app button.primary:not(:where(.canvas *, .cut-canvas *, .library-preview *)):hover:not(:disabled),
+.app a.primary:not(:where(.canvas *, .cut-canvas *, .library-preview *)):hover {
+  border-color: #0870d5;
+  background: #0877e3;
+}
+
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)):disabled,
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *)):disabled,
+.app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)):disabled,
+.app select:not(:where(.canvas *, .cut-canvas *, .library-preview *)):disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)):disabled:hover {
+  border-color: var(--wb-line-strong);
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 1px 1px rgba(40, 58, 77, 0.03);
+}
+
+.app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)):focus-visible,
+.app a:not(:where(.canvas *, .cut-canvas *, .library-preview *)):focus-visible,
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *)):focus-visible,
+.app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)):focus-visible,
+.app select:not(:where(.canvas *, .cut-canvas *, .library-preview *)):focus-visible,
+.app summary:not(:where(.canvas *, .cut-canvas *, .library-preview *)):focus-visible,
+.app label.upload:focus-within {
+  outline: 2px solid rgba(10, 132, 255, 0.72);
+  outline-offset: 2px;
+}
+
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *)):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+.app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+.app select:not(:where(.canvas *, .cut-canvas *, .library-preview *)) {
+  width: 100%;
+  max-width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: inset 0 1px 2px rgba(46, 65, 86, 0.035);
+  outline: 0;
+}
+
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *)):not([type="range"]):not([type="checkbox"]):not([type="radio"]):hover,
+.app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)):hover,
+.app select:not(:where(.canvas *, .cut-canvas *, .library-preview *)):hover {
+  border-color: rgba(70, 111, 151, 0.38);
+}
+
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *))[type="range"] {
+  width: 100%;
+  margin-top: 10px;
+  accent-color: var(--wb-blue);
+}
+
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *))[type="checkbox"],
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *))[type="radio"] {
+  width: auto;
+  accent-color: var(--wb-blue);
+}
+
+.app input:not(:where(.canvas *, .cut-canvas *, .library-preview *))[type="color"] {
+  height: 38px;
+  padding: 3px;
+}
+
+.app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)) {
+  min-height: 84px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.app .field {
+  display: block;
+  margin: 0 0 15px;
+  color: var(--wb-text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app .field > input,
+.app .field > textarea,
+.app .field > select,
+.app .field > span + input,
+.app .field > span + textarea,
+.app .field > span + select {
+  margin-top: 7px;
+}
+
+.app .field > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app .field output {
+  float: right;
+  color: var(--wb-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.app .hint,
+.app .timeline p,
+.app .assembly-status {
+  color: var(--wb-text-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.app .eyebrow {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.app h2 {
+  margin: 9px 0 16px;
+  color: var(--wb-text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.app h3,
+.app h4 {
+  color: var(--wb-text);
+}
+
+.app hr {
+  border: 0;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app a {
+  color: #0868ca;
+}
+
+.app .saved {
+  color: var(--wb-text-muted);
+}
+
+.app .error {
+  max-height: 220px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(178, 79, 69, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 235, 232, 0.76);
+  color: #88423a;
+}
+
+.app .notice {
+  padding: 10px 12px;
+  border: 1px solid rgba(154, 101, 20, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 246, 221, 0.78);
+  color: #7d5519;
+}
+
+.app .export {
+  padding: 12px;
+  border: 1px solid rgba(54, 127, 89, 0.2);
+  border-radius: 10px;
+  background: rgba(231, 247, 238, 0.78);
+  color: #2d694b;
+}
+
+.app .loading {
+  min-height: 100dvh;
+  padding: 60px 24px;
+  color: var(--wb-text-soft);
+}
+
+/* Preview frames retain a black, neutral stage and a 16:9 contract.  There is
+ * deliberately no filter or transform on the video/Remotion content. */
+.app :is(.cut-canvas, .library-preview, .canvas) {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(28, 41, 57, 0.5);
+  border-radius: 14px;
+  background: #05070a;
+  box-shadow: var(--wb-preview-shadow);
+}
+
+.app :is(.cut-canvas, .library-preview) > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #05070a;
+  object-fit: contain;
+}
+
+.app :is(.cut-canvas, .library-preview) > .empty {
+  min-height: 100%;
+  padding: 24px;
+  color: #b6c1ce;
+}
+
+.app .canvas-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 10px;
+  color: var(--wb-text-soft);
+  font-size: 12px;
+}
+
+.app .canvas-title > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.app .preview-switcher,
+.app .preview-switcher select {
+  width: auto;
+  min-width: 148px;
+  max-width: 100%;
+  font-size: 11px;
+}
+
+.app .canvas-title small {
+  color: var(--wb-text-muted);
+}
+
+/* Production/review shell */
+.app .production-workspace .workflow-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0 0 14px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--wb-text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app .production-workspace .workflow-strip strong {
+  color: var(--wb-text);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.app .production-workspace .workflow-strip small {
+  color: var(--wb-text-muted);
+}
+
+.app .production-workspace .workflow-strip > span {
+  color: var(--wb-text-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.app .production-scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  min-height: 0;
+  margin: 0 0 6px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.25);
+  text-align: left;
+  box-shadow: none;
+}
+
+.app .production-scene:hover:not(:disabled) {
+  border-color: var(--wb-line);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.app .production-scene.selected {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  box-shadow: inset 3px 0 0 var(--wb-blue);
+}
+
+.app .production-scene small,
+.app .production-scene span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--wb-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.app .production-scene b {
+  display: block;
+  grid-column: 1 / -1;
+  margin: 3px 0 1px;
+  overflow-wrap: anywhere;
+  color: var(--wb-text);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.app .production-scene .segment-badge {
+  justify-self: end;
+  align-self: start;
+  width: auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(91, 108, 125, 0.13);
+  color: var(--wb-text-soft);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.app .production-scene > small { grid-column: 1 / -1; white-space: nowrap; }
+.app .production-scene > .segment-badge { grid-column: 1 / -1; justify-self: start; white-space: nowrap; }
+.app .production-scene > span { display: none; }
+
+.app .production-scene .status-pending {
+  background: rgba(190, 135, 36, 0.15);
+  color: #7d5a1e;
+}
+
+.app .production-scene .status-changes {
+  background: rgba(178, 79, 69, 0.13);
+  color: #91463d;
+}
+
+.app .production-scene .status-approved {
+  background: rgba(54, 127, 89, 0.14);
+  color: #34704f;
+}
+
+.app .segment-progress {
+  margin: -4px 0 10px;
+  color: var(--wb-text-muted);
+  font-size: 11px;
+}
+
+.app .sample-review-bar,
+.app .beat-review {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 10px;
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--wb-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.42);
+  color: var(--wb-text-soft);
+  font-size: 11px;
+}
+
+.app .sample-review-choices,
+.app .beat-navigation,
+.app .beat-phase {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app .sample-review-choices {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.app .beat-review > div:first-child {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-right: auto;
+}
+
+.app .beat-review > div:first-child b {
+  color: var(--wb-text);
+  font-size: 12px;
+}
+
+.app .beat-review > div:first-child small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .sample-review-choices button,
+.app .beat-navigation button {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.app .sample-review-choices button.active,
+.app .beat-navigation button.active {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  color: #0868ca;
+}
+
+.app .beat-phase {
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--wb-line);
+  border-radius: 9px;
+  background: rgba(105, 126, 148, 0.08);
+}
+
+.app .beat-phase button {
+  min-height: 26px;
+  padding: 4px 8px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .beat-phase button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.app .beat-phase button.active,
+.app .beat-phase button[aria-pressed="true"] {
+  border-color: rgba(10, 132, 255, 0.2);
+  background: rgba(255, 255, 255, 0.78);
+  color: #0868ca;
+  box-shadow: 0 1px 3px rgba(37, 70, 102, 0.08);
+}
+
+.app .beat-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.app .beat-list button {
+  min-height: 0;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.36);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.app .beat-list button.active,
+.app .beat-list button[aria-current="true"] {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  color: #0868ca;
+}
+
+.app .beat-list small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .beat-list button.active small,
+.app .beat-list button[aria-current="true"] small {
+  color: #3a81c7;
+}
+
+.app .scene-notes {
+  margin: 0 0 13px;
+  padding: 9px 10px;
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.36);
+  color: var(--wb-text-soft);
+}
+
+.app .scene-notes > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--wb-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.app .scene-notes[open] > summary {
+  margin-bottom: 9px;
+}
+
+.app .scene-notes .title,
+.app .scene-notes .intent {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--wb-text-soft);
+  line-height: 1.55;
+}
+
+.app .assembly-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 9px;
+  margin: 9px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--wb-line);
+  color: var(--wb-text-muted);
+  font-size: 11px;
+}
+
+.app .assembly-toolbar button {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.app .production-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 9px;
+  margin: 10px 0;
+  font-size: 11px;
+}
+
+.app .production-toolbar h2 {
+  margin: 0 auto 0 0;
+}
+
+.app .feedback-compose {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.app .feedback-compose input {
+  flex: 1 1 180px;
+}
+
+.app .feedback-compose button {
+  flex: 0 0 auto;
+}
+
+.app .feedback-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--wb-line);
+  color: var(--wb-text-soft);
+  font-size: 11px;
+}
+
+.app .feedback-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--wb-text-muted);
+}
+
+/* Inspector/object controls */
+.app .object-properties {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app .object-properties > h3 {
+  margin: 0 0 9px;
+  font-size: 12px;
+}
+
+.app .object-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.app .object-chips button {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+
+.app .object-chips button.selected {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  color: #0868ca;
+}
+
+.app .property-group {
+  margin: 12px 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--wb-line);
+}
+
+.app .property-group h4 {
+  margin: 0 0 9px;
+  color: var(--wb-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app .property-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--wb-text-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app .property-label label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app .number-control,
+.app .value-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 7px;
+}
+
+.app .number-control input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.app .number-control input[type="number"] {
+  width: 72px;
+  flex: 0 0 72px;
+  margin: 0;
+  padding: 7px 8px;
+}
+
+.app .value-control input[type="color"] {
+  width: 42px;
+  flex: 0 0 42px;
+  margin: 0;
+}
+
+.app .value-control input[type="number"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.app .value-control code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--wb-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.app .parameter-lock {
+  min-height: 23px;
+  margin-left: 4px;
+  padding: 3px 6px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: rgba(93, 113, 133, 0.08);
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .parameter-lock:hover:not(:disabled) {
+  border-color: var(--wb-line);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--wb-text);
+}
+
+.app .material-request {
+  margin: 0 0 10px;
+  padding: 10px;
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.33);
+  color: var(--wb-text-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.app .material-request p {
+  color: var(--wb-text-muted);
+  font-size: 11px;
+}
+
+.app .material-request small {
+  display: block;
+  margin: 7px 0;
+  color: var(--wb-warning);
+}
+
+.app .upload {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid var(--wb-line-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.48);
+  color: var(--wb-text-soft);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.app .upload:hover {
+  border-color: rgba(70, 111, 151, 0.36);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.app .upload input[type="file"] {
+  display: none;
+}
+
+/* Rough cut */
+.app .cut-segments {
+  display: flex;
+  gap: 5px;
+  margin-top: 9px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.app .cut-segments button {
+  min-width: 70px;
+  min-height: 30px;
+  padding: 5px 7px;
+  background: rgba(255, 255, 255, 0.34);
+  font-size: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.app .cut-segments span {
+  display: block;
+  margin-top: 3px;
+  color: var(--wb-text-muted);
+}
+
+.app .transcript-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.app .transcript-head h2 {
+  margin: 0 auto 0 0;
+}
+
+.app .transcript-head small {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .transcript {
+  margin-top: 9px;
+  padding: 12px;
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.4);
+  line-height: 2.2;
+}
+
+.app .word.chosen,
+.app .word.speaking {
+  background: var(--wb-blue-soft);
+  box-shadow: inset 0 -2px var(--wb-blue);
+}
+
+.app .word input {
+  width: 12px;
+}
+
+/* Component library */
+.app .library-list {
+  height: auto;
+  max-height: calc(100dvh - 260px);
+  min-height: 0;
+  gap: 6px;
+  overflow: auto;
+}
+
+.app .library-list button {
+  min-height: 62px;
+  padding: 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.app .library-list button:hover:not(:disabled),
+.app .library-list button.selected {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+}
+
+.app .library-list > button > img {
+  background: rgba(66, 86, 106, 0.08);
+}
+
+.app .library-list > button > b {
+  color: var(--wb-text);
+  font-size: 11px;
+}
+
+.app .library-list > button > small,
+.app .library-list > button > span {
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .library-pages {
+  margin-top: 8px;
+  color: var(--wb-text-muted);
+  font-size: 10px;
+}
+
+.app .library-preview {
+  background: #05070a;
+}
+
+.app .component-media-fields {
+  margin-bottom: 13px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--wb-line);
+}
+
+.app .creative-design {
+  margin: 14px 0 0;
+  padding: 12px 0 2px;
+  border: 0;
+  border-top: 1px solid var(--wb-line);
+  border-radius: 0;
+  background: transparent;
+}
+
+.app .creative-design summary {
+  margin: 0 0 10px;
+  color: var(--wb-text);
+  font-weight: 700;
+}
+
+.app .creative-design .design-object,
+.app .creative-design .design-summary-grid article {
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.app .creative-design .design-object {
+  gap: 10px;
+  margin: 9px 0;
+  padding: 11px;
+}
+
+.app .creative-design .design-summary-grid article {
+  padding: 11px;
+}
+
+/* Existing single-canvas sample workspace */
+.app .workspace .scene {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--wb-line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.34);
+  text-align: left;
+}
+
+.app .workspace .scene:hover:not(:disabled) {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+}
+
+.app .workspace .thumb {
+  height: 76px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: #0c1117;
+  color: #d6e8ff;
+}
+
+.app .workspace .object {
+  display: block;
+  width: 100%;
+  margin: 3px 0;
+  padding: 8px 9px;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.app .workspace .object.selected {
+  border-color: var(--wb-blue-line);
+  background: var(--wb-blue-soft);
+  color: #0868ca;
+}
+
+.app .workspace .objects {
+  margin: 20px 0 8px;
+}
+
+.app .workspace .note {
+  margin: 28px 2px 0;
+  color: var(--wb-text-muted);
+  line-height: 1.7;
+  font-size: 11px;
+}
+
+.app .workspace .timeline {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top-color: var(--wb-line);
+}
+
+.app .workspace .beats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.app .workspace .beats button {
+  min-height: 0;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.app .workspace .beats small,
+.app .workspace .beats span {
+  color: var(--wb-text-muted);
+}
+
+/* Old header rules in style.css hide every header button in the three main
+ * modes.  New shell controls remain visible while the old modebar is gone. */
+.app[data-mode="cut"] .app-header button,
+.app[data-mode="production"] .app-header button,
+.app[data-mode="library"] .app-header button {
+  display: inline-flex;
+}
+
+@media (max-width: 1249px) and (min-width: 761px) {
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+    grid-template-columns: 180px minmax(0, 1fr) 240px;
+  }
+
+  .app[data-left-collapsed="true"]
+      > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+
+  .app[data-right-collapsed="true"]
+      > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+
+  .app[data-left-collapsed="true"][data-right-collapsed="true"]
+      > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app .app-header,
+  .app > header:not(.app-header),
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(.left, .right),
+  .app .appearance-menu > .appearance-popover,
+  .app .appearance-menu > div,
+  .app .appearance-menu > form {
+    background: var(--wb-glass-panel-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.app[data-solid]:not([data-solid="false"]) .app-header,
+.app[data-solid]:not([data-solid="false"]) > header:not(.app-header),
+.app[data-solid]:not([data-solid="false"])
+  > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+  > :is(.left, .right),
+.app[data-solid]:not([data-solid="false"]) .appearance-menu > .appearance-popover,
+.app[data-solid]:not([data-solid="false"]) .appearance-menu > div,
+.app[data-solid]:not([data-solid="false"]) .appearance-menu > form {
+  background: var(--wb-glass-panel-solid);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header,
+  .app-header *,
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(.left, .right),
+  .app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+  .app input:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+  .app textarea:not(:where(.canvas *, .cut-canvas *, .library-preview *)),
+  .app select:not(:where(.canvas *, .cut-canvas *, .library-preview *)) {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .app button:not(:where(.canvas *, .cut-canvas *, .library-preview *)):active:not(:disabled) {
+    transform: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand tools"
+      "tabs tabs";
+    gap: 8px 10px;
+    height: auto;
+    min-height: 76px;
+    padding: 10px 12px;
+  }
+
+  .app-header .brand {
+    grid-area: brand;
+    min-width: 0;
+  }
+
+  .app-header .workspace-tabs {
+    grid-area: tabs;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .app-header .shell-tools {
+    grid-area: tools;
+  }
+
+  .app > header:not(.app-header) {
+    height: auto;
+    min-height: 76px;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+  }
+
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: calc(100dvh - 96px);
+    margin: 8px;
+    gap: 8px;
+  }
+
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(.left, .right) {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    padding: 13px;
+  }
+
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > :is(main, .production-center) {
+    grid-column: 1;
+    overflow: visible;
+    padding: 5px 0 18px;
+  }
+
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > .left,
+  .app > :is(.production-workspace, .cut-workspace, .library-workspace, .workspace)
+    > .right {
+    grid-column: 1;
+  }
+
+  .app .library-list {
+    max-height: 42vh;
+  }
+
+  .app .workspace .beats {
+    grid-template-columns: 1fr;
+  }
+
+  .app .feedback-compose {
+    flex-wrap: wrap;
+  }
+
+  .app .feedback-compose input,
+  .app .feedback-compose button {
+    flex: 1 1 100%;
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "id": "hero-keyword",
+  "label": "人物与核心观点",
+  "entry": "HeroKeyword.tsx",
+  "exportName": "HeroKeyword",
+  "controls": [
+    {
+      "key": "accent",
+      "label": "强调色",
+      "type": "color",
+      "default": "#dff4a3"
+    },
+    {
+      "key": "caption",
+      "label": "核心观点",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "fontSize",
+      "label": "观点字号",
+      "type": "number",
+      "default": 84,
+      "min": 36,
+      "max": 110
+    },
+    {
+      "key": "personScale",
+      "label": "人物大小",
+      "type": "number",
+      "default": 1,
+      "min": 0.25,
+      "max": 2
+    },
+    {
+      "key": "personX",
+      "label": "人物水平位置",
+      "type": "number",
+      "default": 0,
+      "min": -960,
+      "max": 960
+    },
+    {
+      "key": "personY",
+      "label": "人物垂直位置",
+      "type": "number",
+      "default": 0,
+      "min": -540,
+      "max": 540
+    }
+  ],
+  "objects": [
+    {
+      "id": "person",
+      "label": "人物画面",
+      "parameters": [
+        "personScale",
+        "personX",
+        "personY"
+      ]
+    },
+    {
+      "id": "headline",
+      "label": "标题文字",
+      "parameters": [
+        "caption",
+        "fontSize",
+        "accent"
+      ]
+    }
+  ]
+}

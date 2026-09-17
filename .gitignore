@@ -1,0 +1,7 @@
+node_modules/
+projects/
+runtime/
+.cache/
+*.log
+.DS_Store
+workbench-local/plugin-package/codex-cut/local-config.json

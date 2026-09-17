@@ -1,0 +1,5 @@
+[
+ {"id":"intro","title":"剪辑的起点。","startWordId":"word-0","endWordId":"word-23","intent":"先保留真实人物作为主视觉。说到导入视频时，用原口播画面说明输入素材；不展示未经验证的软件操作。","beats":[{"wordId":"word-15","label":"导入口播，建立视频与文字的关系"}]},
+ {"id":"transcript","title":"说过的话，变成可编辑的字。","startWordId":"word-24","endWordId":"word-32","intent":"人物移到左侧，右侧逐步出现口播原文。让同一组文字成为下一段时间线里的对象，不额外加无意义背景卡片。当前为流程示意。","beats":[{"wordId":"word-26","label":"说到自动时，开始从视频引出文字"},{"wordId":"word-30","label":"说到逐字稿时，完成文字显示"}]},
+ {"id":"alignment","title":"每个词，都有自己的时间。","startWordId":"word-33","endWordId":"word-43","intent":"同一组文字随口播依次落到真实时间轴位置，波形来自当前剪后音频。人物保留为辅助视觉，突出文字与时间的对应。","beats":[{"wordId":"word-35","label":"说到文字时，准备移动同一组词"},{"wordId":"word-38","label":"说到时间线时，出现时间轨道"},{"wordId":"word-43","label":"说到对齐结束，完成落位"}]}
+]
