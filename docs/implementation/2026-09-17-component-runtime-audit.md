@@ -21,7 +21,7 @@
 
 可再生成的图版、逐项 JSON、PNG 和测试视频保存在：
 
-`/Users/zhangxin/Desktop/codex工作台/99-临时区/Codex-Cut组件检查-20260917/`
+`<workspace-root>/99-临时区/Codex-Cut组件检查-20260917/`
 
 ## 首轮发现时的待处理项（后续修复见文末）
 

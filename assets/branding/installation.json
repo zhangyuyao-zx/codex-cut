@@ -1,7 +1,7 @@
 {
   "pluginVersion": "0.1.0+codex.20260917154642",
-  "sourceRoot": "/Users/zhangxin/plugins/codex-cut",
-  "installedRoot": "/Users/zhangxin/.codex/plugins/cache/personal/codex-cut/0.1.0+codex.20260917154642",
+  "sourceRoot": "<user-home>/plugins/codex-cut",
+  "installedRoot": "<codex-home>/plugins/cache/personal/codex-cut/0.1.0+codex.20260917154642",
   "sha256": "1b1d8cade55f99fd02ce299d90d7631df0105cf77f2dcd33f548a8b9c2228afd",
   "iconFields": [
     "composerIcon",

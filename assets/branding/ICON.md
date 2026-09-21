@@ -10,4 +10,4 @@
 
 > Keep the video frame, play triangle, diagonal cut, composition and margins unchanged. Make the symbol solid flat near-black with smooth edges; replace transparency with a uniform opaque warm-white background covering the entire square. No shine, shading, texture, border, extra card or text. One square icon used directly in the Codex plugin library.
 
-插件源目录：`/Users/zhangxin/plugins/codex-cut`。安装更新遵循 plugin-creator 的 cachebuster 与 Codex CLI 重新安装流程。`plugin-manifest-before-icon.json` 为修改图标前的元数据备份，不含本机凭据。
+插件源目录默认为 `~/plugins/codex-cut`。安装更新遵循 plugin-creator 的 cachebuster 与 Codex CLI 重新安装流程。`plugin-manifest-before-icon.json` 为修改图标前的元数据备份，不含本机凭据。

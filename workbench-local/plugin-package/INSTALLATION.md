@@ -2,9 +2,9 @@
 
 - 插件：`codex-cut@personal`，版本 `0.1.0`。
 - 源码：本目录 `codex-cut/`。
-- 个人插件源：`/Users/zhangxin/plugins/codex-cut`。
-- 个人市场：`/Users/zhangxin/.agents/plugins/marketplace.json`，由官方脚手架新建，没有覆盖既有市场。
-- 实际安装缓存：`/Users/zhangxin/.codex/plugins/cache/personal/codex-cut/0.1.0`。
+- 个人插件源：`~/plugins/codex-cut`。
+- 个人市场：`~/.agents/plugins/marketplace.json`，由官方脚手架新建，没有覆盖既有市场。
+- 实际安装缓存：`$CODEX_HOME/plugins/cache/personal/codex-cut/0.1.0`。
 - `codex plugin list --json` 回读：installed=true、enabled=true，source=local。
 - 插件 manifest 与 Skill 校验通过。5 项桥接测试从源码和安装缓存分别通过：7 个工具发现、MCP initialize/stdio 实际状态读取、真实项目读取且无修改、过期修订拒绝、错误服务身份和未保存草稿保护。
 - `open_workbench` 实际复用 PID 5175，未重启或覆盖视频工程；服务仍为 http://127.0.0.1:4340/。
@@ -15,7 +15,7 @@
 
 ## 更新
 
-编辑本目录源码，检查后同步到个人插件源。按 plugin-creator 的更新流程运行官方 `update_plugin_cachebuster.py /Users/zhangxin/plugins/codex-cut`，然后 `codex plugin add codex-cut@personal`。不要手改 marketplace 或 config.toml，不靠重启旧任务推断工具已更新。
+编辑本目录源码，检查后同步到个人插件源。按 plugin-creator 的更新流程运行官方 `update_plugin_cachebuster.py ~/plugins/codex-cut`，然后 `codex plugin add codex-cut@personal`。不要手改 marketplace 或 config.toml，不靠重启旧任务推断工具已更新。
 
 本地插件服务器使用 `cwd: "."` 与相对脚本路径，参照 OpenAI 官方插件示例：
 https://github.com/openai/plugins/blob/main/plugins/openai-developers/.mcp.json

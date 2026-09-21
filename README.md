@@ -12,7 +12,8 @@
   <a href="#六步制作方法">制作流程</a> ·
   <a href="#快速开始">快速开始</a> ·
   <a href="#codex-插件">Codex 插件</a> ·
-  <a href="#工程边界">工程边界</a>
+  <a href="#工程边界">工程边界</a> ·
+  <a href="#许可">许可</a>
 </p>
 
 ---
@@ -187,9 +188,21 @@ npm test
 
 组件来源及授权说明见 [`docs/COMPONENT_LICENSES.md`](docs/COMPONENT_LICENSES.md)。独立版提取与恢复边界见 [`MIGRATION.md`](MIGRATION.md)。
 
+## 许可
+
+Codex Cut 的项目原创代码以 [PolyForm Noncommercial License 1.0.0](LICENSE) 提供：
+
+- 允许查看、下载、修改和分发源码。
+- 允许个人学习、研究、实验、私人娱乐和无预期商业应用的兴趣项目。
+- 商业使用、面向客户的付费服务或带有预期商业应用的使用，需要另行获得授权。
+
+因为许可条款限制商业使用，本项目应准确称为 **源码可用（source-available）**，不是 OSI 定义的开放源代码。商业授权请联系仓库所有者。
+
+依赖项与部分组件适配代码仍遵循各自的上游许可，详见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 和 [`docs/COMPONENT_LICENSES.md`](docs/COMPONENT_LICENSES.md)。
+
 ## 状态
 
 - **当前版本**：`0.1.0`
 - **源码状态**：独立工作台，不依赖已归档的旧 App 工程
 - **产品状态**：可继续实际项目制作与局部维护
-- **授权状态**：尚未声明开源许可证，默认保留全部权利
+- **授权状态**：PolyForm Noncommercial 1.0.0，允许个人与非商业使用
