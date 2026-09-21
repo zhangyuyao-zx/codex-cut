@@ -1,47 +1,173 @@
-# Codex Cut 独立工作台
+<p align="center">
+  <img src="assets/readme/hero.svg" alt="Codex Cut — from rough cut to motion design" width="100%" />
+</p>
 
-本地视频制作工具，由 Codex 负责内容理解与动画实现，工作台负责预览、手动编辑、逐段确认和合成。开发基线 v0.1.0 已定版；本目录是从旧 App 项目提取的独立运行版本，不再引用旧项目源码、依赖或渲染环境。
+<p align="center">
+  <strong>让一个 Agent 从口播粗剪走到动画包装，再由人把控最终审美。</strong>
+</p>
 
-## 使用
+<p align="center">
+  <a href="#核心能力">核心能力</a> ·
+  <a href="#六步制作方法">制作流程</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#codex-插件">Codex 插件</a> ·
+  <a href="#工程边界">工程边界</a>
+</p>
 
-双击本目录的 **打开工作台.command**。地址仍为 http://127.0.0.1:4340/ 。先保存页面修改再停止服务。
+---
 
-命令行也可在本目录运行：
+## Codex Cut 是什么
 
-```sh
-npm start
-npm run status
-npm run stop
+Codex Cut 是一个 **Codex 驱动、本地运行的视频剪辑与动画包装工作台**。Codex 负责理解内容、提取重点、编排视觉层级和实现动画；工作台负责稳定的素材、时间、版本、预览、手动调节、逐段确认与最终合成。
+
+它面向口播、访谈、教程和知识类视频。创作过程围绕真实文稿与口播节奏展开，让动画在说到对应内容时依次出现。
+
+> 当前基线：`v0.1.0` · 本地优先 · Apple Silicon macOS 已验证 · 项目和媒体默认不进入 Git
+
+## 核心能力
+
+| | 能力 | 实际行为 |
+|---|---|---|
+| **01** | 文稿驱动粗剪 | 导入素材、转写、按词编辑口播，剪辑结果保持画面与声音同步 |
+| **02** | 六步视觉设计 | 从视觉段落、信息对象和关系出发，再决定布局、包装与动画实现 |
+| **03** | 逐词动画同步 | 动画绑定具体词句；剪辑变化后重新计算成片时间，失效引用明确提示 |
+| **04** | 逐段制作与确认 | 每个视觉段落单独预览、渲染带原声样片、反馈和确认，再合成全片 |
+| **05** | 可编辑场景 | 文案、字体、颜色、位置、素材和动画参数可调；结构性改动由 Codex 修改代码 |
+| **06** | 194 个动画核心 | 组件库支持搜索、真实预览、参数控制、素材槽位和收藏，缺少的场景可直接编写 |
+| **07** | 本地版本保护 | revision、哈希、原子保存、撤销、过期任务保护和已确认版本共同守住用户修改 |
+| **08** | 素材提需 | 缺失素材挂在对应段落，保留理想设计，同时允许继续处理其他段落 |
+
+## 六步制作方法
+
+| 1 · 粗剪 | 2 · 视觉段落 | 3 · 视觉对象 |
+|---|---|---|
+| 删除废话、口误与无效停顿，确认内容地基 | 依据论述结构划分画面任务和节奏 | 为每段确定唯一主信息与辅助证据 |
+
+| 4 · 信息布局 | 5 · 包装设计 | 6 · 动画实现 |
+|---|---|---|
+| 用构图表达并列、对比、流程、因果等关系 | 决定哪些对象需要被强调以及为什么 | 选择组件、改造组件或编写新场景，并绑定口播词句 |
+
+```mermaid
+flowchart LR
+    A[导入与转写] --> B[粗剪]
+    B --> C[视觉段落]
+    C --> D[内容与关系设计]
+    D --> E[单段动画实现]
+    E --> F{用户确认}
+    F -- 修改 --> D
+    F -- 通过 --> G[下一段]
+    G --> H[全片合成与导出]
 ```
 
-六步制作方法保留：粗剪 → 划分视觉段落 → 决定视觉对象 → 决定视觉布局 → 决定包装对象 → 调用组件或编写动画完成包装。逐段带原声渲染、用户认可后合成；没有内置 Agent，没有付费服务依赖。
+## 工作方式
 
-## 目录
+```mermaid
+flowchart TB
+    U[用户] <--> C[Codex]
+    C <--> P[Codex Cut Plugin]
+    P <--> W[Local Workbench · 127.0.0.1]
+    W --> T[Timeline & TimeMap]
+    W --> R[194 Component Cores]
+    W --> S[Scene Code & Editable Params]
+    T --> V[Segment Preview]
+    R --> V
+    S --> V
+    V --> A[Review · Approve · Assemble]
+```
 
-- `workbench-local/`：界面、本地服务、CLI、原创场景、插件包与操作说明。
-- `modules/components/`、`modules/component-lab/`：194 项最终盘点组件的实现。
-- `modules/contracts/`、`modules/shared/`：运行所需的数据协议；保留的旧命名仅为兼容类型，不运行旧 Agent。
-- `modules/server/transcription.ts`：粗剪转写实现。
-- `runtime/remotion/`：本目录自己的浏览器与合成器，不链接旧 App。
-- `public/`：原创动画公共素材位置；未带入已舍弃的研究组件目录。
-- `projects/local-workbench/`：当前工程、媒体、参数、逐字稿、审阅和交付物；Git 不保存媒体和工程。
-- `MIGRATION.json`：原定版提交与源码提取映射。
-- `docs/COMPONENT_LICENSES.md`：原项目授权来源记录；历史来源路径是审计记录，不是运行依赖。
+- **Codex** 做语义理解、创意判断、视觉编排和复杂动画开发。
+- **工作台** 掌管稳定 ID、媒体真实性、时间映射、几何参数、revision、撤销和持久化。
+- **用户** 查看真实画面和带原声样片，调节参数并决定是否确认。
 
-## 当前工程与素材
+## 快速开始
 
-当前视频工程在 `projects/local-workbench/productions/dji-20260820-20260917/`，其 README 指向当前成片、认可样片和历史版本。迁移保持原有审核与确认状态，不自动确认新视频。
+### 环境
 
-原始素材仍保留于 `/Users/zhangxin/Desktop/dji_mimo_20260820_160000_20260820160001_1787213054796_video.MP4`；工程中的导入副本已复制，不要求旧项目目录存在。
+- Node.js `>= 22.13.0`
+- FFmpeg 与 ffprobe
+- Whisper（需要本地转写时）
+- 当前完整流程在 Apple Silicon macOS 上完成验证
 
-## 依赖与恢复
+### 启动
 
-需要 Node.js >=22.13.0；在本目录 `npm ci` 可按 `package-lock.json` 安装独立依赖。视频工具 FFmpeg/ffprobe、Whisper 和模型继续使用本机安装，或通过 `WORKBENCH_*` 指定；Whisper 模型默认 `~/.cache/whisper/small.pt`。这不等于在全新机器上零依赖运行。
+```bash
+git clone https://github.com/zhangyuyao-zx/codex-cut.git
+cd codex-cut
+npm ci
+npm start
+```
 
-源码、运行时和工程需一起备份：Git 保存源码与锁文件；`runtime/` 与 `projects/` 不进 Git。页面“备份与恢复”捕获代码与工程，但不包含浏览器/合成器，恢复时还须保留或配置 `runtime/remotion`。
+打开 [http://127.0.0.1:4340](http://127.0.0.1:4340)。在 macOS 上也可以双击 **打开工作台.command**。
 
-迁移的必要检查记录见 [独立迁移记录](MIGRATION.md)。后续仅按使用反馈局部维护，不恢复批量测试和旧 App 开发。
+```bash
+npm run status   # 查看服务状态
+npm run stop     # 保存后停止服务
+npm run dev      # 开发模式
+```
 
-## 插件图标
+正式渲染还需要匹配当前平台的浏览器与 Remotion 合成器。可使用以下环境变量指向本机运行时：
 
-插件卡片和输入框使用黑白视频画框与斜切口图标，深浅界面共用浅色底资源。原始资产、生成说明和本机安装记录见 [图标说明](assets/branding/ICON.md)；分发插件包也包含该图标。
+| 变量 | 用途 |
+|---|---|
+| `WORKBENCH_PROJECT_DIR` | 独立工程目录 |
+| `WORKBENCH_PORT` | 服务端口，默认 `4340` |
+| `WORKBENCH_FFMPEG` / `WORKBENCH_FFPROBE` | 视频工具路径 |
+| `WORKBENCH_WHISPER` / `WORKBENCH_WHISPER_MODEL` | 转写程序和模型路径 |
+| `WORKBENCH_CHROME` | Remotion 使用的浏览器 |
+| `WORKBENCH_COMPOSITOR` | Remotion 合成器目录 |
+
+## Codex 插件
+
+仓库内置插件包位于 [`workbench-local/plugin-package/codex-cut`](workbench-local/plugin-package/codex-cut)。插件提供一个视频制作 Skill 和 7 个本地 MCP 工具，用来打开工作台、读取工程、提交修改、管理单段渲染与确认。
+
+在插件配置中指定本仓库的实际路径后，可以直接对 Codex 说：
+
+```text
+打开 Codex Cut，读取当前项目和待确认段落。
+用六步方法制作这条视频，逐段给我确认。
+只修改我指出的段落，保留已经确认的版本。
+```
+
+插件只连接本机 `127.0.0.1`，不会携带视频、API 密钥或内置模型。完整说明见[插件 README](workbench-local/plugin-package/codex-cut/README.md)。
+
+## 项目结构
+
+```text
+codex-cut/
+├── workbench-local/       # UI、本地服务、CLI、场景与插件包
+├── modules/
+│   ├── components/        # 194 个组件核心与运行时
+│   ├── component-lab/     # 组件适配与视觉核心
+│   ├── contracts/         # 工程、创意计划和场景协议
+│   ├── server/            # 转写能力
+│   └── shared/            # TimeMap、素材与共享规则
+├── public/                # 公共视觉素材与保存动画
+├── projects/              # 本地工程和媒体，不进入 Git
+├── runtime/               # 本机渲染运行时，不进入 Git
+├── docs/                  # 组件来源与实现记录
+└── assets/branding/       # 插件品牌资产
+```
+
+## 工程边界
+
+- 预览与正式渲染共享场景代码、参数和时间计划；最终交付以带原声实际视频为准。
+- 结构检查、自动化测试、实际渲染、视听 QA 和用户审美确认是不同的验收层级。
+- `projects/`、`runtime/`、`node_modules/` 与本机插件配置已被 `.gitignore` 排除。
+- Git 保存源码与锁文件；工程媒体和渲染运行时需要单独备份。
+- 当前发布基线经过本机流程验证，跨平台渲染环境仍需按目标机器配置和复验。
+
+## 开发与验证
+
+```bash
+npm run typecheck
+npm test
+```
+
+组件来源及授权说明见 [`docs/COMPONENT_LICENSES.md`](docs/COMPONENT_LICENSES.md)。独立版提取与恢复边界见 [`MIGRATION.md`](MIGRATION.md)。
+
+## 状态
+
+- **当前版本**：`0.1.0`
+- **源码状态**：独立工作台，不依赖已归档的旧 App 工程
+- **产品状态**：可继续实际项目制作与局部维护
+- **授权状态**：尚未声明开源许可证，默认保留全部权利
