@@ -11,6 +11,7 @@
     "stop": "node workbench-local/launcher.mjs stop",
     "status": "node workbench-local/launcher.mjs status",
     "dev": "tsx workbench-local/server.ts",
+    "render:readme-demo": "tsx scripts/render-readme-demo.ts",
     "typecheck": "tsc -p workbench-local/tsconfig.json",
     "test": "vitest run --config workbench-local/vitest.config.ts"
   },

@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="#真实运行演示">运行演示</a> ·
   <a href="#核心能力">核心能力</a> ·
   <a href="#六步制作方法">制作流程</a> ·
   <a href="#快速开始">快速开始</a> ·
@@ -15,6 +16,27 @@
 </p>
 
 ---
+
+## 真实运行演示
+
+<p align="center">
+  <img src="assets/readme/runtime-demo.gif" alt="Codex Cut 组件运行时演示：内容理解、视觉关系、逐段确认和组件核心" width="100%" />
+</p>
+
+<p align="center">
+  <strong>这是仓库内实际组件运行时的渲染结果，不是概念图。</strong><br />
+  <sub>内容理解 → 关系编排 → 单段制作与确认 → 可编辑动画核心</sub>
+</p>
+
+<p align="center">
+  <a href="assets/readme/runtime-demo.mp4">播放 1080p MP4</a> ·
+  <a href="workbench-local/readme-demo-entry.tsx">查看演示源码</a> ·
+  <code>npm run render:readme-demo</code>
+</p>
+
+| 输入 | Codex 负责 | 工作台负责 | 用户得到 |
+|---|---|---|---|
+| 原视频、逐字稿、素材与修改意见 | 粗剪判断、重点提取、画面设计、动画实现 | 时间映射、素材绑定、预览、参数、版本与渲染 | 可播放、可修改、可逐段确认的成片工程 |
 
 ## Codex Cut 是什么
 
