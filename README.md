@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="#真实运行演示">运行演示</a> ·
+  <a href="#操作界面">操作界面</a> ·
   <a href="#核心能力">核心能力</a> ·
   <a href="#六步制作方法">制作流程</a> ·
   <a href="#快速开始">快速开始</a> ·
@@ -38,6 +39,32 @@
 | 输入 | Codex 负责 | 工作台负责 | 用户得到 |
 |---|---|---|---|
 | 原视频、逐字稿、素材与修改意见 | 粗剪判断、重点提取、画面设计、动画实现 | 时间映射、素材绑定、预览、参数、版本与渲染 | 可播放、可修改、可逐段确认的成片工程 |
+
+## 操作界面
+
+### 逐字稿粗剪
+
+<p align="center">
+  <img src="assets/readme/screens/workbench-cut.png" alt="Codex Cut 逐字稿粗剪工作区：素材箱、完整视频预览、分段时间线、逐字稿与剪辑属性" width="100%" />
+</p>
+
+按口播文字选择、删除和校正内容，同时保留完整视频预览、剪辑段落与可撤销操作。
+
+### 逐段制作与审阅
+
+<p align="center">
+  <img src="assets/readme/screens/workbench-review.png" alt="Codex Cut 包装与审阅工作区：视觉段落、动画画面、段落反馈与对象检查器" width="100%" />
+</p>
+
+每个视觉段落单独设计、播放和生成带原声样片。左侧管理段落，中央检查真实动画，右侧调整对象与素材需求。
+
+### 组件库与属性调节
+
+<p align="center">
+  <img src="assets/readme/screens/workbench-components.png" alt="Codex Cut 组件工作区：194 个组件核心、实际预览、素材绑定与组件属性" width="100%" />
+</p>
+
+组件先看实际效果，再绑定素材、调节参数并添加到指定段落；复杂画面仍可由 Codex 直接编写场景代码。
 
 ## Codex Cut 是什么
 
