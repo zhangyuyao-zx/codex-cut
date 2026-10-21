@@ -13,6 +13,7 @@
 - `read_project {section:"storyboard"}` 返回整片真实关键帧、当前/历史样片标记、画面观察及设计描述相似提示。读取不会生成画面；没有关键帧时先执行下表的 production/storyboard。图片在本机返回的 frame.url，先实际查看再记录观察。
 - `read_project {section:"visual-library",query?}` 读取新资产、风格包、参考、favorites、活动任务及当前可用的 replacementMedia。候选和可用资源分开看状态。`references` 只返回参考列表和进展；query 按用途、名称等文字筛选。
 - `read_project {section:"visual-asset",member:{id,version}}` 读资产与真实模块详情；`style-pack` 用相同 member 读风格包。也可改用独立 `id`、`version`，两种写法不能混用。
+- `read_project {section:"animations"}` 读取「我的动画」目录，包含保存版本、模块与按顺序排列的 cue；不是旧组件目录。
 - 旧 `library` 仅返回新库 ready 资产与包，不返回旧 194 项。`component` 需 componentId，仅为历史工程兼容读取；不能用历史组件恢复新选型入口。
 - `update_project {operation,expectedRevision,data}` 只接受下表公开操作。修订号有三个独立域：`cut/*` 对应 cut.revision，`production/*` 对应 plan.revision，`visual-library/*` 对应库 revision。不得用数字恰好相同推断来源。
 - 所有生产/粗剪写操作会先检查 selection.hasUnsavedChanges；制作身份强制为 Codex，不能冒充用户解锁。库操作也读取当前 selection，并在结果的 projectSelection 提醒现有草稿，但不会用 production revision 拦截独立的库工作，也不替用户保存、丢弃或覆盖本地草稿。reference-prepare 与 cancel 即使服务端不使用 revision，桥接仍核对库 revision。
@@ -37,6 +38,9 @@
 | production/follow-style | `{sceneId}`，将该段未锁定的基础样式跟随当前包；只处理有 styleBindings 的字段。Codex 身份保留所有用户 overrides；用户在工作台点按钮时可清除未锁定样式覆盖，内容与位置等非样式字段保留 |
 | production/storyboard | `{}`，从已有成功样片提取每段最多三张真实关键帧，不重新制作视频；耗时期间不要重复提交。返回更新总览 |
 | production/visual-review | `{sceneId,key,renderId,frameIds:[真实帧id],style:"consistent"或"revise"或"unreviewed",composition:"distinct"或"intentional-repeat"或"revise"或"unreviewed",note,comparedTo?:[{sceneId,key,renderId,frameIds}]}`。只引用当前样片及实际查看的图片；未做相邻对照不填写 comparedTo。不是段落确认 |
+| production/animation-templates/save | `{name,sceneId,expectedSourceHash}`，保存当前段落可复用动画；sourceHash 取该段当前模块信息，不能用过期源码快照 |
+| production/animation-templates/preview | `{id:保存动画ID,sceneId,bindings:[目标wordId,...]}`，按目录 cues 的顺序绑定当前目标段落词；先检查返回的实际预览与媒体要求 |
+| production/animation-templates/apply | 同 preview，写入目标段落。先预览并检查真实目标内容，保留当前用户参数与锁；保存文件不等于已应用 |
 | cut/import | `{path:"用户指定的本地绝对路径"}`；保护当前项目，再导入，不能当作新建工程 |
 | cut/ranges | `{ranges:[{startMs,endMs}]}`，是保留的原素材区间，不是要删除的区间 |
 | cut/transcript | `{words:[{id,text,startMs,endMs}]}`，源词 ID 要稳定 |

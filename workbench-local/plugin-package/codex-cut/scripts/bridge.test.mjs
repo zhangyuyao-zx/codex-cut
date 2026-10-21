@@ -138,6 +138,26 @@ test('film overview and observations use exact project revision without granting
  assert.equal(calls.length,0);
 });
 
+test('saved animation reads and adaptation preserve revision and Codex identity guards',async t=>{
+ const {calls}=mockService(t);
+ assert.equal((await invoke('read_project',{section:'animations'})).path,'/api/production/animation-templates');
+ for(const operation of ['production/animation-templates/save','production/animation-templates/preview','production/animation-templates/apply']){
+  calls.length=0;
+  await assert.rejects(invoke('update_project',{operation,expectedRevision:40,data:{id:'saved',sceneId:'existing-scene',bindings:[]}}),/制作版本/);
+  assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+  await invoke('update_project',{operation,expectedRevision:7,data:{id:'saved',sceneId:'existing-scene',bindings:['word'],actor:'user'}});
+  const write=calls.find(call=>call.method==='POST');assert.equal(write.path,'/api/'+operation);assert.equal(write.body.actor,'codex');assert.equal(write.body.expectedRevision,7);
+ }
+});
+
+test('saved animation writes reject unsaved project drafts before fetching a token',async t=>{
+ const {calls}=mockService(t,{dirty:true});
+ for(const operation of ['production/animation-templates/save','production/animation-templates/preview','production/animation-templates/apply']){
+  await assert.rejects(invoke('update_project',{operation,expectedRevision:7,data:{id:'saved',sceneId:'existing-scene',bindings:[]}}),/未保存/);
+ }
+ assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+});
+
 test('cut writes still use cut revision independently from production and library',async t=>{
  const {calls}=mockService(t);
  for(const expectedRevision of [7,40])await assert.rejects(invoke('update_project',{operation:'cut/ranges',expectedRevision,data:{ranges:[]}}),/粗剪版本/);

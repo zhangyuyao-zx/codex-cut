@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SceneModulePreview } from "./SceneModulePreview";
 
 export function SaveAnimation({
@@ -25,7 +25,7 @@ export function SaveAnimation({
     <details className="save-animation">
       <summary>保存为我的动画</summary>
       <p className="hint">
-        保留这版动画、组件、已补充的素材和可编辑参数。用于新段落时重新选择对应口播。
+        保留这版动画、组件、已补充的素材和可编辑参数。用于新段落时由 Codex 适配内容与时机。
       </p>
       <label>
         动画名称
@@ -48,7 +48,7 @@ export function SaveAnimation({
               expectedRevision: revision,
               expectedSourceHash: sourceHash,
             });
-            setMessage("已保存，可在组件库的「我的动画」再次使用。");
+            setMessage("已保存，可在资源页的「我的动画」再次使用。");
           } catch (e) {
             setMessage((e as Error).message);
           } finally {
@@ -68,10 +68,16 @@ export function AnimationTemplates({
   api,
   onBack,
   onOpenScene,
+  onDirtyChange,
+  onBusyChange,
+  active = true,
 }: {
   api: (p: string, b?: any) => Promise<any>;
   onBack: () => void;
   onOpenScene?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
+  active?: boolean;
 }) {
   const [items, setItems] = useState<any[]>([]),
     [data, setData] = useState<any>(),
@@ -87,6 +93,20 @@ export function AnimationTemplates({
   const [packageNotice,setPackageNotice]=useState("");
   const [packageSupport,setPackageSupport]=useState(false);
   const onTime = useCallback(() => {}, []);
+  const dirty = bindings.some(Boolean) && !applied;
+  const onDirtyRef = useRef(onDirtyChange), onBusyRef = useRef(onBusyChange);
+  onDirtyRef.current = onDirtyChange;
+  onBusyRef.current = onBusyChange;
+  useEffect(() => { onDirtyRef.current?.(dirty); }, [dirty]);
+  useEffect(() => { onBusyRef.current?.(busy); }, [busy]);
+  useEffect(() => () => { onDirtyRef.current?.(false); onBusyRef.current?.(false); }, []);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const canDiscardBindings = () => !dirty || window.confirm("当前口播绑定尚未应用。放弃这些绑定并切换？");
   useEffect(() => {
     let active = true;
     Promise.all([api("production/animation-templates"), api("production")])
@@ -135,10 +155,10 @@ export function AnimationTemplates({
         <span className="eyebrow">我的创作</span>
         <h2>我的动画</h2>
         <button onClick={onBack} disabled={busy}>
-          返回组件库
+          返回资源页
         </button>
         <p className="hint">
-          保存的动画保留独立代码版本。新口播需要重新绑定出现点。
+          保存满意的动画，在新内容中继续使用。Codex 负责适配内容与时机；手动绑定在高级控制中。
         </p>
         {packageSupport && <label className="upload animation-package-import">
           导入动画包
@@ -152,7 +172,7 @@ export function AnimationTemplates({
               try {
                 const result=await api("production/animation-templates/import",file);
                 setItems(result.items);
-                setPackageNotice(result.alreadyPresent?"这份动画已在库中，无需重复导入。":"动画已导入。选择目标段落，重新绑定口播后预览。");
+                setPackageNotice(result.alreadyPresent?"这份动画已在库中，无需重复导入。":"动画已导入，可交给 Codex 适配到目标段落。");
               } catch(error){setError((error as Error).message);}
               finally {setBusy(false);}
             }}/>
@@ -174,6 +194,7 @@ export function AnimationTemplates({
             key={item.id}
             disabled={busy}
             onClick={() => {
+              if (selected?.id === item.id || !canDiscardBindings()) return;
               setSelected(item);
               setBindings(item.cues.map(() => ""));
               reset();
@@ -181,9 +202,6 @@ export function AnimationTemplates({
           >
             <strong>{item.name}</strong>
             <small>
-              {item.cues.length} 个出现点 ·{" "}
-              {item.contents?.components?.length ? `${item.contents.components.length} 个组件 · ` : ''}
-              {item.contents?.materials?.length ? `${item.contents.materials.length} 份补充素材 · ` : ''}
               {new Date(item.createdAt).toLocaleDateString()}
             </small>
           </button>
@@ -193,7 +211,7 @@ export function AnimationTemplates({
         <h2>{selected?.name || "把好动画用到下一段"}</h2>
         {packageSupport && selected && !busy && <a className="animation-package-export" href={"/api/production/animation-templates/export/"+encodeURIComponent(selected.id)} download="animation.cutanimation">导出动画包</a>}
         <div className="library-preview">
-          {preview ? (
+          {preview && active ? (
             <SceneModulePreview
               key={JSON.stringify(bindings) + sceneId + selected.id}
               module={preview.module}
@@ -208,7 +226,7 @@ export function AnimationTemplates({
           ) : (
             <div className="empty">
               {selected
-                ? "选择新口播的出现点，然后预览实际效果。"
+                ? "请 Codex 将这份动画适配到目标段落，或展开高级控制手动预览。"
                 : "先从左侧选择一段已保存的动画。"}
             </div>
           )}
@@ -220,6 +238,15 @@ export function AnimationTemplates({
         )}
         {selected && (
           <>
+            <p className="hint">选好目标段落后，把动画交给 Codex 适配。手动绑定是可选的高级控制。</p>
+            <div className="vl-command">请将我的动画「{selected.name}」适配到「{data?.plan.scenes.find((scene: any) => scene.id === sceneId)?.title || "目标段落"}」，根据真实内容安排出现时机。</div>
+            <button disabled={busy} onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(`请将我的动画 ${selected.id} 适配到段落 ${sceneId}，根据真实内容设计画面并安排出现时机。`);
+                setPackageNotice("适配指令已复制，可交给 Codex。");
+              } catch (error) { setError((error as Error).message); }
+            }}>复制给 Codex</button>
+            <details className="vl-advanced"><summary>手动预览与应用（高级）</summary>
             <p className="hint">
               应用会替换目标段落的动画并加入保存的组件，保留兼容的用户参数、锁定和已有组件。保存的补充素材随动画带入；支持替换的素材会出现在包装页右侧，可分别更换。新内容是否适合沿用这些素材需要你检查；操作可撤销。
             </p>
@@ -271,6 +298,7 @@ export function AnimationTemplates({
                 应用到当前段落
               </button>
             </div>
+            </details>
             {applied && (
               <div className="notice" role="status">
                 已应用。可以返回包装页修改文字、样式、替换补充素材并生成样片。
@@ -300,7 +328,7 @@ export function AnimationTemplates({
       </main>
       <aside className="right">
         <span className="eyebrow">用于新内容</span>
-        <h2>口播对应</h2>
+        <h2>用于哪个段落</h2>
         <label>
           目标段落
           <select
@@ -308,6 +336,7 @@ export function AnimationTemplates({
             value={sceneId}
             disabled={busy}
             onChange={(e) => {
+              if (!canDiscardBindings()) return;
               setSceneId(e.target.value);
               setBindings(selected?.cues.map(() => "") || []);
               reset();
@@ -320,6 +349,8 @@ export function AnimationTemplates({
             ))}
           </select>
         </label>
+        {selected && <details className="vl-advanced"><summary>手动口播绑定（高级）</summary>
+        <p className="hint">仅在手动预览或应用时填写。Codex 可直接按真实内容完成适配。</p>
         {selected?.cues.map((cue: any, i: number) => (
           <label className="animation-cue" key={i}>
             <span>
@@ -359,6 +390,8 @@ export function AnimationTemplates({
             按口播顺序选择。只保存动作的对应关系，不沿用旧视频的时间。
           </p>
         )}
+        </details>}
+        {dirty && <p className="hint" role="status">有尚未应用的手动绑定。切换资源范围会保留本次会话草稿。</p>}
       </aside>
     </div>
   );

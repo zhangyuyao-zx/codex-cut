@@ -10,6 +10,7 @@ import { SaveAnimation } from "./AnimationTemplates";
 import {productionContextIdentityMatches, scenePreviewReadiness} from "./preview-readiness";
 import {FilmStoryboard} from './FilmStoryboard';
 import {StyleCoverage} from './StyleCoverage';
+import {sceneEntry,completedReview,type ReviewRequest} from './review-navigation';
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -70,7 +71,6 @@ export function Production({
     [substitute, setSubstitute] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [panel, setPanel] = useState<"feedback" | "actions" | "design">("feedback"),
     [notice, setNotice] = useState(""),
     [time, setTime] = useState(0),
     [entryFrame, setEntryFrame] = useState(0),
@@ -92,6 +92,7 @@ export function Production({
     return () => onDirtyChange(false);
   }, [dirty, onDirtyChange]);
   const video = useRef<HTMLVideoElement>(null);
+  const pendingReview=useRef<ReviewRequest|null>(null);
   const draftRevision = useRef<number | null>(null);
   const restoredSelection = useRef(false);
   const restoreVideoTime = useRef<number | null>(null);
@@ -382,17 +383,34 @@ export function Production({
       if (!r.ok) throw Error(d.error);
     });
   }
-  const chooseScene = useCallback((id: string, frame?:number) => {
-    if (dirty || busy || !data) return;
-    const item = data.resolved.scenes.find((s: any) => s.id === id);
-    if (!item) return;
-    const seconds = frame===undefined ? (item.startMs || 0) / 1000 : Math.max(item.startMs/1000,Math.min((item.endMs-1)/1000,frame/30));
+  const enterScene=useCallback((entry:NonNullable<ReturnType<typeof sceneEntry>>)=>{
+    pendingReview.current=null;
     video.current?.pause();
-    setSelected(id); setTime(seconds); setEntryFrame(Math.round(seconds * 30));
+    restoreVideoTime.current=entry.view==='sample'?entry.seconds:null;
+    setSelected(entry.sceneId);setTime(entry.seconds);setEntryFrame(entry.frame);
     setSelectedObject(""); setSamplePlayback("latest"); setViewedSampleId("");
-    setView("scene"); setNotice("");
+    setView(entry.view); setNotice("");
     setSeekVersion(v => v + 1);
-  }, [dirty,busy,data]);
+  },[]);
+  const chooseScene = useCallback((id:string,frame?:number)=>{
+    if(dirty||busy||!data)return;
+    const entry=sceneEntry(data,id,frame);if(entry)enterScene(entry);
+  },[dirty,busy,data,enterScene]);
+  useEffect(()=>{
+    const request=pendingReview.current;
+    if(!request||!data)return;
+    if(dirty){pendingReview.current=null;return;}
+    if(busy||(request.kind==='segment'&&!scopedLoaded))return;
+    const next=completedReview(request,data,selected);
+    if(next.state==='waiting')return;
+    pendingReview.current=null;
+    if(next.state!=='ready'){setNotice('');return;}
+    video.current?.pause();
+    const seconds=(next.task.from??0)/30;
+    restoreVideoTime.current=seconds;
+    setTime(seconds);setEntryFrame(Math.round(seconds*30));setSamplePlayback('latest');setViewedSampleId('');setView(next.view);
+    setNotice(next.view==='review'?'整片已合成，可以播放检查并下载。':'本段样片已就绪，播放后可确认。');
+  },[data,selected,dirty,busy,scopedLoaded]);
   if (!data)
     return <div className="loading">{error || "正在读取制作方案…"}</div>;
   const segmentReviews = segmentReviewsFor(data),
@@ -493,6 +511,7 @@ export function Production({
   const approvedCurrent = selectedReview?.status === "approved" && selectedApproved?.current !== false;
 
   function openSample() {
+    pendingReview.current=null;
     video.current?.pause();
     restoreVideoTime.current = (selectedReview?.from || 0) / 30;
     setSamplePlayback("latest"); setView("sample"); setViewedSampleId("");
@@ -501,16 +520,30 @@ export function Production({
     playbackKind === "latest" && currentLatestViewed && !currentLatest.pendingMaterials && feedbackOpen === 0 && !approvedCurrent;
   const renderSegment = () => {
     if (!scopedLoaded || scopedProgramError || scopedError) return;
-    return run(() => api("production/render", {
-      sceneId: selected,
-      expectedRevision: scopedCandidate?.plan?.revision ?? data.plan.revision,
-    }));
+    return run(async()=>{
+      const intent:ReviewRequest={kind:'segment',sceneId:selected,id:'',key:''};
+      pendingReview.current=intent;
+      const next=await api('production/render',{sceneId:selected,expectedRevision:scopedCandidate?.plan?.revision??data.plan.revision}).catch(error=>{if(pendingReview.current===intent)pendingReview.current=null;throw error;});
+      if(pendingReview.current!==intent)return;
+      if(next.sample?.id&&next.sample.sceneId===selected)pendingReview.current={kind:'segment',sceneId:selected,id:next.sample.id,key:next.sample.key};
+      setNotice('正在制作本段样片，完成后会自动打开。');
+    });
+  };
+  const beginAssembly=async(context:any)=>{
+    const intent:ReviewRequest={kind:'assembly',id:'',key:''};
+    pendingReview.current=intent;
+    const next=await api('production/assemble',{expectedRevision:context.plan.revision}).catch(error=>{if(pendingReview.current===intent)pendingReview.current=null;throw error;});
+    if(pendingReview.current!==intent)return;
+    if(next.job?.id)pendingReview.current={kind:'assembly',id:next.job.id,key:next.job.key};
+    setNotice('正在合成整片，完成后会自动打开。');
   };
   const approveSegment = () => run(async () => {
     if (!scopedLoaded || scopedProgramError || scopedError || !selectedLatest)
       throw Error("当前段落尚未读取完成，暂不能确认");
-    await api("production/approve-sample", {sceneId: selected, key: selectedLatest.key, renderId: selectedLatest.id});
-    setNotice("本段已确认。可以继续审阅下一段。");
+    const next=await api("production/approve-sample", {sceneId: selected, key: selectedLatest.key, renderId: selectedLatest.id});
+    if(nextScene){const entry=sceneEntry(next,nextScene.id);if(entry)enterScene(entry);setNotice('上一段已确认，继续查看这一段。');}
+    else if(next.assemblyReady)await beginAssembly(next);
+    else setNotice('本段已确认，其余段落仍有待处理事项。');
   });
   const statusHint = (scopedError && "当前段落读取失败") || (scopedLoaded && scopedProgramError && "请补齐本段素材") || (scopedLoading && "正在读取当前段落…") || (!scopedLoaded && "正在读取当前段落…") || (dirty ? "有未保存修改" : selectedRendering ? "正在生成本段样片" : approvedCurrent ? "本段已确认" :
     currentLatest ? (feedbackOpen ? `${feedbackOpen} 条反馈待处理` : currentLatest.pendingMaterials ? "补齐素材后可确认" : "样片已就绪，播放后确认") :
@@ -520,7 +553,7 @@ export function Production({
       <aside className="left">
         <div className="eyebrow">制作方案</div>
         <h2>视觉段落</h2>
-        {data.stylePackInfo&&<p className="production-style-pack"><strong>{data.stylePackInfo.name}</strong><small>v{data.stylePackInfo.version} · {data.stylePackInfo.unavailable?'库文件待恢复':data.stylePackInfo.status==='ready'?'已选用':'候选试用'}</small></p>}
+        {data.stylePackInfo&&<p className="production-style-pack"><strong>{data.stylePackInfo.name}</strong><small>{data.stylePackInfo.unavailable?'风格文件待恢复':'全片风格'}</small></p>}
         <StyleCoverage coverage={data.stylePackInfo?.coverage} compact selectedSceneId={selected} disabled={dirty||busy||rendering} onFollow={()=>run(()=>api("production/follow-style",{expectedRevision:data.plan.revision,sceneId:selected,actor:"user"}))}/>
         <div className="segment-progress">
           已确认 {confirmedCount} / {segmentReviews.length} 段
@@ -553,9 +586,7 @@ export function Production({
                   (r: any) => r.sceneId === s.id && r.status === "missing",
                 ).length
                   ? "有素材待补"
-                  : data.designStatus?.[s.id]?.complete
-                    ? "视觉方案已保存"
-                    : "未写设计笔记"}
+                  : ""}
               </span>
             </button>
           );
@@ -572,13 +603,7 @@ export function Production({
           <button
             className="primary"
             disabled={busy || dirty || rendering || !assemblyReady}
-            onClick={() =>
-              run(() =>
-                api("production/assemble", {
-                  expectedRevision: data.plan.revision,
-                }),
-              )
-            }
+            onClick={()=>run(()=>beginAssembly(data))}
           >
             合成已确认段落
           </button>
@@ -595,37 +620,24 @@ export function Production({
                 : "下载包装 MP4"}
             </a>
           )}
-          {currentReview && <button
-            disabled={
-              busy ||
-              dirty ||
-              !currentReview ||
-              data.job.pendingMaterials ||
-              !!data.approval
-            }
-            onClick={() =>
-              run(() => api("production/approve", { key: data.key }))
-            }
-          >
-            {data.approval ? "整片已认可" : "确认整片版本"}
-          </button>}
         </div>
         </details>
 
       </aside>
       <main>
         {data.capabilities?.filmDirection&&<FilmStoryboard api={api} data={data} selected={selected} disabled={dirty||busy||rendering} onSelect={chooseScene}/>}
-        <div className="workflow-strip"><strong>{scene?.title || '包装与审阅'}</strong><span>段落 {data.plan.scenes.findIndex((s: any) => s.id === selected) + 1} · {resolved?.startMs !== null && resolved?.endMs !== null ? (((resolved?.endMs || 0) - (resolved?.startMs || 0)) / 1000).toFixed(1) : "—"} 秒</span></div>
+        <div className="workflow-strip"><strong>{scene?.title || '包装与审阅'}</strong><span>段落 {data.plan.scenes.findIndex((s: any) => s.id === selected) + 1} · {resolved?.startMs != null && resolved?.endMs != null ? ((resolved.endMs - resolved.startMs) / 1000).toFixed(1) : "—"} 秒</span></div>
         <div className="editor-modebar">
           <div className="mode-segment" aria-label="段落工作模式">
-            <button aria-pressed={editingView} disabled={!scene || !scopedLoaded} onClick={() => { video.current?.pause(); setEntryFrame(Math.round(time * 30)); setView("scene"); }}>编辑画面</button>
+            <button aria-pressed={editingView} disabled={!scene || !scopedLoaded} onClick={() => { pendingReview.current=null;video.current?.pause(); setEntryFrame(Math.round(time * 30)); setView("scene"); }}>编辑画面</button>
             <button aria-pressed={view === "sample"} disabled={!scopedLoaded || !reviewHasPlayback(selectedReview) || dirty} onClick={openSample}>审阅样片</button>
           </div>
-          <span className="preview-state">{dirty ? "未保存" : editingView ? "实时预览" : view === "sample" ? playbackTask?.current ? "最新样片" : "历史样片" : view === "previous" ? "历史成片" : view === "review" ? "整片预览" : "粗剪预览"}</span>
+          <span className="preview-state">{dirty ? "未保存" : !scopedLoaded && (view === "scene" || view === "sample") ? "正在读取" : editingView ? "实时预览" : view === "sample" ? playbackTask?.current ? "最新样片" : "历史样片" : view === "previous" ? "历史成片" : view === "review" ? "整片预览" : "粗剪预览"}</span>
           <details className="version-menu"><summary>版本与对照</summary><div>
-            <button disabled={dirty} onClick={() => setView("cut")}>查看粗剪</button>
-            {data.previousReview && <button disabled={dirty} onClick={() => setView("previous")}>查看上次成片</button>}
-            {currentReview && <button disabled={dirty} onClick={() => setView("review")}>查看最新整片</button>}
+            {reviewHasPlayback(selectedReview)&&<button disabled={busy||dirty||rendering||!scopedLoaded} onClick={renderSegment}>重新制作本段</button>}
+            <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("cut");}}>查看粗剪</button>
+            {data.previousReview && <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("previous");}}>查看上次成片</button>}
+            {currentReview && <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("review");}}>查看最新整片</button>}
             <button disabled={busy || dirty} onClick={() => run(() => api("production/undo", {expectedRevision: data.plan.revision}))}>撤销上次方案修改</button>
           </div></details>
         </div>
@@ -660,6 +672,7 @@ export function Production({
                 className={playbackKind === "latest" ? "active" : ""}
                 disabled={!taskIsPlayable(selectedLatest)}
                 onClick={() => {
+                  pendingReview.current=null;
                   setSamplePlayback("latest");
                   setViewedSampleId("");
                 }}
@@ -670,6 +683,7 @@ export function Production({
                 <button
                   className={playbackKind === "approved" ? "active" : ""}
                   onClick={() => {
+                    pendingReview.current=null;
                     setSamplePlayback("approved");
                     setViewedSampleId("");
                   }}
@@ -690,6 +704,7 @@ export function Production({
                         : ""
                     }
                     onClick={() => {
+                      pendingReview.current=null;
                       setSamplePlayback("history:" + task.id);
                       setViewedSampleId("");
                     }}
@@ -706,7 +721,7 @@ export function Production({
             selected={selectedObject}
             onSelect={setSelectedObject}
           >
-            {view === "scene" && !scopedLoaded ? (
+            {(view === "scene" || view === "sample") && !scopedLoaded ? (
               <div className="empty">
                 {scopedError || "正在读取当前段落…"}
               </div>
@@ -845,14 +860,17 @@ export function Production({
              !scopedLoaded ? <button className="primary" disabled>读取当前段落…</button> :
              scopedError || scopedProgramError ? <button className="primary" disabled>当前段落不可用</button> :
              selectedRendering ? <span role="status">{Math.round((selectedLatest.progress || 0) * 100)}%</span> :
-             approvedCurrent ? <><button disabled={busy || rendering} onClick={renderSegment}>重新生成</button>{nextScene && <button className="primary" onClick={() => chooseScene(nextScene.id)}>下一段 →</button>}</> :
-             currentLatest ? <><button disabled={busy || rendering} onClick={renderSegment}>重新生成</button>{view !== "sample" || playbackKind !== "latest" ? <button className="primary" disabled={busy} onClick={openSample}>审阅本段</button> : <button className="primary" disabled={!canApprove} onClick={approveSegment}>{currentLatestViewed ? "确认本段" : "播放后确认"}</button>}</> :
+             approvedCurrent ? nextScene ? <button className="primary" onClick={() => chooseScene(nextScene.id)}>看下一段 →</button> : <span>本段已确认</span> :
+             currentLatest ? view !== "sample" || playbackKind !== "latest" ? <button className="primary" disabled={busy} onClick={openSample}>看本段样片</button> : <button className="primary" disabled={!canApprove} onClick={approveSegment}>{currentLatestViewed ? nextScene?'确认并看下一段':'确认并合成整片' : "播放后确认"}</button> :
              <button className="primary" disabled={busy || rendering || !scene} onClick={renderSegment}>{selectedLatest?.status === "failed" ? "重试生成样片" : "生成本段样片"}</button>}
           </div>
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
-        <nav className="detail-tabs" aria-label="段落详情">{([['feedback','反馈'],['actions','口播与动作'],['design','设计说明']] as const).map(([id,label]) => <button key={id} aria-pressed={panel === id} onClick={() => setPanel(id)}>{label}{id === 'feedback' && comments.length ? ` · ${comments.length}` : ''}</button>)}</nav>
-        {scene && panel === "actions" && (<ActionReview key={`actions:${selected}`} disabledReason={view === 'previous' || (view === 'sample' && !playbackTask?.current) || (view === 'review' && !currentReview) ? '正在查看历史视频；切到编辑画面或当前版本后检查动作。' : undefined} actions={reviewActions(design, resolved?.beats || [], resolved?.startMs ?? null, resolved?.endMs ?? null, scopedCandidate?.resolved?.words || [])} onSeek={(frame, objectId) => {
+        {scene&&<details className="scene-plan"><summary>设计与口播说明</summary>
+          <CreativeDesignPanel design={design} beats={scene.beats}/>
+          <details><summary>口播与动作定位（高级）</summary>
+          <ActionReview key={`actions:${selected}`} disabledReason={view === 'previous' || (view === 'sample' && !playbackTask?.current) || (view === 'review' && !currentReview) ? '正在查看历史视频；切到编辑画面或当前版本后检查动作。' : undefined} actions={reviewActions(design, resolved?.beats || [], resolved?.startMs ?? null, resolved?.endMs ?? null, scopedCandidate?.resolved?.words || [])} onSeek={(frame, objectId) => {
+              pendingReview.current=null;
               setEntryFrame(frame);
               setSeekVersion(v => v + 1);
               if (objectId && sceneEditor?.objects.some((o: any) => o.id === objectId)) setSelectedObject(objectId);
@@ -862,7 +880,7 @@ export function Production({
                 video.current.currentTime = localPlaybackTime(frame, view === 'sample' ? playbackOffset : 0, video.current.duration || duration);
                 setTime(video.current.currentTime + (view === 'sample' ? playbackOffset : 0));
               }
-            }}/>)}
+            }}/></details></details>}
         {selectedLatest?.status === "done" && !selectedLatest.current && (
           <p className="hint">
             当前段落样片来自旧方案，请重新制作后再确认。
@@ -915,22 +933,10 @@ export function Production({
         {(error || data.job?.status === "failed") && (
           <p className="error">{error || data.job.error}</p>
         )}
-        {scene && panel === "design" && (
-          <CreativeDesignPanel
-            key={`design:${selected}`}
-            design={design}
-            beats={scene.beats}
-            onChange={(v) => {
-              setDesign(v);
-              if (!dirty) draftRevision.current = data.plan.revision;
-              setDirty(true);
-            }}
-          />
-        )}
-        {scene && panel === "feedback" && (
+        {scene && (
           <>
             <div className="transcript-head">
-              <h2>对这段的反馈</h2>
+              <h2>这段怎么改</h2>
               <small>
                 {feedbackInScene
                   ? `记录在当前 ${time.toFixed(2)} 秒`
@@ -960,7 +966,7 @@ export function Production({
                   })
                 }
               >
-                记录反馈
+                留下修改意见
               </button>
             </div>
             {comments.map((f: any) => (
@@ -968,25 +974,9 @@ export function Production({
                 <span>
                   {(f.timeMs / 1000).toFixed(2)}s · {f.text}
                   <small>
-                    方案版本 {f.revision} ·{" "}
-                    {f.status === "resolved" ? "已处理" : "待处理"}
+                    {f.status === "resolved" ? "已处理" : "待 Codex 处理"}
                   </small>
                 </span>
-                {f.status === "open" && (
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      run(() =>
-                        api("production/resolve-feedback", {
-                          expectedRevision: data.plan.revision,
-                          id: f.id,
-                        }),
-                      )
-                    }
-                  >
-                    标记已处理
-                  </button>
-                )}
               </div>
             ))}
           </>
@@ -996,32 +986,8 @@ export function Production({
         <div className="eyebrow">当前段落</div>
         {scene ? (
           <>
-            <h2>检查器</h2>
-            <details className="scene-notes"><summary>段落标题与说明</summary>
-            <label className="field">
-              画面标题
-              <input
-                value={title}
-                maxLength={80}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (!dirty) draftRevision.current = data.plan.revision;
-                  setDirty(true);
-                }}
-              />
-            </label>
-            <label className="field">
-              设计说明
-              <textarea
-                value={intent}
-                onChange={(e) => {
-                  setIntent(e.target.value);
-                  if (!dirty) draftRevision.current = data.plan.revision;
-                  setDirty(true);
-                }}
-              />
-            </label>
-            </details>
+            <h2>画面属性</h2>
+            <p className="hint">选中对象可直接调整。构图或动作的修改交给 Codex。</p>
             {scene.program && data.capabilities?.sceneTransitions && <details className="scene-notes"><summary>段落衔接</summary>
               <label className="field">进入方式<select aria-label="段落进入方式" disabled={busy||dirty||data.plan.scenes[0]?.id===selected}
                 value={scene.entryTransition?.type||'cut'} onChange={(e)=>run(()=>api('production/scene-edit',{expectedRevision:data.plan.revision,sceneId:selected,
@@ -1042,6 +1008,7 @@ export function Production({
               values={parameters}
               locks={locks}
               onSelect={(id) => {
+                pendingReview.current=null;
                 setSelectedObject(id);
                 setView("scene");
               }}

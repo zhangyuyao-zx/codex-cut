@@ -1,6 +1,6 @@
 {
   "name": "codex-cut",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Codex 驱动的本地视频工作台：参考视频提炼、整片风格包、口播同步与逐段审阅。",
   "author": {
     "name": "Codex Cut"
