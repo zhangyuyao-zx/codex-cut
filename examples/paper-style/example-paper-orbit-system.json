@@ -1,0 +1,220 @@
+{
+  "id": "example-paper-orbit-system",
+  "version": "1.0.1",
+  "name": "纸面示例 · 环绕关系",
+  "description": "一个核心与2–6个关联对象，逐项围拢并建立连接。支持居中关系图与侧置关系图，内容和数量都能修改。",
+  "kind": "recipe",
+  "mount": "SCENE",
+  "requiresSourceMedia": false,
+  "previewBackground": "#F1F1E8",
+  "tags": [
+    "关系",
+    "分类",
+    "系统",
+    "主副视觉"
+  ],
+  "source": {
+    "kind": "authored",
+    "note": "公开示例：由Codex重写的原创几何与通用文案，用于展示参数化和语义事件。不含参考原片、原品牌、卡通角色或音乐。"
+  },
+  "controls": [
+    {
+      "key": "eyebrow",
+      "label": "眉题",
+      "type": "text",
+      "default": "THINK IN RELATIONSHIPS"
+    },
+    {
+      "key": "headline",
+      "label": "标题",
+      "type": "text",
+      "default": "让信息，组成一个整体。"
+    },
+    {
+      "key": "highlight",
+      "label": "强调词",
+      "type": "text",
+      "default": "整体"
+    },
+    {
+      "key": "caption",
+      "label": "说明",
+      "type": "text",
+      "default": "不同材料，围绕同一个表达目的。"
+    },
+    {
+      "key": "core",
+      "label": "中心内容",
+      "type": "text",
+      "default": "表达"
+    },
+    {
+      "key": "items",
+      "label": "关联内容",
+      "type": "list",
+      "itemType": "text",
+      "default": [
+        "人物",
+        "文字",
+        "图片",
+        "数据"
+      ],
+      "minItems": 2,
+      "maxItems": 6
+    },
+    {
+      "key": "layout",
+      "label": "构图",
+      "type": "select",
+      "options": [
+        "center",
+        "aside"
+      ],
+      "default": "aside"
+    },
+    {
+      "key": "background",
+      "label": "纸面底色",
+      "type": "color",
+      "default": "#F1F1E8"
+    },
+    {
+      "key": "ink",
+      "label": "文字颜色",
+      "type": "color",
+      "default": "#17191C"
+    },
+    {
+      "key": "accent",
+      "label": "强调蓝",
+      "type": "color",
+      "default": "#2869FF"
+    },
+    {
+      "key": "colorTwo",
+      "label": "辅助黄",
+      "type": "color",
+      "default": "#F2C32A"
+    },
+    {
+      "key": "colorThree",
+      "label": "辅助橙",
+      "type": "color",
+      "default": "#F27948"
+    },
+    {
+      "key": "colorFour",
+      "label": "辅助紫",
+      "type": "color",
+      "default": "#9666EC"
+    }
+  ],
+  "objects": [
+    {
+      "id": "headline",
+      "label": "标题",
+      "parameters": [
+        "eyebrow",
+        "headline",
+        "highlight",
+        "caption",
+        "ink",
+        "accent"
+      ]
+    },
+    {
+      "id": "system",
+      "label": "核心与关系",
+      "parameters": [
+        "core",
+        "items",
+        "layout",
+        "background",
+        "colorTwo",
+        "colorThree",
+        "colorFour"
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "id": "center",
+      "label": "核心出现",
+      "required": true
+    },
+    {
+      "id": "members",
+      "label": "展开关联对象",
+      "required": true
+    },
+    {
+      "id": "item-1",
+      "label": "第1项出现",
+      "required": false
+    },
+    {
+      "id": "item-2",
+      "label": "第2项出现",
+      "required": false
+    },
+    {
+      "id": "item-3",
+      "label": "第3项出现",
+      "required": false
+    },
+    {
+      "id": "item-4",
+      "label": "第4项出现",
+      "required": false
+    },
+    {
+      "id": "item-5",
+      "label": "第5项出现",
+      "required": false
+    },
+    {
+      "id": "item-6",
+      "label": "第6项出现",
+      "required": false
+    }
+  ],
+  "mediaSlots": [],
+  "styleBindings": {
+    "background": "background",
+    "ink": "ink",
+    "accent": "accent",
+    "colorTwo": "colorTwo",
+    "colorThree": "colorThree",
+    "colorFour": "colorFour"
+  },
+  "contentParameters": [
+    "headline",
+    "highlight",
+    "caption",
+    "core",
+    "items"
+  ],
+  "constraints": {
+    "aspectRatios": [
+      "16:9"
+    ],
+    "minFrames": 12,
+    "maxFrames": 3600,
+    "notes": "2–6项，每项最多18字；建议每项2–6字。六项长文字宜使用居中布局。"
+  },
+  "sampleValues": {
+    "eyebrow": "THINK IN RELATIONSHIPS",
+    "headline": "让信息，组成一个整体。",
+    "highlight": "整体",
+    "caption": "不同材料，围绕同一个表达目的。",
+    "core": "表达",
+    "items": [
+      "人物",
+      "文字",
+      "图片",
+      "数据"
+    ],
+    "layout": "aside"
+  },
+  "codeFile": "example-paper-orbit-system.tsx"
+}

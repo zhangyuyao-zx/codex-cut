@@ -60,6 +60,22 @@ function feedback(sceneId: string, id = `${sceneId}-feedback`): Feedback {
 }
 
 describe('production store', () => {
+  it('round-trips list values and preserves locked array overrides across creative updates, reopen and undo',async()=>{
+    const directory=await makeTemporaryDirectory();
+    const store=await createProductionStore(directory);
+    const original:Scene={...scene('structured'),program:{moduleId:'lists',parameters:{labels:['基础'],amounts:[1,2],layout:'left'}},
+      editor:{overrides:{labels:['用户甲','用户乙'],amounts:[3,4],layout:'right'},locks:['labels','amounts','layout']}};
+    const first=await store.setScenes(0,null,[original],'user');
+    const changed=await store.setScenes(first.revision,null,[{...original,title:'新创意',
+      program:{moduleId:'lists',parameters:{labels:['新基础'],amounts:[9],layout:'left'}},editor:{overrides:{labels:['应被保留']},locks:[]}}]);
+    expect(changed.scenes[0].editor).toEqual(original.editor);
+    expect((await (await createProductionStore(directory)).get()).scenes[0]).toEqual(changed.scenes[0]);
+    expect((await store.undo(changed.revision)).scenes[0]).toEqual(original);
+    for(const invalid of [[true],[[1]],Array(41).fill('too many'),[Infinity]]) {
+      await expect(store.setScenes((await store.get()).revision,null,[{...original,editor:{overrides:{labels:invalid},locks:[]}}] as unknown as Scene[],'user')).rejects.toThrow();
+    }
+  });
+
   it('rejects animation apply with a legacy predecessor without changing revision, requests or undo', async () => {
     const directory = await makeTemporaryDirectory();
     const store = await createProductionStore(directory);

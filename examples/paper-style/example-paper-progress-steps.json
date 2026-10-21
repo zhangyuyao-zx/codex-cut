@@ -1,0 +1,215 @@
+{
+  "id": "example-paper-progress-steps",
+  "version": "1.0.1",
+  "name": "纸面示例 · 阶梯进程",
+  "description": "把抽象流程变成可逐项推进的阶梯。支持2–6步、全幅或左右分区构图，以及每一步的独立口播事件。",
+  "kind": "recipe",
+  "mount": "SCENE",
+  "requiresSourceMedia": false,
+  "previewBackground": "#F1F1E8",
+  "tags": [
+    "流程",
+    "递进",
+    "步骤"
+  ],
+  "source": {
+    "kind": "authored",
+    "note": "公开示例：由Codex重写的原创几何与通用文案，用于展示参数化和语义事件。不含参考原片、原品牌、卡通角色或音乐。"
+  },
+  "controls": [
+    {
+      "key": "eyebrow",
+      "label": "眉题",
+      "type": "text",
+      "default": "ONE STEP AT A TIME"
+    },
+    {
+      "key": "headline",
+      "label": "标题",
+      "type": "text",
+      "default": "让表达，一步步清晰。"
+    },
+    {
+      "key": "highlight",
+      "label": "强调词",
+      "type": "text",
+      "default": "清晰"
+    },
+    {
+      "key": "caption",
+      "label": "说明",
+      "type": "text",
+      "default": "每一步都有真实内容与出现时机。"
+    },
+    {
+      "key": "steps",
+      "label": "流程步骤",
+      "type": "list",
+      "itemType": "text",
+      "default": [
+        "理解内容",
+        "提取重点",
+        "编排画面",
+        "跟随口播"
+      ],
+      "minItems": 2,
+      "maxItems": 6
+    },
+    {
+      "key": "layout",
+      "label": "构图",
+      "type": "select",
+      "options": [
+        "wide",
+        "aside"
+      ],
+      "default": "wide"
+    },
+    {
+      "key": "intervalFrames",
+      "label": "未绑定扩展步骤的间隔",
+      "type": "number",
+      "default": 25,
+      "min": 8,
+      "max": 120,
+      "step": 1
+    },
+    {
+      "key": "background",
+      "label": "纸面底色",
+      "type": "color",
+      "default": "#F1F1E8"
+    },
+    {
+      "key": "ink",
+      "label": "文字颜色",
+      "type": "color",
+      "default": "#17191C"
+    },
+    {
+      "key": "accent",
+      "label": "强调蓝",
+      "type": "color",
+      "default": "#2869FF"
+    },
+    {
+      "key": "colorTwo",
+      "label": "辅助黄",
+      "type": "color",
+      "default": "#F2C32A"
+    },
+    {
+      "key": "colorThree",
+      "label": "辅助橙",
+      "type": "color",
+      "default": "#F27948"
+    },
+    {
+      "key": "colorFour",
+      "label": "辅助紫",
+      "type": "color",
+      "default": "#9666EC"
+    }
+  ],
+  "objects": [
+    {
+      "id": "headline",
+      "label": "标题",
+      "parameters": [
+        "eyebrow",
+        "headline",
+        "highlight",
+        "caption",
+        "ink",
+        "accent"
+      ]
+    },
+    {
+      "id": "steps",
+      "label": "流程与布局",
+      "parameters": [
+        "steps",
+        "layout",
+        "intervalFrames",
+        "background",
+        "colorTwo",
+        "colorThree",
+        "colorFour"
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "id": "begin",
+      "label": "建立标题与路线",
+      "required": true
+    },
+    {
+      "id": "step-1",
+      "label": "第1步出现",
+      "required": false
+    },
+    {
+      "id": "step-2",
+      "label": "第2步出现",
+      "required": false
+    },
+    {
+      "id": "step-3",
+      "label": "第3步出现",
+      "required": false
+    },
+    {
+      "id": "step-4",
+      "label": "第4步出现",
+      "required": false
+    },
+    {
+      "id": "step-5",
+      "label": "第5步出现",
+      "required": false
+    },
+    {
+      "id": "step-6",
+      "label": "第6步出现",
+      "required": false
+    }
+  ],
+  "mediaSlots": [],
+  "styleBindings": {
+    "background": "background",
+    "ink": "ink",
+    "accent": "accent",
+    "colorTwo": "colorTwo",
+    "colorThree": "colorThree",
+    "colorFour": "colorFour"
+  },
+  "contentParameters": [
+    "headline",
+    "highlight",
+    "caption",
+    "steps"
+  ],
+  "constraints": {
+    "aspectRatios": [
+      "16:9"
+    ],
+    "minFrames": 12,
+    "maxFrames": 3600,
+    "notes": "2–6步，每步最多24字；建议每步4–10字。实际口播应逐步绑定事件，未绑定的步骤按可见默认间隔出现，不冒充词级同步。"
+  },
+  "sampleValues": {
+    "eyebrow": "ONE STEP AT A TIME",
+    "headline": "让表达，一步步清晰。",
+    "highlight": "清晰",
+    "caption": "每一步都有真实内容与出现时机。",
+    "steps": [
+      "理解内容",
+      "提取重点",
+      "编排画面",
+      "跟随口播"
+    ],
+    "layout": "wide"
+  },
+  "codeFile": "example-paper-progress-steps.tsx"
+}

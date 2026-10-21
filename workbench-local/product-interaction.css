@@ -114,3 +114,5 @@
 .checkpoint-panel code {display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;user-select:text;}
 .checkpoint-warning {color:#975f13;}
 .checkpoint-menu-entry {border-top:1px solid #8497ad30;margin:12px 0;padding-top:12px;display:grid;gap:8px;}
+.production-style-pack { display:flex;flex-wrap:wrap;gap:5px 10px;align-items:center;margin:4px 0 16px;padding:10px 12px;border-radius:10px;background:var(--wb-blue-soft,#eaf2fb);color:var(--wb-text-soft,#425c75);font-size:12px; }
+.production-style-pack small {font-size:10px;opacity:.75;}

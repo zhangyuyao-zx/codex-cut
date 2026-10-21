@@ -2,7 +2,7 @@ import {mkdir, readdir, readFile, writeFile, rename} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
-import {validateLibraryParameters} from "../modules/components/component-library";
+import {validateLibraryParameters} from "../modules/legacy/components/component-library";
 const presetSchema = z.object({name:z.string().trim().min(1).max(60), componentId:z.string(), props:z.record(z.string(),z.unknown()), x:z.number().finite(), y:z.number().finite(), scale:z.number().finite().positive().max(10), opacity:z.number().min(0).max(1)}).strict();
 export async function saveComponentPreset(dir:string,input:unknown) {
   const value=presetSchema.parse(input);

@@ -5,6 +5,7 @@ import path from 'node:path';
 import {afterEach,describe,expect,it} from 'vitest';
 import {
   captureAnimationContents,
+  animationCues,
   instantiateAnimationMaterials,
   type AnimationContents,
 } from './animation-contents';
@@ -48,6 +49,14 @@ function contents(archiveName:string,version:1|undefined=1):AnimationContents {
 }
 
 describe('saved animation material slots',()=>{
+  it('includes unique program cue words in the shared anchor order without duplicating events on one word',()=>{
+    const source:Scene={...scene(),program:{moduleId:'visual-scene',parameters:{},cueBindings:{reveal:'middle',settle:'middle',exit:'end'}}};
+    expect(animationCues(source,['start','middle','end'])).toEqual([
+      {wordId:'start',label:'开始'},{wordId:'middle',label:'reveal'},{wordId:'end',label:'结束'},
+    ]);
+    expect(()=>animationCues(source,['start','end'])).toThrow('引用的词不在当前段落中');
+  });
+
   it('copies immutable defaults, then preserves an existing user replacement',async()=>{
     const fixtureData=await fixture();
     const target=scene();

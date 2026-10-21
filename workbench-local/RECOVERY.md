@@ -1,8 +1,18 @@
-> 独立版本补充：当前代码快照包含 `workbench-local/`、`modules/`、`public/`、根 package/lock、README 与源码迁移映射，不包含旧 App 目录。`runtime/remotion/` 需单独保留或配置。下文历史验证发生于原项目；本次迁移检查见根目录 MIGRATION.md。
+> 历史独立迁移补充：当前代码快照包含 `workbench-local/`、`modules/`、`public/`、根 package/lock、README 与源码迁移映射，不包含旧 App 目录。`runtime/remotion/` 需单独保留或配置。下文历史验证发生于原项目；本次迁移检查见根目录 MIGRATION.md。
 
 # 工程备份与安全恢复
 
 本说明适用于当前代码版本下的本地工程恢复。跨机器安装和任意旧 App 工程迁移仍需独立验证，不能只复制一个 JSON 就称为可恢复。
+
+## v0.2.0 视觉库配对备份（2026-10-21）
+
+当前快照的项目范围新增 `visual-library/`：资产数据索引、固定版本源码、参考原件/代理、分析、样片、风格包及连续演示均随活动项目捕获。项目内的 `stylePack` 选择、`styleDefaults`、cue、素材绑定、用户参数和锁也必须与代码及库配对恢复。只备份制作 JSON 或 Git 源码不足以恢复库。
+
+备份前先保存草稿并等待或取消库任务；服务在参考准备、资产渲染或包演示活动时拒绝捕获。恢复为 `code/` 与 `project/` 副本，不覆盖当前工程。以恢复的 project 启动时，库从其 `visual-library/` 读取；不要误接另一活动工程的库。
+
+升级基线保存在工作区根目录（`codex工作台`）的 `99-临时区/Codex-Cut升级基线备份-20261021/`。升级后配对快照使用同层 `99-临时区/Codex-Cut风格包升级快照-20261021/`，包含修订34的独立审阅工程与视觉库；创建和校验结果记录在执行记录中。正常4340与独立审阅4341服务已重开，不能据此宣称恢复副本重渲染或跨机器验证。最新状态见[执行记录](../docs/plans/2026-10-21-reference-distillation-style-packs.md#11-执行记录2026-10-21)。下文 2026-09-17 的恢复数字只证明当时版本。
+
+新 SCENE 可用已有保存动画链路复用；包含新库 OBJECT 的嵌套 `.cutanimation` 当前拒绝打包。风格包没有独立分发文件，需要项目/库配对备份。`runtime/remotion/` 与平台依赖仍需另外保留或配置。
 
 ## 工作台里的操作入口
 
@@ -38,7 +48,7 @@ node node_modules/tsx/dist/cli.mjs workbench-local/server.ts
 
 正式启动器默认使用4340；隔离服务直接使用独立端口，不需要关闭正式工作台。操作恢复副本的CLI时设置 `WORKBENCH_URL=http://127.0.0.1:4341`，避免请求正式服务。
 
-4. 用浏览器打开 `http://127.0.0.1:4341/`。核对项目、段落数量、用户文字/样式/锁；检查粗剪与上一成功样片能否播放，再用一个测试段落验证实际导出。只读接口包括 `/api/health`、`/api/cut`、`/api/production`、`/api/production/animation-templates`。
+4. 用浏览器打开 `http://127.0.0.1:4341/`。核对项目、段落数量、用户文字/样式/锁；检查粗剪与上一成功样片能否播放，再用一个测试段落验证实际导出。只读接口包括 `/api/health`、`/api/cut`、`/api/production`、`/api/production/animation-templates` 和 `/api/visual-library`。检查库的固定版本、参考、样片与包演示；不通过点击 ready 或确认样片来完成技术恢复检查。
 5. 确认恢复副本可用后再决定如何迁移。当前没有一键切换正式项目的入口，不应在原路径直接覆盖试错。
 
 ## 本轮恢复证据与限制

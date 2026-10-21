@@ -60,11 +60,16 @@ import {createContentDigester} from './cut-media-identity';
 import {buildSceneCutIdentity} from './scene-media-dependencies';
 import {renderRuntimeIdentity} from './render-runtime-identity';
 import {previousTransitionScene,transitionRenderPlan,withoutEntryTransition,assertTransitionPredecessors} from './transition-dependencies';
+import type {VisualLibraryService} from './visual-library-service';
+import {assertNoNewLegacyComponents,parseVisualComponentId,visualComponentId} from './component-library';
+import {visualMemberSchema,memberKey,resolveVisualValues,styleValuesFor} from './visual-library-contract';
+import {planStyleApplication,resolveVisualCues} from './visual-application';
 const exec = promisify(execFile);
 export async function productionRoutes(
   root: string,
   projectDir: string,
   library: Awaited<ReturnType<typeof createComponentLibrary>>,
+  visualLibrary?: VisualLibraryService,
 ) {
   const dir = resolve(projectDir, "production"),
     assets = resolve(dir, "assets"),
@@ -74,11 +79,11 @@ export async function productionRoutes(
   const componentAssets = await createComponentAssets(
     resolve(dir, "component-assets"),
   );
-  const sceneModules = createSceneModules(root);
+  const sceneModules = createSceneModules(root, visualLibrary?.sceneProvider);
   const animationTemplates = createAnimationTemplates(
     root,
     resolve(projectDir, "animation-templates"),
-    {resolveComponentAsset: id=>componentAssets.resolve(id),componentAssetDirectory:resolve(dir,'component-assets'),materialDirectory:assets},
+    {resolveComponentAsset: id=>componentAssets.resolve(id),componentAssetDirectory:resolve(dir,'component-assets'),materialDirectory:assets,sceneModules},
   );
   const selectionStore = await createEditorSelection(dir);
   const lane = new RenderLane();
@@ -178,9 +183,9 @@ export async function productionRoutes(
         "scene-program-binding.ts",
         "component-media.ts",
         "AppLibraryComponent.jsx",
-        "../modules/components/component-runtime-identity.generated.ts",
+        "../modules/legacy/components/component-runtime-identity.generated.ts",
       ];
-    const componentOnlyCode=new Set(['component-media.ts','AppLibraryComponent.jsx','../modules/components/component-runtime-identity.generated.ts']);
+    const componentOnlyCode=new Set(['component-media.ts','AppLibraryComponent.jsx','../modules/legacy/components/component-runtime-identity.generated.ts']);
     const code = await Promise.all(codeFiles.map((f) => readFile(resolve(root, "workbench-local", f), "utf8")));
     const componentGraphs=new Map<string,Promise<{sourceIdentity?:string;error?:string}>>();
     const componentSources = await Promise.all(
@@ -450,9 +455,12 @@ export async function productionRoutes(
       if (!sourceAssetUrl || sourceAssetUrl !== cut.asset?.url)
         previousReview = null;
     }
+    let stylePackInfo:any=null;
+    if(plan.stylePack&&visualLibrary){try{const p=await visualLibrary.store.getPack(plan.stylePack);stylePackInfo={id:p.id,version:p.version,name:p.name,status:p.status};}catch{stylePackInfo={...plan.stylePack,name:'已固定的风格版本',unavailable:true};}}
     const result={
       capabilities:{sceneTransitions:true},
       plan,
+      stylePackInfo,
       cut,
       selection: await selectionStore.get(),
       previousReview,
@@ -477,6 +485,7 @@ export async function productionRoutes(
                     .filter((c: any) => c.default !== undefined)
                     .map((c: any) => [c.key, c.default]),
                 ),
+                ...s.program?.styleDefaults,
                 ...s.program?.parameters,
                 ...s.editor?.overrides,
               },
@@ -536,7 +545,9 @@ export async function productionRoutes(
           1,
           Math.round((end.endMs * 30) / 1000) - from,
         );
-        validateComponentInterval(d.mount, d.resolvedParameters, duration);
+        if(!d.visualAdapter)validateComponentInterval(d.mount, d.resolvedParameters, duration);
+        const visualBeats=d.visualAdapter?resolveVisualCues(d.asset.cues,selected.cueBindings,resolved.words,start.startMs,end.endMs):[];
+        if(d.visualAdapter&&(duration<d.asset.constraints.minFrames||duration>d.asset.constraints.maxFrames))throw Error('资产出现区间超出支持时长：'+d.name);
         const mediaSources = await resolveComponentMedia({
           bindings: selected.mediaBindings,
           count: d.requiredMedia,
@@ -548,10 +559,14 @@ export async function productionRoutes(
         layers.push({
           ...selected,
           appAdapter: d.appAdapter,
+          visualAdapter: d.visualAdapter,
+          moduleUrl:d.moduleUrl,
+          sourceHash:d.visualAdapter?d.asset.sourceHash:undefined,
           mediaSources,
           props: d.resolvedParameters,
-          mediaSrc: d.requiredMedia ? "source.mp4" : undefined,
+          mediaSrc: d.requiredMedia||d.visualAdapter ? "source.mp4" : undefined,
           mediaStartFrame: Math.round((start.startMs * 30) / 1000),
+          visualInput:d.visualAdapter?{id:selected.id,title:d.name,from,duration,parameters:d.resolvedParameters,words:resolved.words.filter(w=>w.startMs>=start.startMs&&w.endMs<=end.endMs).map(w=>({id:w.sourceId,text:w.text,start:Math.round(w.startMs*30/1000)-from,end:Math.round(w.endMs*30/1000)-from})),beats:visualBeats.map(b=>({wordId:b.wordId,label:b.label,frame:Math.round(b.timeMs*30/1000)-from})),mediaSrc:'source.mp4',materials:mediaSources.map((m,i)=>({id:d.asset.mediaSlots[i].id,src:m.src,kind:m.kind,startFrame:m.startFrame}))}:undefined,
           width: d.width,
           height: d.height,
           modulePath: d.modulePath,
@@ -573,7 +588,7 @@ export async function productionRoutes(
       if (s.program) {
         const d = await sceneModules.validate({
           ...s.program,
-          parameters: { ...s.program.parameters, ...s.editor?.overrides },
+          parameters: { ...s.program.styleDefaults, ...s.program.parameters, ...s.editor?.overrides },
         });
         if (
           s.editor?.locks.some(
@@ -593,6 +608,51 @@ export async function productionRoutes(
     }
   }
   const router = Router();
+  router.post('/visual-asset',async(req,res,next)=>{try{
+    if(!visualLibrary)throw Error('视觉资产库未接入');
+    const [plan,cut]=await Promise.all([store.get(),cutStore.get()]);
+    if(plan.revision!==req.body.expectedRevision)throw Error('项目已更新，请刷新后重试');
+    const member=visualMemberSchema.parse(req.body.member),asset=await visualLibrary.store.getAsset(member);
+    if(asset.status==='archived')throw Error('这个资产版本已归档');
+    if(asset.status!=='ready'&&req.body.trial!==true)throw Error('候选资产尚未选定，请明确试用');
+    await visualLibrary.store.verifyAsset(asset);
+    const previous=plan.scenes.find(s=>s.id===req.body.sceneId);if(!previous)throw Error('请先选择目标段落');
+    if(asset.mount==='TRANSITION')throw Error('此资产需要 Codex 为相邻画面编排转场，不能作为普通叠加对象添加');
+    const resolved=resolveProduction(plan,cut);if(resolved.stale||resolved.issues.length)throw Error(resolved.issues.join('\n')||'请先同步粗剪');
+    const range=resolved.scenes.find(s=>s.id===previous.id)!;
+    const cues=resolveVisualCues(asset.cues,req.body.cueBindings??{},resolved.words,range.startMs!,range.endMs!);
+    const frames=Math.round(range.endMs!*30/1000)-Math.round(range.startMs!*30/1000);
+    if(frames<asset.constraints.minFrames||frames>asset.constraints.maxFrames)throw Error('段落时长不适合此资产：'+asset.constraints.notes);
+    const pack=plan.stylePack?await visualLibrary.store.getPack(plan.stylePack):undefined;
+    const defaults=pack?styleValuesFor(asset,pack):{};
+    const values=req.body.values??Object.fromEntries(Object.entries(asset.sampleValues).filter(([key])=>!Object.hasOwn(asset.styleBindings,key)));resolveVisualValues(asset.controls,{...defaults,...values});
+    let scene:any;let requests=plan.requests.filter(r=>r.sceneId===previous.id);
+    if(asset.mount==='SCENE'){
+      scene={...previous,program:{moduleId:asset.moduleId,parameters:values,styleDefaults:defaults,cueBindings:Object.fromEntries(cues.map(b=>[b.label,b.wordId]))}};
+      scene=preserveSceneEdits([previous],[scene],'codex')[0];
+      // Material slots are pinned to this implementation. Older requests remain recoverable but inactive.
+      requests=[...requests,...asset.mediaSlots.filter(slot=>!requests.some(r=>r.visualSlot?.moduleId===asset.moduleId&&r.visualSlot.slotId===slot.id)).map(slot=>({id:randomUUID(),sceneId:previous.id,description:slot.label,reason:asset.name+'：'+slot.label,status:'missing' as const,visualSlot:{moduleId:asset.moduleId,slotId:slot.id}}))];
+    }else{
+      if(asset.mediaSlots.length)throw Error('带素材的叠加对象需要 Codex 提供明确的 mediaBindings 后提交段落');
+      scene={...previous,components:[...previous.components??[],{id:randomUUID(),componentId:visualComponentId(member),props:values,styleDefaults:defaults,cueBindings:Object.fromEntries(cues.map(b=>[b.label,b.wordId])),startWordId:previous.startWordId,endWordId:previous.endWordId,x:0,y:0,scale:1,opacity:1}]};
+    }
+    await validateEdits([scene]);
+    await store.setSceneWithRequests(req.body.expectedRevision,scene,requests);
+    res.json(await context());
+  }catch(error){next(error);}});
+  router.post('/style-pack',async(req,res,next)=>{try{
+    if(!visualLibrary)throw Error('风格包未接入');
+    const plan=await store.get();if(plan.revision!==req.body.expectedRevision)throw Error('项目已更新，请刷新后重试');
+    const pack=await visualLibrary.store.getPack(visualMemberSchema.parse(req.body.member));if(pack.status==='archived')throw Error('该风格包已归档');
+    const state=await visualLibrary.store.get();for(const member of pack.members)await visualLibrary.store.verifyAsset(await visualLibrary.store.getAsset(member));
+    const change=planStyleApplication(plan,pack,state.assets);
+    if(req.body.mode==='preview'){res.json(change);return;}
+    if(req.body.mode!=='apply')throw Error('请选择预览影响或应用风格');
+    if(change.conflicts.length)throw Error(change.conflicts.join('\n'));
+    await validateEdits(change.scenes);
+    await store.setStylePack(req.body.expectedRevision,{id:pack.id,version:pack.version},change.scenes);
+    res.json(await context());
+  }catch(error){next(error);}});
   router.get("/animation-templates", async (_req, res, next) => {
     try {
       res.json({ items: await animationTemplates.list(), packageSupport: true });
@@ -638,6 +698,7 @@ export async function productionRoutes(
         throw Error("工程已变化，请刷新后再保存动画");
       const scene = plan.scenes.find((s) => s.id === req.body.sceneId);
       if (!scene) throw Error("段落不存在");
+      if(scene.components?.some(c=>parseVisualComponentId(c.componentId)))throw Error('含新视觉叠加资产的组合请使用工程配对备份；当前独立动画包尚不能封装这些对象的源码与事件依赖');
       const selection = await selectionStore.get();
       if (selection.hasUnsavedChanges)
         throw Error("请先保存当前画面调整，再收藏动画");
@@ -649,9 +710,10 @@ export async function productionRoutes(
       const labels = reviewActions(undefined, range.beats, range.startMs, range.endMs, spoken.words);
       const canonicalWord = (id: string) => findCutWord(spoken.words, id)?.sourceId ?? id;
       const savedScene = {...scene,
+        program:scene.program?{...scene.program,cueBindings:scene.program.cueBindings?Object.fromEntries(Object.entries(scene.program.cueBindings).map(([id,word])=>[id,canonicalWord(word)])):undefined}:undefined,
         startWordId:canonicalWord(scene.startWordId), endWordId:canonicalWord(scene.endWordId),
         design:scene.design ? {...scene.design,actions:scene.design.actions.map(a=>({...a,wordId:canonicalWord(a.wordId)}))} : undefined,
-        components:scene.components?.map(c=>({...c,startWordId:canonicalWord(c.startWordId),endWordId:canonicalWord(c.endWordId)})),
+        components:scene.components?.map(c=>({...c,startWordId:canonicalWord(c.startWordId),endWordId:canonicalWord(c.endWordId),cueBindings:c.cueBindings?Object.fromEntries(Object.entries(c.cueBindings).map(([id,word])=>[id,canonicalWord(word)])):undefined})),
         beats:scene.beats.map((b,i)=>({...b,wordId:canonicalWord(b.wordId),label:labels[i].label}))};
       res.json(
         await animationTemplates.save({
@@ -867,6 +929,7 @@ export async function productionRoutes(
       const cut = await cutStore.get();
       const current = await store.get();
       const actor = req.body.actor === "user" ? "user" : "codex";
+      assertNoNewLegacyComponents(current.scenes,req.body.scenes??[]);
       const candidate = {
         ...current,
         source: req.body.source,

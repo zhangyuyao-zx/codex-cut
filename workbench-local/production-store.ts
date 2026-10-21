@@ -13,6 +13,7 @@ import {
 import { preserveSceneEdits } from "./editable-objects";
 import {sceneEntryTransitionSchema} from "./scene-transition";
 import {assertTransitionPredecessors} from "./transition-dependencies";
+import {visualMemberSchema,visualValuesSchema} from './visual-library-contract';
 const STORE_FILE_NAME = "production.json";
 const SCHEMA_VERSION = 1;
 const MAX_ID_LENGTH = 200;
@@ -50,6 +51,8 @@ export const componentSelectionSchema = z
     mediaBindings: z.array(componentMediaBindingSchema).max(32).optional(),
     startWordId: wordIdSchema,
     endWordId: wordIdSchema,
+    cueBindings: z.record(z.string().max(100),wordIdSchema).optional(),
+    styleDefaults: visualValuesSchema.optional(),
     x: z.number().finite().min(-1920).max(3840),
     y: z.number().finite().min(-1080).max(2160),
     scale: z.number().finite().min(0.05).max(4),
@@ -69,7 +72,7 @@ export const sceneSchema = z
       .object({
         overrides: z.record(
           z.string().max(128),
-          z.union([z.string().max(4000), z.number().finite(), z.boolean()]),
+          z.union([z.string().max(4000), z.number().finite(), z.boolean(), z.array(z.union([z.string().max(4000), z.number().finite()])).max(40)]),
         ),
         locks: z.array(z.string().min(1).max(128)).max(100),
         entryTransition: sceneEntryTransitionSchema.nullable().optional(),
@@ -81,6 +84,8 @@ export const sceneSchema = z
     program: z
       .object({
         moduleId: idSchema,
+        styleDefaults: visualValuesSchema.optional(),
+        cueBindings: z.record(z.string().max(100),wordIdSchema).optional(),
         parameters: z
           .record(z.string().max(100), z.json())
           .refine((v) => JSON.stringify(v).length <= 64000, "动画参数过大"),
@@ -107,6 +112,7 @@ export const materialRequestSchema = z
       })
       .strict()
       .optional(),
+    visualSlot: z.object({moduleId:idSchema,slotId:idSchema}).strict().optional(),
   })
   .strict();
 
@@ -125,6 +131,7 @@ export const productionStateSchema = z
   .object({
     revision: revisionSchema,
     source: productionSourceSchema.nullable(),
+    stylePack: visualMemberSchema.optional(),
     scenes: z.array(sceneSchema).max(2_000),
     requests: z.array(materialRequestSchema).max(10_000),
     feedback: z.array(feedbackSchema).max(10_000),
@@ -177,6 +184,7 @@ export interface ProductionStore {
     scene: Scene,
     requests: readonly MaterialRequest[],
   ): Promise<ProductionState>;
+  setStylePack(expectedRevision:number,stylePack:z.infer<typeof visualMemberSchema>,scenes:readonly Scene[]):Promise<ProductionState>;
   addFeedback(
     expectedRevision: number,
     feedback: Feedback,
@@ -449,6 +457,10 @@ class ProductionStoreImpl implements ProductionStore {
       );
       return this.commit(envelope, nextState);
     });
+  }
+
+  public async setStylePack(expectedRevision:number,stylePack:z.infer<typeof visualMemberSchema>,scenes:readonly Scene[]):Promise<ProductionState>{
+    return this.serialized(async()=>{const envelope=await this.loadEnvelopeLocked();assertExpectedRevision(envelope.state,expectedRevision);const parsedScenes=parseWithSchema(z.array(sceneSchema).max(2000),preserveSceneEdits(envelope.state.scenes,[...scenes],'codex'),'Invalid style scenes');return this.commit(envelope,parseState({...envelope.state,revision:nextRevision(envelope.state.revision),stylePack:visualMemberSchema.parse(stylePack),scenes:parsedScenes},'Invalid style selection'));});
   }
 
   public async setSceneWithRequests(

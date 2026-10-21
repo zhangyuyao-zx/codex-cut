@@ -7,6 +7,7 @@ import { ObjectPreview } from "./ObjectPreview";
 import { ObjectProperties } from "./ObjectProperties";
 import { LegacyProgramPreview } from "./LegacyProgramPreview";
 import { SaveAnimation } from "./AnimationTemplates";
+import {productionContextIdentityMatches, scenePreviewReadiness} from "./preview-readiness";
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -271,7 +272,7 @@ export function Production({
       // A transition preview includes its preceding exit scene as a dependency.
       // The requested incoming scene remains last in this scoped plan.
       scopedState.context?.plan?.scenes?.at(-1)?.id === selected &&
-      scopedState.context.plan.revision === data?.plan?.revision
+      productionContextIdentityMatches(data, scopedState.context)
         ? scopedState.context
         : null,
     scopedLoaded = Boolean(scopedCandidate),
@@ -279,6 +280,7 @@ export function Production({
     scopedError = scopedState.sceneId === selected ? scopedState.error : "",
     scopedProps = scopedCandidate?.props || null,
     scopedProgramError = scopedCandidate?.programError || "",
+    previewReadiness = scenePreviewReadiness(data, scopedCandidate || undefined),
     resolved = scopedCandidate?.resolved?.scenes?.find(
       (s: any) => s.id === selected,
     ),
@@ -515,6 +517,7 @@ export function Production({
       <aside className="left">
         <div className="eyebrow">制作方案</div>
         <h2>视觉段落</h2>
+        {data.stylePackInfo&&<p className="production-style-pack"><strong>{data.stylePackInfo.name}</strong><small>v{data.stylePackInfo.version} · {data.stylePackInfo.unavailable?'库文件待恢复':data.stylePackInfo.status==='ready'?'已选用':'候选试用'}</small></p>}
         <div className="segment-progress">
           已确认 {confirmedCount} / {segmentReviews.length} 段
         </div>
@@ -703,12 +706,14 @@ export function Production({
                 {scopedError || "正在读取当前段落…"}
               </div>
             ) : view === "scene" && scopedProgramError ? (
-              <div className="empty">请补齐本段素材后再预览。</div>
+              <div className="empty" role="alert">当前段落暂不可预览：{scopedProgramError}</div>
+            ) : view === "scene" && !previewReadiness.ready ? (
+              <div className="empty" role={previewReadiness.kind === "error" ? "alert" : "status"}>{previewReadiness.message}</div>
             ) : view === "scene" && !scene?.program && scopedProps && !scopedProps.scenePrograms ? (
               <LegacyProgramPreview
                 props={{
                   ...scopedProps,
-                  mediaSrc: data.cut.preview.url,
+                  mediaSrc: previewReadiness.ready ? previewReadiness.mediaUrl : "",
                   sceneEdits: (scopedProps.sceneEdits || []).map((e: any) =>
                     e.id === selected ? { ...e, overrides } : e,
                   ),
@@ -729,8 +734,9 @@ export function Production({
                 );
                 const previewScene=(s:any)=>({...s,
                   componentLayers:(scopedProps.componentLayers||[]).filter((l:any)=>l.from>=s.from && l.from+l.duration<=s.from+(s.transitionSpanFrames??s.duration)).map((l:any)=>({...l,
-                    mediaSources:(l.mediaSources||[]).map((m:any)=>({...m,src:m.assetId?'/api/production/component-assets/file/'+m.assetId:data.cut.preview.url}))})),
-                  mediaSrc:data.cut.preview.url,materials:s.materials.map((m:any)=>({...m,src:'/production-media/assets/'+m.src}))});
+                    mediaSrc:previewReadiness.ready?previewReadiness.mediaUrl:'',
+                    mediaSources:(l.mediaSources||[]).map((m:any)=>({...m,src:m.assetId?'/api/production/component-assets/file/'+m.assetId:previewReadiness.ready?previewReadiness.mediaUrl:""}))})),
+                  mediaSrc:previewReadiness.ready?previewReadiness.mediaUrl:"",materials:s.materials.map((m:any)=>({...m,src:'/production-media/assets/'+m.src}))});
                 const outgoingInput=input?.transitionFromSceneId && scopedProps.scenePrograms.find((s:any)=>s.id===input.transitionFromSceneId);
                 const outgoingModule=outgoingInput && data.sceneModules.find((m:any)=>m.id===outgoingInput.moduleId);
                 return module && input ? (

@@ -5,9 +5,9 @@ import express from "express";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
-import { COMPONENT_LIBRARY } from "../modules/components/component-library";
+import { COMPONENT_LIBRARY } from "../modules/legacy/components/component-library";
 import { createComponentFavoritesStore } from "./component-favorites";
-import { createComponentLibrary } from "./component-library";
+import { createComponentLibrary } from "./legacy-component-library";
 
 async function withTempFavorites<T>(
   callback: (root: string, filePath: string) => Promise<T>,
@@ -73,7 +73,7 @@ describe("component favorites persistence", () => {
     });
   });
 
-  it("accepts every one of the 194 current component IDs", async () => {
+  it("preserves the 194 historical component IDs for saved-project compatibility", async () => {
     await withTempFavorites(async (_root, filePath) => {
       const ids = COMPONENT_LIBRARY.map((entry) => entry.componentId);
       expect(ids).toHaveLength(194);

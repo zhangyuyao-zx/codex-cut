@@ -1,0 +1,59 @@
+{
+  "id": "example-paper-playful",
+  "version": "1.0.1",
+  "name": "纸面示例",
+  "description": "可选择导入的原创几何示例，演示标题、焦点、流程、关系和收束。不会自动进入用户资产库或冒充用户认可。",
+  "source": {
+    "kind": "authored",
+    "note": "公开的原创通用演示。不是参考原片或作者工程。"
+  },
+  "members": [
+    {
+      "id": "example-paper-focus-title",
+      "version": "1.0.1"
+    },
+    {
+      "id": "example-paper-focus-ring",
+      "version": "1.0.1"
+    },
+    {
+      "id": "example-paper-progress-steps",
+      "version": "1.0.1"
+    },
+    {
+      "id": "example-paper-orbit-system",
+      "version": "1.0.1"
+    },
+    {
+      "id": "example-paper-spotlight-scene",
+      "version": "1.0.1"
+    }
+  ],
+  "tokens": {
+    "background": "#F1F1E8",
+    "ink": "#17191C",
+    "accent": "#2869FF",
+    "colorTwo": "#F2C32A",
+    "colorThree": "#F27948",
+    "colorFour": "#9666EC"
+  },
+  "typography": "主标题粗黑无衬线，4–24字优先，少量蓝色词承担强调。主次文字分级；长内容改构图，不无限缩小。系统中文字体为近似选择，未知原片字体不冒充已恢复。",
+  "motion": "普通进入约12–22帧，集中注意约24帧；列表错峰。制作时将独立语义事件绑定真实词ID，内部定长动作只决定完成速度。前一对象可保留，后一对象承担新重点。",
+  "composition": "按表达选择：真实人物作为起点/回归，重点标题接管，阶梯说明推进，环绕图说明关系，中心舞台收束。人物可以主画面、小窗或暂时隐藏；不固定全片人物左文字右。",
+  "sound": "保留目标视频原声；本包没有附带BGM或音效。原片未试听，不声称恢复节拍或音效，未来可另绑合法音频。",
+  "coverage": [
+    "重点标题",
+    "圈绘强调",
+    "2–6步流程",
+    "2–6项关系",
+    "中心收束",
+    "口播人物"
+  ],
+  "limitations": [
+    "只覆盖16:9。",
+    "本机风格包集合，不是跨机器独立风格安装包。",
+    "导入后保持候选，需实际检查、换内容和用户选定。",
+    "人物模式需要用户提供自己的视频。"
+  ],
+  "overrides": {}
+}

@@ -25,6 +25,7 @@ const PROJECT = [
   "animation-templates",
   "library-presets",
   "component-favorites",
+  "visual-library",
 ];
 const EXCLUDED = new Set([
   "node_modules",

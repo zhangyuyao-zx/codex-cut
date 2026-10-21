@@ -7,7 +7,7 @@ it('restores matching code, media, locks and saved animation without touching a 
  const root=await mkdtemp(path.join(tmpdir(),'checkpoint-'));
  try{
   const repo=path.join(root,'repo'),project=path.join(root,'project'),backup=path.join(root,'backup'),restored=path.join(root,'restored');
-  for(const f of ['repo/workbench-local/scenes/scene.jsx','repo/modules/server/transcription.ts','repo/package-lock.json','project/cut/source.mp4','project/production/production.json','project/animation-templates/templates.json']){await mkdir(path.dirname(path.join(root,f)),{recursive:true});await writeFile(path.join(root,f),'original:'+f);}
+  for(const f of ['repo/workbench-local/scenes/scene.jsx','repo/modules/server/transcription.ts','repo/package-lock.json','project/cut/source.mp4','project/production/production.json','project/animation-templates/templates.json','project/visual-library/library.json','project/visual-library/assets/title/1.0.0/Asset.tsx','project/visual-library/references/ref-one/original.mp4']){await mkdir(path.dirname(path.join(root,f)),{recursive:true});await writeFile(path.join(root,f),'original:'+f);}
   await chmod(path.join(repo,"workbench-local/scenes/scene.jsx"),0o755);
   await writeFile(path.join(repo,'workbench-local/tsconfig.json'),JSON.stringify({compilerOptions:{jsx:'react-jsx'}}));
   await createProjectCheckpoint({repo,project,destination:backup});
@@ -15,6 +15,8 @@ it('restores matching code, media, locks and saved animation without touching a 
   await restoreProjectCheckpoint(backup,restored);
   expect(await readFile(path.join(restored,'code/workbench-local/scenes/scene.jsx'),'utf8')).toContain('original:');
   expect(await readFile(path.join(repo,'workbench-local/scenes/scene.jsx'),'utf8')).toBe('new code');
+  expect(await readFile(path.join(restored,'project/visual-library/assets/title/1.0.0/Asset.tsx'),'utf8')).toBe('original:project/visual-library/assets/title/1.0.0/Asset.tsx');
+  expect(await readFile(path.join(restored,'project/visual-library/references/ref-one/original.mp4'),'utf8')).toBe('original:project/visual-library/references/ref-one/original.mp4');
   expect((await stat(path.join(restored,'code/workbench-local/scenes/scene.jsx'))).mode & 0o777).toBe(0o755);
   expect(JSON.parse(await readFile(path.join(restored,'code/workbench-local/tsconfig.json'),'utf8')).compilerOptions.jsx).toBe('react-jsx');
   await expect(restoreProjectCheckpoint(backup,project)).rejects.toThrow('不能覆盖');

@@ -18,6 +18,7 @@ export type SceneModuleInput = {
   transitionSpanFrames?: number;
   transitionFromSceneId?: string;
   transitionOutgoingFrame?: number;
+  ownsBackground?:boolean;
 };
 export function SceneModuleSurface({
   renderer: Renderer,
@@ -33,12 +34,12 @@ export function SceneModuleSurface({
     : staticFile(scene.mediaSrc);
   return (
     <AbsoluteFill style={{background: "#000"}}>
-      <OffthreadVideo
+      {!scene.ownsBackground&&<OffthreadVideo
         src={source}
         trimBefore={scene.from}
         muted
         style={{width: "100%", height: "100%", objectFit: "contain"}}
-      />
+      />}
       <Renderer {...scene} />
       {scene.componentLayers?.map((l) => (
         <Sequence

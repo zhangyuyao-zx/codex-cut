@@ -2,8 +2,8 @@ import { z } from "zod";
 import {
   componentLibraryDefinition,
   validateLibraryParameters,
-} from "../modules/components/component-library";
-import { componentRuntimeRequiredMediaNodeCount } from "../modules/components/component-runtime-catalog";
+} from "../modules/legacy/components/component-library";
+import { componentRuntimeRequiredMediaNodeCount } from "../modules/legacy/components/component-runtime-catalog";
 export const componentMediaBindingSchema = z.discriminatedUnion("source", [
   z.object({ source: z.literal("cut") }).strict(),
   z

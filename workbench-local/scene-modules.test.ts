@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createSceneModules } from "./scene-modules";
+import { createSceneModules, type SceneModuleDetail } from "./scene-modules";
 
 const temporaryDirectories: string[] = [];
 
@@ -34,6 +34,58 @@ afterEach(async () => {
 });
 
 describe("scene modules", () => {
+  it("validates select and typed list defaults, bounds, element types and unknown keys without coercion", async () => {
+    const root=await makeRoot();
+    await writeModule(root,{id:'structured',label:'Structured',entry:'Structured.tsx',exportName:'Demo',controls:[
+      {key:'layout',label:'Layout',type:'select',options:['left','right'],default:'left'},
+      {key:'labels',label:'Labels',type:'list',itemType:'text',minItems:1,maxItems:3,default:['甲','乙']},
+      {key:'amounts',label:'Amounts',type:'list',itemType:'number',maxItems:2,default:[1,2]},
+      {key:'size',label:'Size',type:'number',step:0.5,default:1},
+    ]});
+    const service=createSceneModules(root);
+    const resolved=await service.validate({moduleId:'structured'});
+    expect(resolved.resolvedParameters).toEqual({layout:'left',labels:['甲','乙'],amounts:[1,2],size:1});
+    (resolved.resolvedParameters.labels as string[]).push('mutated');
+    expect((await service.validate({moduleId:'structured'})).resolvedParameters.labels).toEqual(['甲','乙']);
+    for(const parameters of [
+      {layout:'center'}, {labels:'甲|乙'}, {labels:[]}, {labels:['a','b','c','d']},
+      {labels:[1]}, {amounts:['1']}, {amounts:[NaN]}, {amounts:[Infinity]}, {extra:[]},
+    ]) await expect(service.validate({moduleId:'structured',parameters})).rejects.toThrow('invalid parameters');
+    await expect(service.validate({moduleId:'structured',parameters:{layout:'right',labels:['新'],amounts:[0]}}))
+      .resolves.toMatchObject({resolvedParameters:{layout:'right',labels:['新'],amounts:[0]}});
+  });
+
+  it("rejects malformed list/select declarations and defaults", async () => {
+    const root=await makeRoot();
+    const badControls=[
+      {type:'select',options:[],default:'left'}, {type:'select',options:['left'],default:'right'},
+      {type:'select',options:['left'],itemType:'text'},
+      {type:'list',itemType:'number',default:['1']}, {type:'list',itemType:'text',default:[1]},
+      {type:'list',itemType:'text',minItems:2,maxItems:1}, {type:'list',itemType:'text',minItems:1,default:[]},
+      {type:'list',itemType:'text',maxItems:1,default:['a','b']}, {type:'list',itemType:'boolean'},
+    ];
+    for(const control of badControls) {
+      await writeModule(root,{id:'bad-structured',label:'Bad',entry:'Bad.tsx',exportName:'Demo',controls:[{key:'items',label:'Items',...control}]});
+      await expect(createSceneModules(root).detail('bad-structured')).rejects.toThrow('invalid manifest');
+    }
+  });
+
+  it("uses immutable external details first, combines data-only listings and preserves source identity", async () => {
+    const root=await makeRoot();
+    await writeModule(root,{id:'legacy',label:'Legacy',entry:'Legacy.tsx',exportName:'Demo',controls:[]},"throw Error('must not execute');");
+    await writeModule(root,{id:'shared',label:'Legacy shared',entry:'Shared.tsx',exportName:'Demo',controls:[]});
+    const external:SceneModuleDetail={id:'shared',label:'Immutable',entry:'External.tsx',exportName:'Demo',acceptsMaterials:false,
+      controls:[{key:'labels',label:'Labels',type:'list',itemType:'text',default:['one']}],
+      sourceHash:'immutable-hash',modulePath:'/registry/External.tsx',moduleUrl:'/@fs/registry/External.tsx'};
+    const service=createSceneModules(root,{list:async()=>[external],detail:async id=>id==='shared'?external:undefined});
+    expect(await service.detail('shared')).toEqual(external);
+    expect((await service.list()).map(module=>module.id)).toEqual(['shared','legacy']);
+    expect(await service.validate({moduleId:'shared'})).toMatchObject({sourceHash:'immutable-hash',modulePath:'/registry/External.tsx',resolvedParameters:{labels:['one']}});
+    expect((await service.detail('legacy')).label).toBe('Legacy');
+    const noScenes=path.join(root,'empty');
+    expect(await createSceneModules(noScenes,{list:async()=>[external],detail:async()=>external}).list()).toEqual([external]);
+  });
+
   it("lists full details, validates defaults, and hashes manifest plus source without importing code", async () => {
     const root = await makeRoot();
     const manifest = {

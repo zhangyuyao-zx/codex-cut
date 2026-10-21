@@ -3,7 +3,7 @@ import {sceneChoreographySchema,compileChoreography} from './scene-choreography.
 import {canonicalHash} from "../shared/timeline-v2/canonical.js";
 import {hashSchema,idSchema} from "../shared/timeline-v2/schema.js";
 import {speechAnchorSchema} from './scene-motion.js';
-import {compiledSceneModuleSchema,type CompiledSceneModuleV1} from "../components/scene-module-runtime.js";
+import {compiledSceneModuleSchema,type CompiledSceneModuleV1} from "../legacy/components/scene-module-runtime.js";
 const key=z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/).refine(value=>!['constructor','prototype','__proto__'].includes(value));
 export const sceneModuleParametersSchema=z.record(key,z.union([z.string().max(2000),z.number().finite(),z.boolean(),z.null()])).refine(value=>Object.keys(value).length<=128);
 const normalizedSceneModuleDraftSchema=z.object({

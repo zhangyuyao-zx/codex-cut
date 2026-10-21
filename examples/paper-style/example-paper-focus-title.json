@@ -1,0 +1,136 @@
+{
+  "id": "example-paper-focus-title",
+  "version": "1.0.1",
+  "name": "纸面示例 · 重点标题",
+  "description": "粗黑标题与单词强调，叠加对象保持透明。可替换标题、重点词和注释，也能调位置与对齐。",
+  "kind": "component",
+  "mount": "OBJECT",
+  "requiresSourceMedia": false,
+  "previewBackground": "#F1F1E8",
+  "tags": [
+    "标题",
+    "重点",
+    "透明叠加"
+  ],
+  "source": {
+    "kind": "authored",
+    "note": "公开示例：由Codex重写的原创几何与通用文案，用于展示参数化和语义事件。不含参考原片、原品牌、卡通角色或音乐。"
+  },
+  "controls": [
+    {
+      "key": "headline",
+      "label": "标题",
+      "type": "text",
+      "default": "让重要的内容，被看见。"
+    },
+    {
+      "key": "highlight",
+      "label": "强调词",
+      "type": "text",
+      "default": "重要"
+    },
+    {
+      "key": "caption",
+      "label": "补充说明",
+      "type": "text",
+      "default": "先有重点，再让画面跟上。"
+    },
+    {
+      "key": "align",
+      "label": "对齐",
+      "type": "select",
+      "options": [
+        "left",
+        "center"
+      ],
+      "default": "center"
+    },
+    {
+      "key": "fontSize",
+      "label": "字号",
+      "type": "number",
+      "default": 124,
+      "min": 64,
+      "max": 160,
+      "step": 1
+    },
+    {
+      "key": "x",
+      "label": "水平偏移",
+      "type": "number",
+      "default": 0,
+      "min": -400,
+      "max": 400,
+      "step": 1
+    },
+    {
+      "key": "y",
+      "label": "垂直偏移",
+      "type": "number",
+      "default": 0,
+      "min": -350,
+      "max": 350,
+      "step": 1
+    },
+    {
+      "key": "ink",
+      "label": "文字颜色",
+      "type": "color",
+      "default": "#17191C"
+    },
+    {
+      "key": "accent",
+      "label": "强调蓝",
+      "type": "color",
+      "default": "#2869FF"
+    }
+  ],
+  "objects": [
+    {
+      "id": "headline",
+      "label": "标题与注释",
+      "parameters": [
+        "headline",
+        "highlight",
+        "caption",
+        "align",
+        "fontSize",
+        "x",
+        "y",
+        "ink",
+        "accent"
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "id": "title",
+      "label": "重点标题出现",
+      "required": true
+    }
+  ],
+  "mediaSlots": [],
+  "styleBindings": {
+    "ink": "ink",
+    "accent": "accent"
+  },
+  "contentParameters": [
+    "headline",
+    "highlight",
+    "caption"
+  ],
+  "constraints": {
+    "aspectRatios": [
+      "16:9"
+    ],
+    "minFrames": 12,
+    "maxFrames": 3600,
+    "notes": "最多64字；主标题宜4–24字。入场缓动为重新设计，不宣称恢复原始标题曲线。"
+  },
+  "sampleValues": {
+    "headline": "让重要的内容，被看见。",
+    "highlight": "重要",
+    "caption": "先有重点，再让画面跟上。"
+  },
+  "codeFile": "example-paper-focus-title.tsx"
+}

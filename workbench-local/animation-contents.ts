@@ -57,6 +57,8 @@ function assertAnimationModuleIdentity(moduleId:string,templateId:string): void 
 export function animationCues(scene:Scene,wordOrder?:readonly string[]) {
   const labels=new Map<string,string>();
   for(const beat of scene.beats)labels.set(beat.wordId,beat.label);
+  for(const [eventId,wordId] of Object.entries(scene.program?.cueBindings??{}))
+    if(!labels.has(wordId))labels.set(wordId,eventId);
   for(const [index,c] of (scene.components||[]).entries()) {
     for(const [id,label] of [[c.startWordId,`组件 ${index+1} 出现`],[c.endWordId,`组件 ${index+1} 结束`]]) {
       if(!labels.has(id))labels.set(id,label);
@@ -94,6 +96,8 @@ export async function captureAnimationContents(scene:Scene,requests:readonly Mat
     contents.components.push({selection,startCue,endCue});
   }
   for(const request of requests.filter(r=>r.sceneId===scene.id)) {
+    const visualSlot=request.visualSlot;
+    if(visualSlot&&visualSlot.moduleId!==options.moduleId)continue;
     const slot=request.animationSlot;
     const currentSlot=slot !== undefined && options.moduleId !== undefined && options.templateId !== undefined &&
       slot.moduleId===options.moduleId && slot.templateId===options.templateId;
@@ -113,7 +117,7 @@ export async function captureAnimationContents(scene:Scene,requests:readonly Mat
     }
     if(!options.materialDirectory || !request.fileName || !isSafeBasename(request.fileName))throw Error('补充素材路径无效');
     const captured=await capture(path.join(options.materialDirectory,request.fileName));
-    const id=slot?.materialId ?? request.id;
+    const id=slot?.materialId ?? visualSlot?.slotId ?? request.id;
     if(materialIds.has(id))throw Error('保存动画中补充素材编号重复：'+id);
     materialIds.add(id);
     contents.materials.push({id,description:request.description,archiveName:captured.archiveName,kind:/\.(mp4|mov|webm)$/.test(captured.extension)?'video':'image'});

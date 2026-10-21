@@ -13,6 +13,8 @@ export function ComponentSurface({
   mediaSrc,
   mediaStartFrame,
   mediaSources,
+  visualAdapter,
+  visualInput,
 }: {
   renderer: React.ComponentType<any>;
   values: any;
@@ -27,6 +29,8 @@ export function ComponentSurface({
   mediaSrc?: string;
   mediaStartFrame?: number;
   mediaSources?: import("./component-media").ComponentMedia[];
+  visualAdapter?:boolean;
+  visualInput?:any;
 }) {
   return (
     <div
@@ -42,7 +46,7 @@ export function ComponentSurface({
         overflow: "hidden",
       }}
     >
-      {appAdapter ? (
+      {visualAdapter ? <Renderer {...visualInput} parameters={values} mediaSrc={mediaSrc??visualInput?.mediaSrc} materials={(visualInput?.materials??[]).map((m:any,i:number)=>({...m,...mediaSources?.[i]}))}/> : appAdapter ? (
         <Renderer
           componentId={componentId}
           parameters={values}

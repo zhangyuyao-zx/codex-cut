@@ -22,25 +22,29 @@
 ## 真实运行演示
 
 <p align="center">
-  <img src="assets/readme/runtime-demo.gif" alt="Codex Cut 组件运行时演示：内容理解、视觉关系、逐段确认和组件核心" width="100%" />
+  <a href="assets/readme/style-pack-demo.mp4"><img src="assets/readme/style-pack-examples.jpg" alt="纸面风格原创几何示例：标题、圈绘、流程、关系与聚光场景" width="100%" /></a>
 </p>
 
 <p align="center">
-  <strong>这是仓库内实际组件运行时的渲染结果，不是概念图。</strong><br />
-  <sub>内容理解 → 关系编排 → 单段制作与确认 → 可编辑动画核心</sub>
+  <strong>从可编辑资产到连续风格演示。</strong><br />
+  <sub>五项原创几何示例的实际渲染；可替换文字、列表、颜色与语义出现点。</sub>
 </p>
 
 <p align="center">
-  <a href="assets/readme/runtime-demo.mp4">播放 1080p MP4</a> ·
-  <a href="workbench-local/readme-demo-entry.tsx">查看演示源码</a> ·
-  <code>npm run render:readme-demo</code>
+  <a href="assets/readme/style-pack-demo.mp4">播放风格演示 MP4</a> ·
+  <a href="examples/paper-style/README.md">查看原创示例与导入方法</a> ·
+  <a href="docs/REFERENCE_LIBRARY.md">参考提炼与视觉资产库</a>
 </p>
+
+演示仅使用原创几何和通用内容，不含私人参考画面、人物、逐字稿或音乐。它是静音技术演示；资产入库选择与用户影片的原声审阅分别进行。新安装的视觉库为空，示例需明确导入。
 
 | 输入 | Codex 负责 | 工作台负责 | 用户得到 |
 |---|---|---|---|
 | 原视频、逐字稿、素材与修改意见 | 粗剪判断、重点提取、画面设计、动画实现 | 时间映射、素材绑定、预览、参数、版本与渲染 | 可播放、可修改、可逐段确认的成片工程 |
 
 ## 操作界面
+
+以下两张截图记录 v0.1.0 基线的剪辑与审阅布局；当前 v0.2.0 候选版新增的「视觉资产库」见下方说明。
 
 ### 逐字稿粗剪
 
@@ -58,13 +62,11 @@
 
 每个视觉段落单独设计、播放和生成带原声样片。左侧管理段落，中央检查真实动画，右侧调整对象与素材需求。
 
-### 组件库与属性调节
+### 视觉资产库
 
-<p align="center">
-  <img src="assets/readme/screens/workbench-components.png" alt="Codex Cut 组件工作区：194 个组件核心、实际预览、素材绑定与组件属性" width="100%" />
-</p>
+当前入口为「视觉资产库」，包含 **风格包 / 单项资产 / 对标与提炼**：观看实际效果、编辑内容与参数、查看素材槽和语义事件，再添加到当前内容的目标段落。候选与可用版本分开管理；用户明确选择后才进入可用状态。
 
-组件先看实际效果，再绑定素材、调节参数并添加到指定段落；复杂画面仍可由 Codex 直接编写场景代码。
+旧 194 项已移至 `modules/legacy/`，只解析历史项目已有引用，不用于新选型。复杂画面仍可由 Codex 原创实现。
 
 ## Codex Cut 是什么
 
@@ -72,7 +74,7 @@ Codex Cut 是一个 **Codex 驱动、本地运行的视频剪辑与动画包装�
 
 它面向口播、访谈、教程和知识类视频。创作过程围绕真实文稿与口播节奏展开，让动画在说到对应内容时依次出现。
 
-> 当前基线：`v0.1.0` · 本地优先 · Apple Silicon macOS 已验证 · 项目和媒体默认不进入 Git
+> 当前升级版本：`v0.2.0` 候选 · 本地优先 · 首轮 16:9 工作流 · 项目和媒体默认不进入 Git。用户资产选择、段落确认及正式合成仍待完成，详见[执行记录](docs/plans/2026-10-21-reference-distillation-style-packs.md#11-执行记录2026-10-21)。
 
 ## 核心能力
 
@@ -83,7 +85,7 @@ Codex Cut 是一个 **Codex 驱动、本地运行的视频剪辑与动画包装�
 | **03** | 逐词动画同步 | 动画绑定具体词句；剪辑变化后重新计算成片时间，失效引用明确提示 |
 | **04** | 逐段制作与确认 | 每个视觉段落单独预览、渲染带原声样片、反馈和确认，再合成全片 |
 | **05** | 可编辑场景 | 文案、字体、颜色、位置、素材和动画参数可调；结构性改动由 Codex 修改代码 |
-| **06** | 194 个动画核心 | 组件库支持搜索、真实预览、参数控制、素材槽位和收藏，缺少的场景可直接编写 |
+| **06** | 参考提炼与风格包 | 从真实参考重建可编辑候选，换内容验证，固定资产版本；风格包共享样式、连续演示与局部覆盖 |
 | **07** | 本地版本保护 | revision、哈希、原子保存、撤销、过期任务保护和已确认版本共同守住用户修改 |
 | **08** | 素材提需 | 缺失素材挂在对应段落，保留理想设计，同时允许继续处理其他段落 |
 
@@ -117,7 +119,7 @@ flowchart TB
     C <--> P[Codex Cut Plugin]
     P <--> W[Local Workbench · 127.0.0.1]
     W --> T[Timeline & TimeMap]
-    W --> R[194 Component Cores]
+    W --> R[Visual Assets & Pinned Style Packs]
     W --> S[Scene Code & Editable Params]
     T --> V[Segment Preview]
     R --> V
@@ -168,7 +170,7 @@ npm run dev      # 开发模式
 
 ## Codex 插件
 
-仓库内置插件包位于 [`workbench-local/plugin-package/codex-cut`](workbench-local/plugin-package/codex-cut)。插件提供一个视频制作 Skill 和 7 个本地 MCP 工具，用来打开工作台、读取工程、提交修改、管理单段渲染与确认。
+仓库内置插件包位于 [`workbench-local/plugin-package/codex-cut`](workbench-local/plugin-package/codex-cut)。插件提供一个视频制作 Skill 和 7 个本地 MCP 工具，用来打开工作台、读取工程、提交修改、管理视觉库及单段渲染与确认。
 
 在插件配置中指定本仓库的实际路径后，可以直接对 Codex 说：
 
@@ -186,15 +188,15 @@ npm run dev      # 开发模式
 codex-cut/
 ├── workbench-local/       # UI、本地服务、CLI、场景与插件包
 ├── modules/
-│   ├── components/        # 194 个组件核心与运行时
-│   ├── component-lab/     # 组件适配与视觉核心
+│   ├── legacy/            # 旧组件与适配器，只供历史工程兼容
 │   ├── contracts/         # 工程、创意计划和场景协议
 │   ├── server/            # 转写能力
 │   └── shared/            # TimeMap、素材与共享规则
 ├── public/                # 公共视觉素材与保存动画
-├── projects/              # 本地工程和媒体，不进入 Git
+├── examples/paper-style/  # 可选择导入的五项原创几何示例
+├── projects/              # 本地工程、视觉库与媒体，不进入 Git
 ├── runtime/               # 本机渲染运行时，不进入 Git
-├── docs/                  # 组件来源与实现记录
+├── docs/                  # 新库协议、升级记录与授权说明
 └── assets/branding/       # 插件品牌资产
 ```
 
@@ -203,7 +205,9 @@ codex-cut/
 - 预览与正式渲染共享场景代码、参数和时间计划；最终交付以带原声实际视频为准。
 - 结构检查、自动化测试、实际渲染、视听 QA 和用户审美确认是不同的验收层级。
 - `projects/`、`runtime/`、`node_modules/` 与本机插件配置已被 `.gitignore` 排除。
-- Git 保存源码与锁文件；工程媒体和渲染运行时需要单独备份。
+- Git 保存源码与锁文件；工程与其中的 `visual-library/` 必须配对备份，渲染运行时另行保留。
+- 新库源码仅支持明确的 React/Remotion 导入；目录读取不执行资产代码。参考、素材与样片均保留身份校验。
+- 风格包当前是本机固定版本集合；独立可分发风格包和跨机器安装不在本轮范围。
 - 当前发布基线经过本机流程验证，跨平台渲染环境仍需按目标机器配置和复验。
 
 ## 开发与验证
@@ -229,13 +233,10 @@ Codex Cut 的项目原创代码以 [PolyForm Noncommercial License 1.0.0](LICENS
 
 ## 状态
 
-- **当前版本**：`0.1.0`
-- **源码状态**：独立工作台，不依赖已归档的旧 App 工程
-- **产品状态**：可继续实际项目制作与局部维护
-- **授权状态**：PolyForm Noncommercial 1.0.0，允许个人与非商业使用
+- **当前升级版本**：`0.2.0` 候选，代码已实现；版本发布与 GitHub 同步以实际执行记录为准。
+- **源码状态**：独立工作台；旧库隔离在 `modules/legacy/`。
+- **实际证据**：真实参考的五项候选、固定成员风格包、连续演示及不同 DJI 内容的 13 段原声样片已生成；没有用户确认或正式合成。
+- **下一验收门**：用户选择候选、逐段观看与试听、反馈和确认，再正式合成与整片审阅。插件安装、配对备份和发布收尾另记结果。
+- **授权状态**：PolyForm Noncommercial 1.0.0，允许个人与非商业使用；上游授权见上述说明。
 
-## 下一轮升级计划
-
-2026-10-21 确定的新方向是从用户提供的对标视频中提炼组件、特效、包装方案和整片风格包，并通过换内容的实际制作验证后入库。旧 194 项将退出新库；现有视频制作、参数保护与逐段审阅能力继续复用。
-
-详细范围、实施阶段和验收条件见 [对标视频提炼与整片风格包升级计划](docs/plans/2026-10-21-reference-distillation-style-packs.md)。目前只完成计划整理，以上新能力尚未实施；本文前面的界面和功能描述仍对应当前 v0.1.0 基线。
+完整范围、阶段证据与尚待完成项见[对标视频提炼与整片风格包升级计划](docs/plans/2026-10-21-reference-distillation-style-packs.md)。新库操作见[参考提炼与视觉资产库](docs/REFERENCE_LIBRARY.md)。

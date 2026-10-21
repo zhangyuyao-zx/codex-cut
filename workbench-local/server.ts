@@ -11,6 +11,7 @@ import { productionRoutes } from "./production-routes";
 import { roughcutRoutes } from "./roughcut-routes";
 import { ProjectStore } from "./project-store";
 import {checkpointRoutes} from './checkpoint-routes';
+import {createVisualLibraryService} from './visual-library-service';
 const root = process.cwd(),
   dir = resolve(process.env.WORKBENCH_PROJECT_DIR || resolve(root, "projects/local-workbench")),
   media = resolve(dir, "media");
@@ -80,9 +81,11 @@ app.use("/api", (req, res, next) => {
   }
   next();
 });
-const library = await createComponentLibrary(root, resolve(dir, "library-presets"));
+const visualLibrary = await createVisualLibraryService(root, resolve(dir, 'visual-library'));
+app.use('/api/visual-library', visualLibrary.router);
+const library = await createComponentLibrary(root, resolve(dir, "library-presets"), visualLibrary);
 app.use("/api/library", library.router);
-const production = await productionRoutes(root, dir, library);
+const production = await productionRoutes(root, dir, library, visualLibrary);
 app.use("/api/production", production);
 app.use(express.static(resolve(root, "public"), {index:false}));
 app.use("/production-media", express.static(resolve(dir, "production")));
@@ -91,6 +94,7 @@ app.use("/api/cut", cut);
 app.use("/cut-media", express.static(resolve(dir, "cut")));
 const checkpoints=checkpointRoutes({repo:root,project:dir,assertIdle:async()=>{
   if(activeMutations) throw Error('工程操作尚未完成，请稍后再备份');
+  if(visualLibrary.isBusy()) throw Error('视觉资产仍在处理，请完成或取消后再备份');
   if(job?.status==='rendering' || await cut.isBusy()) throw Error('剪辑或转写正在处理，请完成后再备份');
   await production.assertCheckpointReady();
 }});
@@ -241,6 +245,7 @@ async function shutdown() {
   ready = false;
   await checkpoints.waitForIdle();
   await production.shutdown();
+  await visualLibrary.shutdown();
   await vite.close();
   listener.closeIdleConnections();
   await new Promise<void>(done => listener.close(() => done()));

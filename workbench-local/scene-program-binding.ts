@@ -1,6 +1,8 @@
 import type { ProductionState } from "./production-store";
 import type { resolveProduction } from "./production-binding";
 import path from "node:path";
+import {assertSceneCueContract} from "./scene-cue-contract";
+import {resolveVisualCues} from './visual-application';
 
 function safeMaterialFileName(value:unknown): value is string {
   return typeof value==='string' && value.length>0 && value!=='.' && value!=='..' &&
@@ -20,10 +22,15 @@ export async function bindScenePrograms(
     plan.scenes.map(async (s) => {
       const module = await modules.validate({
         ...s.program,
-        parameters: { ...s.program!.parameters, ...s.editor?.overrides },
+        parameters: { ...s.program!.styleDefaults, ...s.program!.parameters, ...s.editor?.overrides },
       });
       const sceneRequests=plan.requests.filter((r)=>r.sceneId===s.id);
       const materials=sceneRequests.flatMap((request)=>{
+        if(request.visualSlot){
+          if(request.visualSlot.moduleId!==s.program!.moduleId)return [];
+          if(request.status!=='provided'||!safeMaterialFileName(request.fileName))return [];
+          return [{id:request.visualSlot.slotId,src:request.fileName,kind:/\.(png|jpe?g|webp)$/i.test(request.fileName)?'image':'video'}];
+        }
         const slot=request.animationSlot;
         if(slot && slot.moduleId!==s.program!.moduleId) return [];
         if(slot) {
@@ -44,6 +51,20 @@ export async function bindScenePrograms(
           `「${s.title}」的动画尚未实现补充素材位置，请先让 Codex 接入`,
         );
       const range = resolved.scenes.find((r) => r.id === s.id)!;
+      const semantic=module.visualAsset;
+      const beats=semantic?resolveVisualCues(semantic.cues,s.program!.cueBindings,resolved.words,range.startMs!,range.endMs!):range.beats;
+      if(semantic){
+        const length=Math.round(range.endMs!*30/1000)-Math.round(range.startMs!*30/1000);
+        if(length<semantic.constraints.minFrames||length>semantic.constraints.maxFrames)throw Error('「'+s.title+'」超出资产支持时长：'+semantic.constraints.notes);
+        for(const slot of semantic.mediaSlots){const material=materials.find(m=>m.id===slot.id);if(slot.required&&!material)throw Error('「'+s.title+'」缺少素材：'+slot.label);if(material&&slot.kind!=='either'&&slot.kind!==material.kind)throw Error('素材类型不符：'+slot.label);}
+      }
+      assertSceneCueContract({
+        id: s.id,
+        title: s.title,
+        moduleId: s.program!.moduleId,
+        parameters: module.resolvedParameters,
+        beats,
+      });
       const from = Math.round((range.startMs! * 30) / 1000),
         end = Math.round((range.endMs! * 30) / 1000);
       return {
@@ -52,6 +73,7 @@ export async function bindScenePrograms(
         modulePath: module.modulePath,
         exportName: module.exportName,
         sourceHash: module.sourceHash,
+        ownsBackground:module.visualAsset?.mount==='SCENE',
         from,
         duration: Math.max(1, end - from),
         title: s.title,
@@ -65,7 +87,7 @@ export async function bindScenePrograms(
             start: Math.round((w.startMs * 30) / 1000) - from,
             end: Math.round((w.endMs * 30) / 1000) - from,
           })),
-        beats: range.beats.map((b) => ({
+        beats: beats.map((b:any) => ({
           wordId: b.wordId,
           label: b.label,
           frame: Math.round((b.timeMs! * 30) / 1000) - from,

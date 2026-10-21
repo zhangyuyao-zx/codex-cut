@@ -4,7 +4,7 @@ import {
   validateComponentInterval,
   resolveComponentMedia,
 } from "./component-media";
-import { COMPONENT_LIBRARY } from "../modules/components/component-library";
+import { COMPONENT_LIBRARY } from "../modules/legacy/components/component-library";
 const assetId = "cd6deac6-c969-4ca6-9d67-1e771c4a2a33";
 const base = {
   from: 60,

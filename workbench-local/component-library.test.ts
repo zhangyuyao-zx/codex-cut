@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
-import {createComponentLibrary} from './component-library';
-import {COMPONENT_LIBRARY} from "../modules/components/component-library";
+import {createComponentLibrary} from './legacy-component-library';
+import {COMPONENT_LIBRARY} from "../modules/legacy/components/component-library";
 import {componentSelectionSchema} from './production-store';
 describe('final App library migration',()=>{
  it('uses readable new-object defaults without replacing saved text sizes',async()=>{

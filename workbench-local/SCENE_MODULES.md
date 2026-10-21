@@ -1,5 +1,7 @@
 # Codex 自定义场景协议
 
+> 2026-10-21 / v0.2.0：新复用资产通过[视觉资产库协议](../docs/REFERENCE_LIBRARY.md)登记；本文件继续说明场景与保存动画。旧 194 项仅供历史工程引用，不参与新选型。下方早期验证数字和路径保留为当时证据。
+
 ## 源码与素材快照
 
 模块指纹覆盖入口、递归本地导入及字面量 `staticFile()` 引用的 public 素材；检查不执行场景代码。保存为动画时，本地导入的图片/音视频/字体以及明确的静态素材路径复制到 `public/saved-animations/<moduleId>/`，按内容哈希命名，保存代码引用副本。后续原素材改动不会改变保存动画；副本损坏会改变模块指纹。预览及正式渲染使用同一份副本。
@@ -12,7 +14,7 @@
 
 ## 新增场景
 
-在 `workbench-local/scenes/` 新增一个 `<id>.json` 和一个 `.tsx` 文件。定义示例见 hero-keyword.json / HeroKeyword.tsx 和 word-flow.json / WordFlow.tsx。manifest 包含 id、label、entry、exportName、controls；entry 只能是此目录内的文件。controls 描述 text/number/color/boolean 参数及默认值、范围和必填规则。
+在 `workbench-local/scenes/` 新增一个 `<id>.json` 和一个 `.tsx` 文件。定义示例见 hero-keyword.json / HeroKeyword.tsx 和 word-flow.json / WordFlow.tsx。manifest 包含 id、label、entry、exportName、controls；entry 只能是此目录内的文件。controls 描述 text/number/color/boolean/select/list 参数及默认值、范围和必填规则。select/list 使用与新库相同的控件类型，列表值保持数组。
 
 每个段落增加：
 
@@ -36,7 +38,7 @@
 
 动画由 useCurrentFrame 驱动。按 beats[i].frame 开始动作，不把所有重点同时显示。不使用随机数、墙上时钟或CSS动画决定画面。参数和口播文本不能写死回代码；设计说明不是画面文字。
 
-主播放器负责口播音轨。单场景预览使用同一段音频，最终画面渲染后无损封装粗剪音轨。段落之间没有设计覆盖的空隙保留粗剪原画面。旧194个组件仍可叠加到自定义场景之上。
+主播放器负责口播音轨。单场景预览使用同一段音频，最终画面渲染后无损封装粗剪音轨。段落之间没有设计覆盖的空隙保留粗剪原画面。历史工程已有旧组件仍按隔离兼容实现解析；新叠加选用视觉资产库。
 
 ## 验证与版本
 
@@ -89,3 +91,13 @@ manifest 可声明 `objects:[{id,label,parameters:[控制项key]}]`；场景实�
 `design.actions[]` 保留 objectId / wordId / action / purpose；可补 before / after（起态、终态），offsetMs（相对绑定词，-5000～60000），durationMs（实际动作时长，>0 且不超过60000）。字段缺失时保持旧方案可读，不猜测中间或落点。
 这些是设计与审阅元数据，不会自动生成动画；场景代码必须使用同一口播绑定和时长实现，实际验帧核对。动作越出段落或绑定词丢失时，审阅入口提示重新定位。一个词可绑定多个不同对象动作，不伪造额外转写词。
 工作台动作检查可前后切换，定位起点/中间/结束前一帧；历史视频不套用当前动作表。场景预览暂停定位，段落 MP4 以 from/30 换算局部时间。没有实际播放仍不能确认样片。
+
+## 新视觉资产与保存动画（2026-10-21）
+
+新库 `SCENE` 在 program 中固定 `moduleId`、`parameters`、`styleDefaults` 和 `cueBindings`。语义 cue 映射目标真实词 ID，最终仍由当前 TimeMap 确定帧。参数合并顺序为 `styleDefaults` → `parameters` → `editor.overrides`，锁与未保存草稿保护继续生效。`previewBackground`、`contentParameters`、`requiresSourceMedia` 和媒体槽的定义见新库协议。
+
+资产素材槽以请求 `visualSlot:{moduleId,slotId}` 固定到具体实现，实际文件从段落补充素材取得；库技术样片使用 `materialSceneId` 读取该绑定。只声明素材槽或改 provided 状态不能替代真实文件与实际展示。
+
+保存新库 SCENE 动画时会解析固定源码、合并样式与用户参数、捕获素材，记录语义 cue 与保存动画 cue 的对应。应用保存动画时重新绑定目标词并重映射素材，保留目标内容编辑。已有源码、素材哈希及版本过期检查继续执行。
+
+包含新库 OBJECT 的嵌套动画尚不能独立打包为 `.cutanimation`，当前明确拒绝保存/打包；不要用缺少实现的包冒充成功。工作台风格包也不是独立可安装文件。需要保留整个项目与视觉库时，使用[配对备份](RECOVERY.md)。

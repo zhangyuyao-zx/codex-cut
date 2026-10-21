@@ -1,127 +1,39 @@
-import {listComponentPresets, saveComponentPreset} from "./component-presets";
-import { resolve } from "node:path";
-import { Router } from "express";
-import {
-  COMPONENT_LIBRARY,
-  componentLibraryDefinition,
-  validateLibraryParameters,
-} from "../modules/components/component-library";
-import { componentMediaRequirement } from "./component-media";
-import { createComponentFavoritesStore } from "./component-favorites";
-function blank(sample: any): any {
-  return Array.isArray(sample)
-    ? []
-    : sample && typeof sample === "object"
-      ? Object.fromEntries(
-          Object.entries(sample).map(([k, v]) => [k, blank(v)]),
-        )
-      : typeof sample === "number"
-        ? 0
-        : typeof sample === "boolean"
-          ? false
-          : "";
-}
-export async function createComponentLibrary(root: string, presetDir = resolve(root, "projects/local-workbench/library-presets")) {
-  // New workbench objects use a 1920px design surface. Keep saved values untouched.
-  const initialDefaults=(d:any)=>({...d.defaultParameters,...(d.componentId.startsWith('component:v1:') && d.controls.some((c:any)=>c.key==='fontSize')?{fontSize:96}:{})});
-  const modulePath = resolve(root, "workbench-local/AppLibraryComponent.jsx");
-  const item = (d: any) => ({
-    id: d.componentId,
-    name: d.label,
-    description: "沿用 App 最终盘点的组件与参数接口",
-    category: ({ OBJECT: "对象", SCENE: "场景", TRANSITION: "转场" } as any)[
-      d.mount
-    ],
-    source: "App 已盘点组件",
-    license: "沿用项目现有组件授权记录",
-    runtime: true,
-    appAdapter: true,
-    mount: d.mount,
-    preview: null,
-    thumbnail: null,
-    thumbnailProps: {...d.sampleParameters,...initialDefaults(d)},
-    mediaSlots: d.mediaSlots,
-  });
-  async function detail(id: string) {
-    const d = componentLibraryDefinition(id);
-    if (!d) throw Error("组件不在 App 最终盘点库中");
-    return {
-      ...item(d),
-      modulePath,
-      moduleUrl: "/@fs" + modulePath,
-      exportName: "AppLibraryComponent",
-      width: 1920,
-      height: 1080,
-      fields: d.controls.map((c) => ({
-        ...c,
-        name: c.key,
-        sample: d.sampleParameters[c.key] ?? (c.key === 'cueFrames' ? [0] : undefined),
-        value:
-          initialDefaults(d)[c.key] ??
-          (!c.required ? undefined : c.type === "boolean"
-            ? false
-            : c.type === "number"
-              ? (c.min ?? 0)
-              : c.type === "json"
-                ? blank(d.sampleParameters[c.key])
-                : c.type === "select"
-                  ? (c.options?.[0] ?? "")
-                  : ""),
-      })),
-    };
-  }
-  async function validate(selection: any) {
-    const d = componentLibraryDefinition(selection.componentId);
-    if (!d) throw Error("组件不在 App 最终盘点库中");
-    const parameters = validateLibraryParameters(
-      d.componentId,
-      selection.props,
-    );
-    const needed = componentMediaRequirement(d.componentId, parameters).count;
-    return {
-      ...(await detail(d.componentId)),
-      resolvedParameters: parameters,
-      requiredMedia: needed,
-    };
-  }
+import {Router} from 'express';
+import {resolve} from 'node:path';
+import {createComponentLibrary as createLegacyComponentLibrary} from './legacy-component-library';
+import type {VisualLibraryService} from './visual-library-service';
+import {resolveVisualValues,visualMemberSchema,memberKey,type VisualMember} from './visual-library-contract';
 
-  const favoriteStore = createComponentFavoritesStore(
-    resolve(presetDir, "..", "component-favorites.json"),
-    COMPONENT_LIBRARY.map((definition) => definition.componentId),
-  );
-  const router = Router();
-  router.get("/", async (_q, r, next) => {
-    try {
-      const favoriteIds = await favoriteStore.list();
-      r.json({
-        presets: await listComponentPresets(presetDir),
-        items: COMPONENT_LIBRARY.map(item),
-        favorites: favoriteIds,
-        counts: {
-          total: COMPONENT_LIBRARY.length,
-          runtime: COMPONENT_LIBRARY.length,
-          favorites: favoriteIds.length,
-        },
-      });
-    } catch (e) {
-      next(e);
-    }
-  });
-  router.post("/favorites", async (q, r, next) => {
-    try {
-      const favoriteIds = await favoriteStore.set(q.body);
-      r.json({ favorites: favoriteIds, favoriteIds });
-    } catch (e) {
-      next(e);
-    }
-  });
-  router.post("/presets", async (q,r,next) => {try {r.json(await saveComponentPreset(presetDir,q.body));} catch(e) {next(e);} });
-  router.get("/detail/:id", async (q, r, next) => {
-    try {
-      r.json(await detail(String(q.params.id)));
-    } catch (e) {
-      next(e);
-    }
-  });
-  return { router, detail, validate, favorites: favoriteStore };
+type Legacy=Awaited<ReturnType<typeof createLegacyComponentLibrary>>;
+type Detail=Awaited<ReturnType<Legacy['detail']>> & {visualAdapter?:boolean;asset?:any};
+export const visualComponentId=(member:VisualMember)=>'visual:'+memberKey(member);
+export function parseVisualComponentId(id:string):VisualMember|undefined{
+  if(!id.startsWith('visual:'))return undefined;
+  const [assetId,version,...rest]=id.slice(7).split('@');if(rest.length)throw Error('资产编号无效');
+  return visualMemberSchema.parse({id:assetId,version});
+}
+/** Default selection contains only the new library. Historical IDs resolve for saved projects. */
+export async function createComponentLibrary(root:string,presetDir=resolve(root,'projects/local-workbench/library-presets'),visual?:VisualLibraryService){
+  const legacy=await createLegacyComponentLibrary(root,presetDir),router=Router();
+  async function detail(id:string):Promise<Detail>{
+    const member=parseVisualComponentId(id);if(!member)return legacy.detail(id);
+    if(!visual)throw Error('视觉资产库未接入');
+    const asset=await visual.store.getAsset(member),module=await visual.sceneProvider.detail(asset.moduleId);
+    if(!module)throw Error('资产实现不存在');
+    return {...asset,id,name:asset.name,description:asset.description,category:asset.kind,source:'对标提炼与原创资产',runtime:true,appAdapter:false,visualAdapter:true,mount:asset.mount,preview:asset.previews.findLast(p=>p.status==='done')?.url??null,thumbnail:null,thumbnailProps:asset.sampleValues,mediaSlots:asset.mediaSlots,modulePath:module.modulePath,moduleUrl:module.moduleUrl,exportName:module.exportName,width:1920,height:1080,fields:asset.controls.map(c=>({...c,name:c.key,value:c.default,sample:asset.sampleValues[c.key]})),asset} as unknown as Detail;
+  }
+  async function validate(selection:any){
+    const member=parseVisualComponentId(selection.componentId);if(!member)return {...await legacy.validate(selection),visualAdapter:false,asset:undefined,moduleUrl:undefined};
+    const d=await detail(selection.componentId),asset=d.asset;
+    return {...d,resolvedParameters:resolveVisualValues(asset.controls,{...selection.styleDefaults,...selection.props}),requiredMedia:asset.mediaSlots.length};
+  }
+  router.get('/',async(_req,res,next)=>{try{const state=visual?await visual.store.get():{revision:0,assets:[],favorites:[]};const available=state.assets.filter(a=>a.status==='ready');res.json({revision:state.revision,items:await Promise.all(available.map(a=>detail(visualComponentId(a)))),presets:[],favorites:state.favorites,counts:{total:available.length,runtime:available.length,favorites:state.favorites.length},legacySelection:false});}catch(e){next(e);}});
+  router.get('/detail/:id',async(req,res,next)=>{try{res.json(await detail(String(req.params.id)));}catch(e){next(e);}});
+  return {router,detail,validate,favorites:legacy.favorites};
+}
+
+/** New scenes cannot introduce retired IDs; old saved instances remain editable. */
+export function assertNoNewLegacyComponents(previous:any[],next:any[]){
+  const saved=new Set(previous.flatMap(s=>(s.components??[]).map((c:any)=>`${s.id}:${c.id}:${c.componentId}`)));
+  for(const s of next)for(const c of s.components??[])if(!parseVisualComponentId(c.componentId)&&!saved.has(`${s.id}:${c.id}:${c.componentId}`))throw Error('旧组件已退役，请选用新视觉资产；已有工程中的旧对象可继续查看和修改');
 }

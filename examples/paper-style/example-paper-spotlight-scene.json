@@ -1,0 +1,155 @@
+{
+  "id": "example-paper-spotlight-scene",
+  "version": "1.0.1",
+  "name": "纸面示例 · 聚光落点",
+  "description": "将画面的注意力集中到一句话或讲述者。中心聚光、留白与几何对象形成收束；人物模式可选主画面、小窗或隐藏。",
+  "kind": "recipe",
+  "mount": "SCENE",
+  "requiresSourceMedia": false,
+  "previewBackground": "#F1F1E8",
+  "tags": [
+    "结尾",
+    "金句",
+    "人物",
+    "聚光"
+  ],
+  "source": {
+    "kind": "authored",
+    "note": "公开示例：由Codex重写的原创几何与通用文案，用于展示参数化和语义事件。不含参考原片、原品牌、卡通角色或音乐。"
+  },
+  "controls": [
+    {
+      "key": "eyebrow",
+      "label": "眉题",
+      "type": "text",
+      "default": "THE NEXT CHAPTER"
+    },
+    {
+      "key": "headline",
+      "label": "标题",
+      "type": "text",
+      "default": "把时间，留给内容与创意。"
+    },
+    {
+      "key": "highlight",
+      "label": "强调词",
+      "type": "text",
+      "default": "内容与创意"
+    },
+    {
+      "key": "caption",
+      "label": "说明",
+      "type": "text",
+      "default": "让重复工作退后，让想法走到前面。"
+    },
+    {
+      "key": "personMode",
+      "label": "人物呈现",
+      "type": "select",
+      "options": [
+        "none",
+        "hero",
+        "inset"
+      ],
+      "default": "none"
+    },
+    {
+      "key": "background",
+      "label": "纸面底色",
+      "type": "color",
+      "default": "#F1F1E8"
+    },
+    {
+      "key": "ink",
+      "label": "文字颜色",
+      "type": "color",
+      "default": "#17191C"
+    },
+    {
+      "key": "accent",
+      "label": "强调蓝",
+      "type": "color",
+      "default": "#2869FF"
+    },
+    {
+      "key": "colorTwo",
+      "label": "辅助黄",
+      "type": "color",
+      "default": "#F2C32A"
+    },
+    {
+      "key": "colorThree",
+      "label": "辅助橙",
+      "type": "color",
+      "default": "#F27948"
+    },
+    {
+      "key": "colorFour",
+      "label": "辅助紫",
+      "type": "color",
+      "default": "#9666EC"
+    }
+  ],
+  "objects": [
+    {
+      "id": "headline",
+      "label": "重点语句",
+      "parameters": [
+        "eyebrow",
+        "headline",
+        "highlight",
+        "caption",
+        "ink",
+        "accent"
+      ]
+    },
+    {
+      "id": "stage",
+      "label": "人物与舞台",
+      "parameters": [
+        "personMode",
+        "background",
+        "colorTwo",
+        "colorThree",
+        "colorFour"
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "id": "reveal",
+      "label": "重点与舞台出现",
+      "required": true
+    }
+  ],
+  "mediaSlots": [],
+  "styleBindings": {
+    "background": "background",
+    "ink": "ink",
+    "accent": "accent",
+    "colorTwo": "colorTwo",
+    "colorThree": "colorThree",
+    "colorFour": "colorFour"
+  },
+  "contentParameters": [
+    "headline",
+    "highlight",
+    "caption"
+  ],
+  "constraints": {
+    "aspectRatios": [
+      "16:9"
+    ],
+    "minFrames": 12,
+    "maxFrames": 3600,
+    "notes": "none模式无需主视频；hero/inset必须有主视频。人物模式是为本产品补充的原创适配，原参考没有真人口播。极短结尾建议reveal绑定首词。"
+  },
+  "sampleValues": {
+    "eyebrow": "THE NEXT CHAPTER",
+    "headline": "把时间，留给内容与创意。",
+    "highlight": "内容与创意",
+    "caption": "让重复工作退后，让想法走到前面。",
+    "personMode": "none"
+  },
+  "codeFile": "example-paper-spotlight-scene.tsx"
+}

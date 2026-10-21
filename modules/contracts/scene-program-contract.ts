@@ -1,6 +1,6 @@
 import {sceneModuleDraftSchema,sceneModuleManifestSchema,sceneModuleParametersSchema} from "./scene-module-contract.js";
-import { COMPONENT_RUNTIME_SOURCE_HASH, COMPONENT_RUNTIME_SOURCE_HISTORY } from "../components/component-runtime-identity.generated.js";
-import { COMPONENT_RUNTIME_DEFINITIONS } from "../components/component-runtime-catalog.js";
+import { COMPONENT_RUNTIME_SOURCE_HASH, COMPONENT_RUNTIME_SOURCE_HISTORY } from "../legacy/components/component-runtime-identity.generated.js";
+import { COMPONENT_RUNTIME_DEFINITIONS } from "../legacy/components/component-runtime-catalog.js";
 import { z } from "zod";
 import { sceneMotionDraftSchema, compiledSceneMotionSchema, assertCompiledSceneMotion } from "./scene-motion.js";
 import { canonicalHash } from "../shared/timeline-v2/canonical.js";

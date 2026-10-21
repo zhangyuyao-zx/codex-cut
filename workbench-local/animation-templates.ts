@@ -20,6 +20,9 @@ import {resolveStaticAsset, staticAssetCalls} from './scene-static-assets';
 
 import {
   createSceneModules,
+  parseSceneModuleControl,
+  resolveSceneModuleParameters,
+  type SceneModules,
   type SceneModuleControl,
   type SceneModuleDetail,
   type SceneModuleParameterValue,
@@ -225,6 +228,8 @@ function assertScene(
 function assertProgram(scene: Scene): {
   readonly moduleId: string;
   readonly parameters: Record<string, unknown>;
+  readonly styleDefaults?: Record<string, unknown>;
+  readonly cueBindings?: Record<string, string>;
 } {
   if (!scene.program)
     fail("INVALID_INPUT", "Cannot save an animation template without a program");
@@ -235,9 +240,16 @@ function assertProgram(scene: Scene): {
     fail("INVALID_INPUT", "Scene program moduleId must be non-empty text");
   if (!isRecord(scene.program.parameters))
     fail("INVALID_INPUT", "Scene program parameters must be an object");
+  if (scene.program.styleDefaults !== undefined && !isRecord(scene.program.styleDefaults))
+    fail("INVALID_INPUT", "Scene program style defaults must be an object");
+  if (scene.program.cueBindings !== undefined && (!isRecord(scene.program.cueBindings) ||
+    Object.values(scene.program.cueBindings).some(wordId => typeof wordId !== "string" || !wordId.trim())))
+    fail("INVALID_INPUT", "Scene program cue bindings must reference word IDs");
   return {
     moduleId: scene.program.moduleId,
     parameters: scene.program.parameters,
+    styleDefaults: scene.program.styleDefaults,
+    cueBindings: scene.program.cueBindings,
   };
 }
 
@@ -354,8 +366,11 @@ function assertTemplateShape(value: unknown, index: number): AnimationTemplate {
       typeof control.type !== "string"
     )
       fail("STORAGE_FAILED", `${context}.controls[${controlIndex}] is invalid`);
-    controls.push(clone(control) as unknown as SceneModuleControl);
+    try { controls.push(parseSceneModuleControl(control, moduleId, controlIndex)); }
+    catch (error) { fail("STORAGE_FAILED", `${context}.controls[${controlIndex}]: ${error instanceof Error ? error.message : "invalid"}`); }
   }
+  try { resolveSceneModuleParameters(controls, record.parameters); }
+  catch (error) { fail("STORAGE_FAILED", `${context}.parameters: ${error instanceof Error ? error.message : "invalid"}`); }
   const objects: {
     id: string;
     label: string;
@@ -458,6 +473,7 @@ function wrapperSource(
   beatIndices: readonly number[],
   moduleId: string,
   contents: AnimationContents,
+  semanticCues?: readonly {label:string;sourceCueIndex:number}[],
 ): string {
   const sourceImport = `./${detail.entry}`;
   const sourceCueJson = JSON.stringify(sourceCueIds);
@@ -468,15 +484,17 @@ import {staticFile as __savedStaticFile} from 'remotion';
 const __savedSourceSceneId = ${sourceIdJson};
 const __savedSourceCueIds = ${sourceCueJson};
 const __savedBeatIndices = ${JSON.stringify(beatIndices)};
+${semanticCues===undefined?'':`const __savedSemanticCues = ${JSON.stringify(semanticCues)};`}
 export function SavedAnimation(props) {
   const mappedBeats = __savedSourceCueIds.map((sourceWordId, index) => {
     const beat = props.beats?.[__savedBeatIndices[index]];
     if (!beat) throw new Error(\`Missing saved animation cue \${index}\`);
     return { ...beat, wordId: sourceWordId };
   });
+${semanticCues===undefined?'':`  const semanticBeats = __savedSemanticCues.map(({label, sourceCueIndex}) => ({ ...mappedBeats[sourceCueIndex], label }));`}
   const savedMaterials = [${materials}];
   const materials = [...(props.materials || []), ...savedMaterials.filter(s=>!(props.materials || []).some(m=>m.id===s.id))];
-  return <__SavedSourceAnimation {...props} id={__savedSourceSceneId} beats={mappedBeats} materials={materials} />;
+  return <__SavedSourceAnimation {...props} id={__savedSourceSceneId} beats={${semanticCues===undefined?'mappedBeats':'semanticBeats'}} materials={materials} />;
 }
 `;
 }
@@ -489,8 +507,9 @@ async function bundleWrapper(
   moduleId: string,
   beatIndices: readonly number[],
   contents: AnimationContents,
+  semanticCues?: readonly {label:string;sourceCueIndex:number}[],
 ): Promise<{source: string; assets: Map<string, string>}> {
-  const wrapper = wrapperSource(detail, sourceSceneId, sourceCueIds, beatIndices, moduleId, contents);
+  const wrapper = wrapperSource(detail, sourceSceneId, sourceCueIds, beatIndices, moduleId, contents, semanticCues);
   const assets = new Map<string, string>();
   const canonicalRoot = await realpath(root);
   async function capture(file: string) {
@@ -791,7 +810,7 @@ function assertPackageFileSet(
 }
 
 function sourceCueIds(scene: Scene): string[] {
-  return scene.beats.map((beat) => beat.wordId);
+  return [...new Set([...scene.beats.map((beat) => beat.wordId),...Object.values(scene.program?.cueBindings??{})])];
 }
 
 function assertSourceStillMatches(
@@ -856,11 +875,11 @@ function findTemplate(
 export function createAnimationTemplates(
   root: string,
   directory: string,
-  options: AnimationContentOptions = {},
+  options: AnimationContentOptions & {sceneModules?: SceneModules} = {},
 ): AnimationTemplates {
   const resolvedRoot = path.resolve(root);
   const resolvedDirectory = path.resolve(directory);
-  const sceneModules = createSceneModules(resolvedRoot);
+  const sceneModules = options.sceneModules ?? createSceneModules(resolvedRoot);
 
   async function list(): Promise<AnimationTemplate[]> {
     const metadata = await readTemplateFile(resolvedDirectory);
@@ -891,6 +910,7 @@ export function createAnimationTemplates(
         `Animation source hash is stale (expected ${String(input.expectedSourceHash)}, found ${sourceBefore.sourceHash})`,
       );
     const mergedParameters = {
+      ...program.styleDefaults,
       ...program.parameters,
       ...(input.scene.editor?.overrides ?? {}),
     };
@@ -918,6 +938,12 @@ export function createAnimationTemplates(
     );
     const metadataPath = path.join(resolvedDirectory, TEMPLATE_FILE_NAME);
     const sourceCueWordIds = sourceCueIds(input.scene);
+    let semanticCues: {label:string;sourceCueIndex:number}[]|undefined;
+    if(sourceBefore.visualAsset) {
+      for(const cue of sourceBefore.visualAsset.cues)if(cue.required&&!program.cueBindings?.[cue.id])
+        fail('INVALID_INPUT','视觉资产缺少语义事件绑定：'+cue.label);
+      semanticCues=Object.entries(program.cueBindings??{}).map(([label,wordId])=>({label,sourceCueIndex:sourceCueWordIds.indexOf(wordId)}));
+    }
     const cues = animationCues(input.scene,input.wordOrder);
     const sourceTemplateId = SOURCE_MODULE_ID_PATTERN.test(program.moduleId)
       ? program.moduleId.slice("saved-".length)
@@ -939,6 +965,7 @@ export function createAnimationTemplates(
       moduleId,
       sourceCueWordIds.map(id=>cues.findIndex(c=>c.wordId===id)),
       captured.contents,
+      semanticCues,
     );
     for(const [name,bytes] of captured.files)bundledSource.assets.set(name,bytes);
     const sourceAfter = await sceneModules.detail(program.moduleId);

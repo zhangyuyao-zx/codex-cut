@@ -1,0 +1,117 @@
+{
+  "id": "example-paper-focus-ring",
+  "version": "1.0.1",
+  "name": "纸面示例 · 圈绘焦点",
+  "description": "透明的双笔圈绘，强调对象的位置与范围。独立的触发事件控制圈绘完成，适合截图、画面或关键词。",
+  "kind": "effect",
+  "mount": "OBJECT",
+  "requiresSourceMedia": false,
+  "previewBackground": "#F1F1E8",
+  "tags": [
+    "强调",
+    "圈绘",
+    "局部焦点"
+  ],
+  "source": {
+    "kind": "authored",
+    "note": "公开示例：由Codex重写的原创几何与通用文案，用于展示参数化和语义事件。不含参考原片、原品牌、卡通角色或音乐。"
+  },
+  "controls": [
+    {
+      "key": "label",
+      "label": "焦点说明",
+      "type": "text",
+      "default": "把注意力放在这里"
+    },
+    {
+      "key": "x",
+      "label": "中心水平位置",
+      "type": "number",
+      "default": 960,
+      "min": 100,
+      "max": 1820,
+      "step": 1
+    },
+    {
+      "key": "y",
+      "label": "中心垂直位置",
+      "type": "number",
+      "default": 470,
+      "min": 100,
+      "max": 800,
+      "step": 1
+    },
+    {
+      "key": "radius",
+      "label": "范围半径",
+      "type": "number",
+      "default": 215,
+      "min": 70,
+      "max": 320,
+      "step": 1
+    },
+    {
+      "key": "stroke",
+      "label": "线条粗细",
+      "type": "number",
+      "default": 17,
+      "min": 3,
+      "max": 30,
+      "step": 1
+    },
+    {
+      "key": "accent",
+      "label": "强调色",
+      "type": "color",
+      "default": "#2869FF"
+    },
+    {
+      "key": "ink",
+      "label": "文字颜色",
+      "type": "color",
+      "default": "#17191C"
+    }
+  ],
+  "objects": [
+    {
+      "id": "focus",
+      "label": "圈绘与说明",
+      "parameters": [
+        "label",
+        "x",
+        "y",
+        "radius",
+        "stroke",
+        "accent",
+        "ink"
+      ]
+    }
+  ],
+  "cues": [
+    {
+      "id": "focus",
+      "label": "焦点开始强调",
+      "required": true
+    }
+  ],
+  "mediaSlots": [],
+  "styleBindings": {
+    "ink": "ink",
+    "accent": "accent"
+  },
+  "contentParameters": [
+    "label"
+  ],
+  "constraints": {
+    "aspectRatios": [
+      "16:9"
+    ],
+    "minFrames": 12,
+    "maxFrames": 3600,
+    "notes": "仅圈绘层，背景透明。库中浅色底仅供预览。目标说明应简短。"
+  },
+  "sampleValues": {
+    "label": "把注意力放在这里"
+  },
+  "codeFile": "example-paper-focus-ring.tsx"
+}

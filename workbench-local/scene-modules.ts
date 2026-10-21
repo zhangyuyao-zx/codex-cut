@@ -3,6 +3,7 @@ import {createReadStream} from 'node:fs';
 import { createHash } from "node:crypto";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import {visualControlSchema} from "./visual-library-contract";
 
 /**
  * A scene module is authored as a normal TSX/JSX file, but its manifest is
@@ -16,7 +17,7 @@ const SCENE_MODULE_ENTRY_PATTERN =
 const SCENE_MODULE_EXPORT_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/u;
 const COLOR_PATTERN = /^#[0-9a-f]{6}$/iu;
 
-export type SceneModuleControlType = "text" | "number" | "color" | "boolean";
+export type SceneModuleControlType = "text" | "number" | "color" | "boolean" | "select" | "list";
 
 export interface SceneModuleControlBase {
   readonly key: string;
@@ -35,6 +36,7 @@ export interface SceneModuleNumberControl extends SceneModuleControlBase {
   readonly default?: number;
   readonly min?: number;
   readonly max?: number;
+  readonly step?: number;
 }
 
 export interface SceneModuleColorControl extends SceneModuleControlBase {
@@ -47,11 +49,27 @@ export interface SceneModuleBooleanControl extends SceneModuleControlBase {
   readonly default?: boolean;
 }
 
+export interface SceneModuleSelectControl extends SceneModuleControlBase {
+  readonly type: "select";
+  readonly options: readonly string[];
+  readonly default?: string;
+}
+
+export interface SceneModuleListControl extends SceneModuleControlBase {
+  readonly type: "list";
+  readonly itemType: "text" | "number";
+  readonly default?: (string | number)[];
+  readonly minItems?: number;
+  readonly maxItems?: number;
+}
+
 export type SceneModuleControl =
   | SceneModuleTextControl
   | SceneModuleNumberControl
   | SceneModuleColorControl
-  | SceneModuleBooleanControl;
+  | SceneModuleBooleanControl
+  | SceneModuleSelectControl
+  | SceneModuleListControl;
 
 export interface SceneModuleManifest {
   readonly id: string;
@@ -73,9 +91,15 @@ export interface SceneModuleDetail extends SceneModuleManifest {
   readonly modulePath: string;
   readonly moduleUrl: string;
   readonly sourceHash: string;
+  readonly visualAsset?: {
+    id:string;version:string;mount?:'OBJECT'|'SCENE'|'TRANSITION';
+    cues:readonly {id:string;label:string;required:boolean}[];
+    mediaSlots:readonly {id:string;label:string;kind:'image'|'video'|'either';required:boolean}[];
+    constraints:{minFrames:number;maxFrames:number;notes:string};
+  };
 }
 
-export type SceneModuleParameterValue = string | number | boolean;
+export type SceneModuleParameterValue = string | number | boolean | (string | number)[];
 export type SceneModuleParameterMap = Readonly<Record<string, unknown>>;
 
 export interface SceneModuleValidationInput {
@@ -239,6 +263,10 @@ function validateControlDefault(
   value: unknown,
   context: string,
 ): void {
+  if (control.type === "select" || control.type === "list") {
+    checkParameterValue(control, value, control.key);
+    return;
+  }
   if (control.type === "text") {
     if (typeof value !== "string")
       throw new Error(`${context}.default must be text`);
@@ -270,7 +298,7 @@ function validateControlDefault(
   }
 }
 
-function parseControl(
+export function parseSceneModuleControl(
   value: unknown,
   id: string,
   index: number,
@@ -278,10 +306,23 @@ function parseControl(
   const context = `controls[${index}]`;
   if (!isRecord(value))
     throw invalidManifest(id, `${context} must be an object`);
+  if (value.type === "select" || value.type === "list") {
+    const parsed = visualControlSchema.safeParse(value);
+    if (!parsed.success)
+      throw invalidManifest(id, `${context}: ${parsed.error.issues.map(issue => issue.message).join("; ")}`);
+    const control = parsed.data as SceneModuleSelectControl | SceneModuleListControl;
+    if (control.type === "list" && (control.minItems ?? 0) > (control.maxItems ?? 40))
+      throw invalidManifest(id, `${context}.minItems cannot exceed maxItems`);
+    if (hasOwn(control, "default")) {
+      try { checkParameterValue(control, control.default, control.key); }
+      catch (error) { throw invalidManifest(id, `${context}.default: ${error instanceof Error ? error.message : "invalid"}`); }
+    }
+    return control;
+  }
   try {
     assertExactKeys(
       value,
-      ["key", "label", "type", "required", "default", "min", "max"],
+      ["key", "label", "type", "required", "default", "min", "max", "step"],
       context,
     );
   } catch (error) {
@@ -316,7 +357,7 @@ function parseControl(
   } as const;
   if (
     value.type !== "number" &&
-    (hasOwn(value, "min") || hasOwn(value, "max"))
+    (hasOwn(value, "min") || hasOwn(value, "max") || hasOwn(value, "step"))
   ) {
     throw invalidManifest(
       id,
@@ -324,6 +365,8 @@ function parseControl(
     );
   }
   if (value.type === "number") {
+    if (hasOwn(value, "step") && (!isFiniteNumber(value.step) || value.step <= 0))
+      throw invalidManifest(id, `${context}.step must be positive and finite`);
     if (hasOwn(value, "min") && !isFiniteNumber(value.min)) {
       throw invalidManifest(id, `${context}.min must be finite`);
     }
@@ -341,6 +384,7 @@ function parseControl(
       ...(hasOwn(value, "default") ? { default: value.default as number } : {}),
       ...(hasOwn(value, "min") ? { min } : {}),
       ...(hasOwn(value, "max") ? { max } : {}),
+      ...(hasOwn(value, "step") ? { step: value.step as number } : {}),
     };
     if (hasOwn(value, "default")) {
       try {
@@ -438,7 +482,7 @@ function parseManifest(
   const controls: SceneModuleControl[] = [];
   const keys = new Set<string>();
   for (const [index, controlValue] of value.controls.entries()) {
-    const control = parseControl(controlValue, expectedId, index);
+    const control = parseSceneModuleControl(controlValue, expectedId, index);
     if (keys.has(control.key))
       throw invalidManifest(expectedId, `duplicate control key ${control.key}`);
     keys.add(control.key);
@@ -619,6 +663,17 @@ function checkParameterValue(
   value: unknown,
   key: string,
 ): SceneModuleParameterValue {
+  if (control.type === "select") {
+    if (typeof value !== "string" || !control.options.includes(value))
+      throw invalidParameters(`参数 ${key} 选项无效 (invalid select option)`);
+    return value;
+  }
+  if (control.type === "list") {
+    if (!Array.isArray(value) || value.length < (control.minItems ?? 0) || value.length > (control.maxItems ?? 40) ||
+      value.some(item => control.itemType === "number" ? !isFiniteNumber(item) : typeof item !== "string" || item.length > 4000))
+      throw invalidParameters(`参数 ${key} 列表内容或数量无效 (invalid list items or bounds)`);
+    return [...value] as (string | number)[];
+  }
   if (control.type === "text") {
     if (typeof value !== "string")
       throw invalidParameters(`参数 ${key} 类型必须是 text`);
@@ -653,8 +708,37 @@ function checkParameterValue(
   return value;
 }
 
-export function createSceneModules(root: string): SceneModules {
+export function resolveSceneModuleParameters(
+  controls: readonly SceneModuleControl[],
+  rawParameters: unknown = {},
+): Record<string, SceneModuleParameterValue> {
+  if (!isRecord(rawParameters)) throw invalidParameters("parameters must be an object");
+  const byKey = new Map(controls.map(control => [control.key, control]));
+  if (byKey.size !== controls.length) throw invalidParameters("duplicate control keys");
+  for (const key of Object.keys(rawParameters))
+    if (!byKey.has(key)) throw invalidParameters(`未知动画参数 (unknown parameter): ${key}`);
+  const resolved: Record<string, SceneModuleParameterValue> = {};
+  for (const control of controls) {
+    const value = hasOwn(rawParameters, control.key) ? rawParameters[control.key] : control.default;
+    if (value === undefined && !hasOwn(rawParameters, control.key) && !hasOwn(control, "default")) {
+      if (control.required) throw invalidParameters(`缺少必填参数 (missing required parameter): ${control.key}`);
+      continue;
+    }
+    resolved[control.key] = checkParameterValue(control, value, control.key);
+  }
+  return resolved;
+}
+
+export interface ExternalSceneModules {
+  list(): Promise<SceneModuleDetail[]>;
+  detail(id: string): Promise<SceneModuleDetail | undefined>;
+}
+
+export function createSceneModules(root: string, external?: ExternalSceneModules): SceneModules {
   async function detail(id: string): Promise<SceneModuleDetail> {
+    if (!isSafeId(id)) throw notFound(id);
+    const provided = await external?.detail(id);
+    if (provided) return provided;
     const { manifest, manifestBytes, scenesDirectory } = await readManifest(
       root,
       id,
@@ -680,8 +764,9 @@ export function createSceneModules(root: string): SceneModules {
   }
 
   async function list(): Promise<SceneModuleDetail[]> {
+    const provided = await external?.list() ?? [];
     const scenesDirectory = await resolveScenesDirectory(root);
-    if (!scenesDirectory) return [];
+    if (!scenesDirectory) return provided;
     let entries;
     try {
       entries = await readdir(scenesDirectory.logicalPath, {
@@ -698,8 +783,9 @@ export function createSceneModules(root: string): SceneModules {
       .filter((name) => name.endsWith(".json"))
       .map((name) => name.slice(0, -".json".length))
       .sort((left, right) => left.localeCompare(right));
-    const modules: SceneModuleDetail[] = [];
-    for (const id of manifestIds) modules.push(await detail(id));
+    const modules: SceneModuleDetail[] = [...provided];
+    const providedIds = new Set(provided.map(module => module.id));
+    for (const id of manifestIds) if (!providedIds.has(id)) modules.push(await detail(id));
     return modules;
   }
 
@@ -713,37 +799,7 @@ export function createSceneModules(root: string): SceneModules {
     const rawParameters = hasOwn(input, "parameters")
       ? input.parameters
       : undefined;
-    if (rawParameters !== undefined && !isRecord(rawParameters)) {
-      throw invalidParameters("parameters must be an object");
-    }
-    const parameters = (rawParameters ?? {}) as Record<string, unknown>;
-    const controls = new Map(
-      module.controls.map((control) => [control.key, control]),
-    );
-    for (const key of Object.keys(parameters)) {
-      if (!controls.has(key))
-        throw invalidParameters(`未知动画参数 (unknown parameter): ${key}`);
-    }
-    const resolvedParameters: Record<string, SceneModuleParameterValue> = {};
-    for (const control of module.controls) {
-      let value: unknown;
-      if (hasOwn(parameters, control.key)) {
-        value = parameters[control.key];
-      } else if (hasOwn(control, "default")) {
-        value = control.default;
-      } else if (control.required) {
-        throw invalidParameters(
-          `缺少必填参数 (missing required parameter): ${control.key}`,
-        );
-      } else {
-        continue;
-      }
-      resolvedParameters[control.key] = checkParameterValue(
-        control,
-        value,
-        control.key,
-      );
-    }
+    const resolvedParameters = resolveSceneModuleParameters(module.controls, rawParameters === undefined ? {} : rawParameters);
     return { ...module, resolvedParameters };
   }
 

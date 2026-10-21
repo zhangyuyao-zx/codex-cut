@@ -6,7 +6,7 @@ import "./style.css";
 import "./glass.css";
 import "./product-interaction.css";
 import {ChromeIcon, useWorkbenchAppearance} from "./WorkbenchChrome";
-import { ComponentLibrary } from "./ComponentLibrary";
+import { VisualLibrary } from "./VisualLibrary";
 import { Production } from "./Production";
 import { Roughcut } from "./Roughcut";
 import {CheckpointPanel} from './CheckpointPanel';
@@ -151,7 +151,7 @@ function App() {
       <header className="app-header">
         <div className="brand"><span className="brand-mark" aria-hidden="true">C</span><div><strong>Codex Cut</strong><small>你的本地创作空间</small></div></div>
         <nav className="workspace-tabs" aria-label="工作区">
-          {([['cut', '剪辑'], ['production', '包装与审阅'], ['library', '组件']] as const).map(([id,label]) =>
+          {([['cut', '剪辑'], ['production', '包装与审阅'], ['library', '视觉资产库']] as const).map(([id,label]) =>
             <button key={id} aria-current={mode === id ? 'page' : undefined} disabled={productionDirty || dirty || cutDirty} className={mode === id ? 'active' : ''} onClick={() => setMode(id)}>{label}</button>
           )}
         </nav>
@@ -177,7 +177,7 @@ function App() {
       </header>
       {checkpointOpen && <CheckpointPanel api={api} hasDraft={productionDirty || dirty || cutDirty} onClose={()=>setCheckpointOpen(false)}/>}
       {mode === "library" ? (
-        <ComponentLibrary onOpenScene={() => setMode("production")} api={api} onDirtyChange={setProductionDirty} />
+        <VisualLibrary onOpenScene={() => setMode("production")} api={api} onDirtyChange={setProductionDirty} />
       ) : mode === "production" ? (
         <Production
           api={api}

@@ -10,13 +10,15 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import {createRequire} from 'node:module';
+import {transform} from 'esbuild';
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   createAnimationTemplates,
   type AnimationTemplate,
 } from "./animation-templates";
-import { createSceneModules } from "./scene-modules";
+import { createSceneModules, type SceneModuleDetail } from "./scene-modules";
 import type { Scene } from "./production-store";
 import {createComponentAssets} from './component-assets';
 
@@ -115,6 +117,106 @@ afterEach(async () => {
 });
 
 describe("animation templates", () => {
+  it('snapshots visual SCENE style/list values, shared-word semantic cues and visual material slot IDs',async()=>{
+    const root=await makeRoot(),sourceDirectory=path.join(root,'visual-assets');
+    await mkdir(sourceDirectory);
+    const modulePath=path.join(sourceDirectory,'Asset.tsx');
+    await writeFile(modulePath,`export function VisualAsset(props){
+      return <div data-reveal={props.beats.find(b=>b.label==='reveal')?.frame??-1}
+        data-settle={props.beats.find(b=>b.label==='settle')?.frame??-1}
+        data-material={props.materials.find(m=>m.id==='hero')?.src??'missing'} />;
+    }`);
+    const detail:SceneModuleDetail={id:'va-scene-v1-0-0',label:'Visual scene',entry:'Asset.tsx',exportName:'VisualAsset',
+      modulePath,moduleUrl:'/@fs'+modulePath,sourceHash:'immutable-visual-source',acceptsMaterials:true,
+      controls:[{key:'labels',label:'Labels',type:'list',itemType:'text',default:['module']},
+        {key:'palette',label:'Palette',type:'list',itemType:'text',default:['#111111']},
+        {key:'accent',label:'Accent',type:'color',default:'#111111'},{key:'scale',label:'Scale',type:'number',default:1}],
+      visualAsset:{id:'scene',version:'1.0.0',mount:'SCENE',cues:[{id:'reveal',label:'出现',required:true},{id:'settle',label:'落定',required:true}],
+        mediaSlots:[{id:'hero',label:'主图',kind:'image',required:true}],constraints:{minFrames:1,maxFrames:900,notes:''}}};
+    const modules=createSceneModules(root,{list:async()=>[detail],detail:async id=>id===detail.id?detail:undefined});
+    const materialDirectory=path.join(root,'materials');await mkdir(materialDirectory);
+    await writeFile(path.join(materialDirectory,'actual.png'),'actual source pixels');
+    const service=createAnimationTemplates(root,path.join(root,'templates'),{sceneModules:modules,materialDirectory});
+    const source:Scene={id:'source-scene',title:'Source',intent:'Semantic visual scene',startWordId:'source-start',endWordId:'source-end',beats:[],
+      program:{moduleId:detail.id,styleDefaults:{labels:['pack default'],palette:['#223344','#556677'],accent:'#aabbcc',scale:1.5},
+        parameters:{labels:['scene content'],scale:2},cueBindings:{reveal:'source-word',settle:'source-word'}},
+      editor:{overrides:{scale:3},locks:['scale']}};
+    const saved=await service.save({name:'Semantic scene',scene:source,wordOrder:['source-start','source-word','source-end'],requests:[
+      {id:'random-request-id',sceneId:source.id,description:'主图',reason:'真实文件',status:'provided',fileName:'actual.png',visualSlot:{moduleId:detail.id,slotId:'hero'}},
+      {id:'stale-request',sceneId:source.id,description:'旧模块',reason:'不应读取',status:'provided',fileName:'missing.png',visualSlot:{moduleId:'other-module',slotId:'ignored'}},
+    ]});
+    expect(saved.parameters).toEqual({labels:['scene content'],palette:['#223344','#556677'],accent:'#aabbcc',scale:3});
+    expect(saved.cues).toEqual([{label:'reveal'}]);
+    expect(saved.contents?.materials).toMatchObject([{id:'hero',kind:'image'}]);
+    const target:Scene={id:'target',title:'Target',intent:'New narration',startWordId:'target-start',endWordId:'target-end',beats:[],editor:{overrides:{},locks:[]}};
+    const applied=await service.instantiate({id:saved.id,target,bindings:['new-word']});
+    expect(applied.beats).toEqual([{wordId:'new-word',label:'reveal'}]);
+    const requests=await service.instantiateMaterials(saved.id,applied,[]);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({status:'provided',animationSlot:{moduleId:saved.moduleId,templateId:saved.id,materialId:'hero'}});
+    expect(await readFile(path.join(materialDirectory,requests[0].fileName!),'utf8')).toBe('actual source pixels');
+    // Execute only the generated fixture wrapper; no media render or user project is involved.
+    const sourceText=await readFile(path.join(root,'workbench-local/scenes',saved.moduleId+'.jsx'),'utf8');
+    const compiled=await transform(sourceText,{loader:'jsx',format:'cjs'}),runtime={exports:{} as any};
+    new Function('require','module','exports',compiled.code)(createRequire(import.meta.url),runtime,runtime.exports);
+    const element=runtime.exports.SavedAnimation({id:applied.id,parameters:applied.program!.parameters,beats:[{...applied.beats[0],frame:47}],materials:[]});
+    expect(element.props.beats).toEqual([{wordId:'source-word',label:'reveal',frame:47},{wordId:'source-word',label:'settle',frame:47}]);
+    const visual=element.type(element.props);
+    expect(visual.props['data-reveal']).toBe(47);expect(visual.props['data-settle']).toBe(47);
+    expect(visual.props['data-material']).toContain('saved-animations/'+saved.moduleId);
+  });
+
+  it('round-trips typed lists/selects, applying user array overrides and locks without stringification',async()=>{
+    const root=await makeRoot();await writeSourceModule(root);
+    const controls=[...sourceManifest.controls,
+      {key:'labels',label:'Labels',type:'list',itemType:'text',minItems:1,maxItems:3,default:['默认']},
+      {key:'amounts',label:'Amounts',type:'list',itemType:'number',default:[1,2]},
+      {key:'layout',label:'Layout',type:'select',options:['left','right'],default:'left'}];
+    await writeFile(path.join(root,'workbench-local/scenes/source-animation.json'),JSON.stringify({...sourceManifest,controls}));
+    const service=await templateService(root);
+    const source=sourceScene();
+    source.editor={overrides:{caption:'用户已调整',labels:['一','二'],amounts:[3,5],layout:'right'},locks:['labels','amounts','layout']};
+    const saved=await service.save({name:'数组动画',scene:source});
+    expect(saved.parameters).toMatchObject({labels:['一','二'],amounts:[3,5],layout:'right'});
+    const reopened=await templateService(root);
+    expect((await reopened.list())[0]).toEqual(saved);
+    expect((await createSceneModules(root).detail(saved.moduleId)).controls).toEqual(controls);
+    const target=targetScene();
+    target.editor={overrides:{labels:['新甲','新乙'],amounts:[8],layout:'left'},locks:['labels','amounts','layout']};
+    const applied=await reopened.instantiate({id:saved.id,target,bindings:['new-a','new-b']});
+    expect(applied.editor).toEqual(target.editor);
+    expect(applied.program?.parameters).toMatchObject({labels:['新甲','新乙'],amounts:[8],layout:'left'});
+    const metadataPath=path.join(root,'animation-templates/templates.json');
+    const pristine=JSON.parse(await readFile(metadataPath,'utf8'));
+    for(const mutate of [
+      (template:any)=>{template.parameters.labels='一|二';},
+      (template:any)=>{template.parameters.amounts=['8'];},
+      (template:any)=>{template.controls.find((c:any)=>c.key==='layout').default='invalid';},
+      (template:any)=>{template.controls.find((c:any)=>c.key==='labels').itemType='object';},
+    ]) {
+      const changed=structuredClone(pristine);mutate(changed.templates[0]);
+      await writeFile(metadataPath,JSON.stringify(changed));
+      await expect(reopened.list()).rejects.toThrow();
+    }
+  });
+
+  it('can save a module supplied by the combined external scene service',async()=>{
+    const root=await makeRoot();
+    await mkdir(path.join(root,'immutable-assets'));
+    const modulePath=path.join(root,'immutable-assets/External.tsx');
+    await writeFile(modulePath,'export function External(){return null;}');
+    const external:SceneModuleDetail={id:'va-example-v1-0-0',label:'External',entry:'External.tsx',exportName:'External',
+      acceptsMaterials:false,controls:[{key:'labels',label:'Labels',type:'list',itemType:'text',default:['default']}],
+      modulePath,moduleUrl:'/@fs'+modulePath,sourceHash:'immutable-source-identity'};
+    const sceneModules=createSceneModules(root,{list:async()=>[external],detail:async id=>id===external.id?external:undefined});
+    const service=createAnimationTemplates(root,path.join(root,'animation-templates'),{sceneModules});
+    const source=sourceScene();source.program={moduleId:external.id,parameters:{labels:['bound','values']}};source.editor={overrides:{},locks:[]};
+    const saved=await service.save({name:'External saved',scene:source,expectedSourceHash:external.sourceHash});
+    expect(saved.sourceHash).toBe(external.sourceHash);
+    expect(saved.parameters.labels).toEqual(['bound','values']);
+    expect((await service.list())[0].controls).toEqual(external.controls);
+  });
+
   it('reuses editable components and frozen media in a second project, rebinding intervals without replacing existing edits',async()=>{
     const root=await makeRoot();await writeSourceModule(root);
     const originalMedia=path.join(root,'original.png');await writeFile(originalMedia,'original component pixels');

@@ -7,8 +7,8 @@ import {
   useVideoConfig,
 } from "remotion";
 import { componentMediaRequirement } from "./component-media";
-import { ComponentRuntimeRenderer } from "../modules/components/component-runtime-renderer";
-import { ScenePrimitiveLibraryPreview } from "../modules/components/scene-program-renderer";
+import { ComponentRuntimeRenderer } from "../modules/legacy/components/component-runtime-renderer";
+import { ScenePrimitiveLibraryPreview } from "../modules/legacy/components/scene-program-renderer";
 export function AppLibraryComponent({
   componentId,
   parameters,

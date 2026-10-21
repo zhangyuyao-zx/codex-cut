@@ -76,6 +76,8 @@ export function SceneModulePreview({
   const outgoingKey = outgoing
     ? outgoing.module?.moduleUrl + ":" + outgoing.module?.sourceHash
     : "";
+  const layerKey=JSON.stringify([...(scene.componentLayers??[]),...(outgoing?.scene?.componentLayers??[])].filter(l=>l.visualAdapter).map(l=>[l.moduleUrl,l.sourceHash,l.exportName]));
+  const [layerRenderers,setLayerRenderers]=useState<Record<string,React.ComponentType<any>>>({});
   const [renderer, setRenderer] = useState<any>(),
     [outgoingRenderer, setOutgoingRenderer] = useState<any>(),
     [error, setError] = useState("");
@@ -102,11 +104,13 @@ export function SceneModulePreview({
     Promise.all([
       load(module,"场景"),
       outgoing ? load(outgoing.module,"转场退出场景") : Promise.resolve(undefined),
+      Promise.all([...(scene.componentLayers??[]),...(outgoing?.scene?.componentLayers??[])].filter(l=>l.visualAdapter).map(async l=>[l.moduleUrl+':'+l.sourceHash,(await load(l,'叠加资产')).component] as const)),
     ])
-      .then(([nextRenderer,nextOutgoingRenderer]) => {
+      .then(([nextRenderer,nextOutgoingRenderer,layers]) => {
         if (!active) return;
         setRenderer(nextRenderer);
         setOutgoingRenderer(nextOutgoingRenderer);
+        setLayerRenderers(Object.fromEntries(layers));
       })
       .catch((e) => {
         if (active) {
@@ -119,7 +123,7 @@ export function SceneModulePreview({
     return () => {
       active = false;
     };
-  }, [module.moduleUrl, module.sourceHash, module.exportName, outgoingKey, outgoing?.module?.exportName]);
+  }, [module.moduleUrl, module.sourceHash, module.exportName, outgoingKey, outgoing?.module?.exportName,layerKey]);
   const playerDuration = Math.max(1, scene.transitionSpanFrames ?? scene.duration);
   useEffect(() => {
     const p = player.current;
@@ -132,8 +136,9 @@ export function SceneModulePreview({
     onTime((scene.from + frame) / 30);
     return () => p.removeEventListener("frameupdate", changed);
   }, [renderer, scene.id, scene.from, onTime, initialFrame, seekVersion, playerDuration]);
+  const withLayers=(s:any)=>({...s,componentLayers:s.componentLayers?.map((l:any)=>({...l,...l.visualAdapter?{renderer:layerRenderers[l.moduleUrl+':'+l.sourceHash]}:{}}))});
   const outgoingInput = outgoing && outgoingRenderer?.key === outgoingKey
-    ? {renderer:outgoingRenderer.component,scene:outgoing.scene,frame:outgoing.frame}
+    ? {renderer:outgoingRenderer.component,scene:withLayers(outgoing.scene),frame:outgoing.frame}
     : undefined;
   return renderer?.key === moduleKey && (!outgoing || outgoingInput) ? (
     <Boundary
@@ -145,7 +150,7 @@ export function SceneModulePreview({
       <Player
         ref={player}
         component={PreviewSurface}
-        inputProps={{ renderer:renderer.component, scene, outgoing:outgoingInput, includeAudio: true, onReady }}
+        inputProps={{ renderer:renderer.component, scene:withLayers(scene), outgoing:outgoingInput, includeAudio: true, onReady }}
         errorFallback={({error})=><PreviewFailure error={error} onError={onError} fallbackUrl={fallbackUrl}/>}
         compositionWidth={1920}
         compositionHeight={1080}

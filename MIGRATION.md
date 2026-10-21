@@ -43,3 +43,13 @@
 回退网页工作台前先保存页面内容，在新目录执行 `npm run stop`。旧源码的根node_modules和desktop/node_modules、Rust target已清理；需在副本中按package声明、锁文件及旧文档重建依赖，不直接运行旧入口。插件配置要改成实际恢复目录，不能直接恢复仍指向已移走原位置的配置备份；配置变更后重新加载插件连接。两套服务不能争用4340，回退不会自动将新工程的后续调整覆盖回旧工程。
 
 最后安装的0.2.28旧App完整包位于归档的 `历史文件.noindex/旧App/Codex Cut.app`；其Application Support用户数据保留在原处。恢复安装和源码重建是两种途径，本轮未重新启动旧App或重建验收。
+
+## 参考提炼与风格包升级（2026-10-21）
+
+本节承接上述独立提取记录。v0.2.0 实现将旧 194 项及其适配代码移至 `modules/legacy/`，保留已有工程解析，关闭新选型；历史迁移检查中的「组件库194项」只描述 2026-09-17 状态。
+
+新资产库在活动工程的 `visual-library/` 中保存数据索引、不可变资产源码、参考、样片与风格包。默认库为空；仓库只提供可明确导入的 `examples/paper-style/` 原创几何示例。私人参考、文稿、候选渲染与项目数据继续排除于 Git，公开演示只含原创通用内容。
+
+升级前配对基线备份位于工作区根目录（`codex工作台`）的 `99-临时区/Codex-Cut升级基线备份-20261021/`。本轮升级后快照目录为 `99-临时区/Codex-Cut风格包升级快照-20261021/`，实际创建/校验结果见升级计划收尾记录；恢复必须配对代码、项目与项目内视觉库，不能只复制制作 JSON。当前运行时仍需本机依赖，不宣称跨机器安装完成。操作见 [RECOVERY.md](workbench-local/RECOVERY.md)，新库约束见 [REFERENCE_LIBRARY.md](docs/REFERENCE_LIBRARY.md)。
+
+不同 DJI 内容使用 `projects/upgrade-evidence-20261021/target/` 隔离副本验证，原 `projects/local-workbench/` 粗剪修订 20、制作修订 27 保留。新库试用和样片不迁移为用户确认；正式合成仍待用户逐段认可。完整结果见[升级计划执行记录](docs/plans/2026-10-21-reference-distillation-style-packs.md#11-执行记录2026-10-21)。

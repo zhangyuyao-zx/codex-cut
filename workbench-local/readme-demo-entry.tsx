@@ -5,7 +5,7 @@ import {
   Sequence,
   registerRoot,
 } from "remotion";
-import {ComponentRuntimeRenderer} from "../modules/components/component-runtime-renderer";
+import {ComponentRuntimeRenderer} from "../modules/legacy/components/component-runtime-renderer";
 
 const FPS = 30;
 const SCENE_FRAMES = 75;
