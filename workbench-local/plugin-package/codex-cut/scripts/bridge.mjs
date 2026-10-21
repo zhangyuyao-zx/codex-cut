@@ -38,7 +38,7 @@ async function healthy(){
  if(h.appId!=='codex-local-video-workbench' || !h.ready || await realpath(h.root)!==root) throw Error('4340 端口不是配置的就绪工作台；不会操作其他项目');
  return h;
 }
-function summary(c){return {workbenchRoot:root,url:base,revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,assemblyReady:c.assemblyReady,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
+function summary(c){return {workbenchRoot:root,url:base,revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,assemblyReady:c.assemblyReady,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
 async function context(){return json('/api/production');}
 async function mutate(path,data,{domain='production'}={}){
  await healthy();

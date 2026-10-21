@@ -3,6 +3,7 @@ import {createReadStream} from 'node:fs';
 import {mkdir,readFile,writeFile,rename,unlink,lstat} from 'node:fs/promises';
 import path from 'node:path';
 import {z} from 'zod';
+import {checkVisualSource,resolveCreativeDependencies,creativeRuntimeRoot} from './creative-runtime-dependencies';
 import {memberKey,visualModuleId,visualId,visualVersion,visualAssetInputSchema,stylePackInputSchema,referenceAnalysisSchema,resolveVisualValues,styleValuesFor,type VisualAsset,type VisualAssetInput,type VisualMember,type StylePack,type VisualPreview,type VisualReview,type ReferenceVideo} from './visual-library-contract';
 
 type State={schemaVersion:1;revision:number;assets:VisualAsset[];packs:StylePack[];references:ReferenceVideo[];favorites:string[]};
@@ -20,7 +21,7 @@ export async function regularWithin(root:string,...parts:string[]){
 }
 export async function atomicJson(file:string,data:unknown){await mkdir(path.dirname(file),{recursive:true});const tmp=file+'.'+randomUUID()+'.tmp';try{await writeFile(tmp,JSON.stringify(data,null,2)+'\n',{flag:'wx',mode:0o600});await rename(tmp,file);}finally{await unlink(tmp).catch(()=>undefined);}}
 
-export async function createVisualLibraryStore(directory:string){
+export async function createVisualLibraryStore(directory:string,runtimeRoot=creativeRuntimeRoot){
   const dir=path.resolve(directory),file=path.join(dir,'library.json');
   await mkdir(dir,{recursive:true});
   async function load():Promise<State>{
@@ -34,8 +35,8 @@ export async function createVisualLibraryStore(directory:string){
   function serialized<T>(fn:()=>Promise<T>):Promise<T>{const prev=queues.get(file)??Promise.resolve();const next=prev.catch(()=>undefined).then(fn);queues.set(file,next);void next.finally(()=>{if(queues.get(file)===next)queues.delete(file);}).catch(()=>undefined);return next;}
   async function mutate(expected:number|undefined,fn:(state:State)=>Promise<void>|void){return serialized(async()=>{const s=await load();if(expected!==undefined&&s.revision!==expected)throw Error('资产库已变化，请刷新后重试');await fn(s);s.revision++;await atomicJson(file,s);return clone(s);});}
   async function getAsset(m:VisualMember){visualId.parse(m.id);visualVersion.parse(m.version);const a=(await load()).assets.find(a=>memberKey(a)===memberKey(m));if(!a)throw Error('资产版本不存在');return clone(a);}
-  async function verifyAsset(a:VisualAsset){const source=await regularWithin(dir,'assets',a.id,a.version,'Asset.tsx');if(await fileHash(source)!==a.sourceHash)throw Error('资产源码发生变化，请保存为新版本');return source;}
-  async function saveAsset(expected:number,input:unknown){const parsed=visualAssetInputSchema.parse(input);resolveVisualValues(parsed.controls,parsed.sampleValues);return mutate(expected,async s=>{
+  async function verifyAsset(a:VisualAsset){const source=await regularWithin(dir,'assets',a.id,a.version,'Asset.tsx');if(await fileHash(source)!==a.sourceHash)throw Error('资产源码发生变化，请保存为新版本');await resolveCreativeDependencies(a.dependencies,runtimeRoot);checkVisualSource(await readFile(source,'utf8'),a.dependencies);return source;}
+  async function saveAsset(expected:number,input:unknown){const parsed=visualAssetInputSchema.parse(input);checkVisualSource(parsed.code,parsed.dependencies);await resolveCreativeDependencies(parsed.dependencies,runtimeRoot);resolveVisualValues(parsed.controls,parsed.sampleValues);return mutate(expected,async s=>{
     if(s.assets.some(a=>memberKey(a)===memberKey(parsed)))throw Error('该资产版本已存在，请使用新的版本号');
     if(parsed.source.kind==='reference'){
       const source=parsed.source,ref=s.references.find(r=>r.id===source.referenceId);
@@ -57,7 +58,8 @@ export async function createVisualLibraryStore(directory:string){
     const a=s.assets.find(a=>memberKey(a)===memberKey(m));if(!a)throw Error('资产不存在');await verifyAsset(a);
     if(status==='ready'){
       if(!userConfirmed)throw Error('需要用户选定这个资产版本');
-      const current=a.previews.filter(p=>p.status==='done'&&p.sourceHash===a.sourceHash);
+      const runtime=await resolveCreativeDependencies(a.dependencies,runtimeRoot);
+      const current=a.previews.filter(p=>p.status==='done'&&p.sourceHash===a.sourceHash&&p.dependencyFingerprint===runtime.fingerprint);
       const original=current.findLast(p=>p.kind==='reference'&&a.reviews.some(r=>r.kind==='visual'&&r.previewId===p.id&&r.sourceHash===a.sourceHash));
       const contentValues=(p:VisualPreview)=>JSON.stringify(a.contentParameters.map(key=>[key,p.values[key]??a.controls.find(c=>c.key===key)?.default]));
       const replacement=current.findLast(p=>p.kind==='replacement'&&p.contentIdentity!==original?.contentIdentity&&original&&(contentValues(p)!==contentValues(original)||((a.requiresSourceMedia||a.mediaSlots.length>0)&&p.contentIdentity!==original.contentIdentity))&&a.reviews.some(r=>r.kind==='reuse'&&r.previewId===p.id&&r.sourceHash===a.sourceHash));
@@ -75,8 +77,9 @@ export async function createVisualLibraryStore(directory:string){
   async function addPreview(m:VisualMember,p:VisualPreview){return mutate(undefined,s=>{const a=s.assets.find(a=>memberKey(a)===memberKey(m));if(!a)throw Error('资产不存在');if(a.previews.some(x=>x.id===p.id))throw Error('预览编号重复');a.previews.push(p);if(a.status==='draft')a.status='review';});}
   function advanceReferenceReview(s:State){for(const r of s.references)if(r.stage==='authoring'&&s.assets.some(a=>a.source.kind==='reference'&&a.source.referenceId===r.id&&a.previews.some(p=>p.status==='done'&&p.sourceHash===a.sourceHash)))r.stage='review';}
   async function updatePreview(m:VisualMember,id:string,patch:Partial<VisualPreview>){return mutate(undefined,s=>{const a=s.assets.find(a=>memberKey(a)===memberKey(m));const p=a?.previews.find(p=>p.id===id);if(!p)throw Error('预览不存在');Object.assign(p,patch);advanceReferenceReview(s);});}
-  async function review(expected:number,m:VisualMember,input:unknown){const data=z.object({previewId:z.string().uuid(),kind:z.enum(['visual','reuse']),note:z.string().min(1).max(4000)}).strict().parse(input);return mutate(expected,s=>{
-    const a=s.assets.find(a=>memberKey(a)===memberKey(m)),p=a?.previews.find(p=>p.id===data.previewId&&p.status==='done'&&p.sourceHash===a.sourceHash);
+  async function review(expected:number,m:VisualMember,input:unknown){const data=z.object({previewId:z.string().uuid(),kind:z.enum(['visual','reuse']),note:z.string().min(1).max(4000)}).strict().parse(input);return mutate(expected,async s=>{
+    const a=s.assets.find(a=>memberKey(a)===memberKey(m));if(a)await verifyAsset(a);const runtime=await resolveCreativeDependencies(a?.dependencies,runtimeRoot);
+    const p=a?.previews.find(p=>p.id===data.previewId&&p.status==='done'&&p.sourceHash===a.sourceHash&&p.dependencyFingerprint===runtime.fingerprint);
     if(!a||!p)throw Error('请先生成当前源码版本的实际预览');
     if(data.kind==='reuse'&&p.kind!=='replacement')throw Error('复用检查需要换内容样片');
     a.reviews.push({...data,id:randomUUID(),createdAt:new Date().toISOString(),sourceHash:a.sourceHash});
@@ -92,7 +95,7 @@ export async function createVisualLibraryStore(directory:string){
     const p=s.packs.find(p=>memberKey(p)===memberKey(m));if(!p)throw Error('风格包不存在');
     if(status==='ready'){
       if(!userConfirmed)throw Error('需要用户选定此风格包版本');
-      for(const member of p.members){const asset=s.assets.find(a=>memberKey(a)===memberKey(member));if(!asset||asset.status!=='ready')throw Error('包内仍有未验收资产：'+memberKey(member));await verifyAsset(asset);}
+      for(const member of p.members){const asset=s.assets.find(a=>memberKey(a)===memberKey(member));if(!asset||asset.status!=='ready')throw Error('包内仍有未验收资产：'+memberKey(member));await verifyAsset(asset);const runtime=await resolveCreativeDependencies(asset.dependencies,runtimeRoot);if(runtime.fingerprint&&p.demonstration?.members.find(m=>memberKey(m)===memberKey(asset))?.dependencyFingerprint!==runtime.fingerprint)throw Error('成员依赖运行时已变化，请重新生成风格包演示：'+memberKey(member));}
       if(!p.demonstration||await fileHash(await regularWithin(dir,'previews',p.demonstration.id,'review.mp4'))!==p.demonstration.outputHash)throw Error('请先生成并查看风格包的连续演示');
       p.acceptedAt=new Date().toISOString();
     }

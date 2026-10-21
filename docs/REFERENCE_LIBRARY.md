@@ -1,8 +1,10 @@
 # 参考提炼与视觉资产库
 
-2026-10-21 · v0.2.0 实现说明。首轮支持 16:9；用户选择和影片审阅状态见[执行记录](plans/2026-10-21-reference-distillation-style-packs.md#11-执行记录2026-10-21)。
+2026-10-21 · v0.2.1 实现说明。首轮支持 16:9；用户选择和影片审阅状态见[执行记录](plans/2026-10-21-reference-distillation-style-packs.md#11-执行记录2026-10-21)。
 
 Codex 负责实际观察、内容理解、创意与代码；本地工作台负责素材、时间、参数、版本、渲染和确认记录。整片仍按「粗剪 → 视觉段落 → 视觉对象 → 信息布局 → 包装设计 → 动画实现」推进。选风格包后，仍需根据当前文稿重新设计重点、构图、素材和出现顺序。
+
+项目原创场景与库资产是两种入口。可直接为当前内容编写 TSX、接上预览与参数，再按用户反馈修改；不必先完成资产入库。参考可提炼为风格、基础动作、对象关系和镜头衔接，也可形成完整场景。详见[连续场景原创示例](../examples/continuous-scene/README.md)。
 
 ## 从空库开始
 
@@ -46,12 +48,15 @@ node examples/paper-style/import.mjs
 | `styleBindings` | `{参数key:tokenKey}`，将包 token 映射到资产参数 |
 | `constraints` | `aspectRatios:["16:9"],minFrames,maxFrames,notes` |
 | `code` | 导出 `VisualAsset` 的确定性 React/Remotion 源码 |
+| `dependencies` | 可选 `{包名:精确版本}`，固定本机已支持的浏览器动画运行时 |
 
 select 使用 `options` 与其中一个字符串默认值；list 使用 `itemType:"text"|"number"`、同类型数组默认值及 `minItems/maxItems`。列表保持数组，不拼成字符串。标量与列表参数同时接通校验、编辑、保存与渲染。
 
 `VisualAsset` 接收与场景一致的 `parameters/title/from/duration/words/beats/mediaSrc/materials`。预览用 `cueFrames` 指定局部帧，事件 id 作为 beat 的 label/wordId；制作使用 `cueBindings:{cueId:真实wordId}`，由当前粗剪映射局部帧。缺失、删词、越段和时长不足明确报错。
 
-只允许明确的 `react`、`react/jsx-runtime`、`remotion` 导入；拒绝自由本地模块、动态 import 与 require。媒体经已声明输入传入，不引用参考截图或外部源码假装重建。目录为数据索引，读取列表不执行资产代码；实际渲染才编译固定源码。
+React/Remotion 是隐式依赖；可在 `dependencies` 声明当前运行时支持的包，准确可用性见 `/api/visual-library` 的 `capabilities.runtimeDependencies`。本版支持 `three@0.186.1`、`@react-three/fiber@9.8.2`、`@remotion/three@4.0.489`。导入哪个包就声明哪个包；宿主同时验证其运行所需的固定版本依赖。资产保存不联网安装包。未声明、缺失或版本不符会在使用前给出明确错误。资产不接受任意路径、服务端包、动态 import 或 require 调用；这不是任意 JS 的安全沙箱。
+
+项目原创场景也要在清单中声明这些动画依赖；检查覆盖入口及递归本地代码。预览、段落导出与保存动画采用相同精确运行时，依赖摘要参与结果身份。旧资产不声明依赖时保持兼容。媒体仍经明确输入绑定，目录读取不执行资产代码。
 
 ## 素材和段落应用
 
@@ -65,7 +70,9 @@ select 使用 `options` 与其中一个字符串默认值；list 使用 `itemTyp
 
 包包含 `id,version,name,description,source,members,tokens,typography,motion,composition,sound,coverage,limitations,overrides`。`members` 固定资产版本；`overrides` 的 key 为 `资产id@版本`。文字、运动、构图与声音字段是使用规则，声音规则本身不会生成音乐或音效。
 
-`production/style-pack` 先以 `{member,mode:"preview"}` 查看 `affected/conflicts/selection/scenes`，核对影响后再以同一 production revision 提交 `mode:"apply"`。应用只更新匹配成员的 `styleDefaults` 与项目的包选择，不自动生成整片分镜。
+`production/style-pack` 先以 `{member,mode:"preview"}` 查看 `affected/conflicts/coverage/brief/selection/scenes`，核对影响后再以同一 production revision 提交 `mode:"apply"`。有明确 `styleBindings` 的原创资产与项目场景都可以使用包 token，不要求成为包内成员；成员专用 overrides 仍限固定成员。原生场景清单同样支持 `styleBindings:{控件key:tokenKey}`。
+
+覆盖报告逐段区分已映射、部分映射、尚未适配、待实现和冲突，并列出被保留的已有参数。没有参数能自动映射时仍可先设为创作方向，再按风格编写原创场景。插件 summary 返回 `stylePackInfo.brief/coverage`，便于 Codex 延续整片方向。参数映射不是视觉验收：字体、材质、镜头、运动、密度及声音由 Codex 按实际内容实现并审阅，不从几段相同模板推导全片。
 
 生效顺序为风格默认值 → 已保存显式参数 → 用户 `editor.overrides`。用户锁继续限制 Codex 写入；草稿、revision、素材、词绑定与渲染指纹的过期保护保留。库升级新增版本，不自动替换已用版本。
 

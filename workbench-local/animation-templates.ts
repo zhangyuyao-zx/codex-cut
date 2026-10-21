@@ -17,6 +17,8 @@ import { build } from "esbuild";
 import {constants} from 'node:fs';
 import {fileDigest} from './segment-reviews';
 import {resolveStaticAsset, staticAssetCalls} from './scene-static-assets';
+import {validateCreativeDependencies,resolveCreativeDependencies} from './creative-runtime-dependencies';
+import type {CreativeDependencies} from './creative-runtime-dependency-contract';
 
 import {
   createSceneModules,
@@ -50,6 +52,8 @@ export interface AnimationTemplateCue {
 }
 
 export interface AnimationTemplate {
+  readonly dependencies?: CreativeDependencies;
+  readonly styleBindings?: Readonly<Record<string,string>>;
   readonly id: string;
   readonly name: string;
   /** The captured module id exposed to createSceneModules. */
@@ -405,8 +409,17 @@ function assertTemplateShape(value: unknown, index: number): AnimationTemplate {
     controls,
     objects,
     acceptsMaterials: record.acceptsMaterials,
+    ...(record.dependencies===undefined?{}:{dependencies:validateCreativeDependencies(record.dependencies)}),
+    ...(record.styleBindings===undefined?{}:{styleBindings:assertTemplateStyleBindings(record.styleBindings,controls)}),
     ...(record.contents === undefined ? {} : {contents:animationContentsSchema.parse(record.contents)}),
   };
+}
+
+function assertTemplateStyleBindings(value:unknown,controls:readonly SceneModuleControl[]):Record<string,string> {
+  const record=assertRecord(value,'Template styleBindings');
+  if(Object.entries(record).some(([key,token])=>!controls.some(c=>c.key===key)||typeof token!=='string'||!/^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(token)||['constructor','prototype','__proto__'].includes(token)))
+    fail('STORAGE_FAILED','Template styleBindings contains unknown controls or unsafe token keys');
+  return {...record} as Record<string,string>;
 }
 
 function parseTemplateFile(value: unknown, source: string): TemplateFile {
@@ -509,6 +522,7 @@ async function bundleWrapper(
   contents: AnimationContents,
   semanticCues?: readonly {label:string;sourceCueIndex:number}[],
 ): Promise<{source: string; assets: Map<string, string>}> {
+  await resolveCreativeDependencies(detail.dependencies,root);
   const wrapper = wrapperSource(detail, sourceSceneId, sourceCueIds, beatIndices, moduleId, contents, semanticCues);
   const assets = new Map<string, string>();
   const canonicalRoot = await realpath(root);
@@ -533,7 +547,7 @@ async function bundleWrapper(
       platform: "neutral",
       target: "es2022",
       jsx: "automatic",
-      external: EXTERNAL_PACKAGES,
+      external: [...EXTERNAL_PACKAGES,...Object.keys(detail.dependencies??{})],
       logLevel: "silent",
       sourcemap: false,
       plugins: [{name: 'capture-animation-assets', setup(builder) {
@@ -578,6 +592,8 @@ function templateModuleManifest(
     controls: clone(template.controls),
     objects: clone(template.objects),
     acceptsMaterials: template.acceptsMaterials,
+    ...(template.dependencies===undefined?{}:{dependencies:clone(template.dependencies)}),
+    ...(template.styleBindings===undefined?{}:{styleBindings:clone(template.styleBindings)}),
   };
 }
 
@@ -858,6 +874,8 @@ function sourceTemplateRecord(
     controls: clone(detail.controls),
     objects: clone(detail.objects ?? []),
     acceptsMaterials: detail.acceptsMaterials,
+    ...(detail.dependencies===undefined?{}:{dependencies:clone(detail.dependencies)}),
+    ...(detail.styleBindings===undefined?{}:{styleBindings:clone(detail.styleBindings)}),
   };
 }
 

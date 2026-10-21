@@ -1,6 +1,6 @@
 # 独立工作台操作
 
-当前是 Codex 驱动的本地视频工作台，v0.2.0 升级实现和验收进度见[执行计划](../docs/plans/2026-10-21-reference-distillation-style-packs.md)。对话留在 Codex，工作台显示当前工程和实际结果。旧 App 壳与内置 Agent 不在本版本中。
+当前是 Codex 驱动的本地视频工作台，v0.2.1 支持项目原创连续场景、固定动画依赖与逐段风格覆盖，详见[当前状态](PLAN_STATUS.md)及[原创示例](../examples/continuous-scene/README.md)。参考提炼升级的用户验收进度见[执行计划](../docs/plans/2026-10-21-reference-distillation-style-packs.md)。对话留在 Codex，工作台显示当前工程和实际结果。旧 App 壳与内置 Agent 不在本版本中。
 
 在仓库根目录执行 `npm start`、`npm run status`、`npm run stop`，或双击根目录启动/停止脚本。默认服务为 `http://127.0.0.1:4340`。命令行入口是 `node node_modules/tsx/dist/cli.mjs workbench-local/cli.ts`，修改前读取修订、选择与未保存草稿，保留用户覆盖和锁。
 

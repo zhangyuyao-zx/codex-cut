@@ -32,7 +32,7 @@
 | production/undo | `{}`，撤销上一方案修订，不等于还原代码 |
 | production/cancel-render | `{id:正在运行的任务ID}` |
 | production/visual-asset | `{member:{id,version},sceneId,values,cueBindings:{cueId:真实wordId},trial:true}`；候选必须明确 trial，可用资产可省略。应用 SCENE 或可支持的 OBJECT 资产，TRANSITION 需先编排相邻画面 |
-| production/style-pack | `{member:{id,version},mode:"preview"}` 只返回 affected/conflicts/selection/scenes；审阅影响范围后再以相同方案 revision 提交 `mode:"apply"`。锁定冲突需先处理，不强行覆盖 |
+| production/style-pack | `{member:{id,version},mode:"preview"}` 返回 affected/conflicts/coverage/brief/selection/scenes；审阅覆盖与保留设置后，以相同方案 revision 提交 `mode:"apply"`。可先选择创作方向，再适配尚未映射的原创场景；不强行覆盖用户设置 |
 | cut/import | `{path:"用户指定的本地绝对路径"}`；保护当前项目，再导入，不能当作新建工程 |
 | cut/ranges | `{ranges:[{startMs,endMs}]}`，是保留的原素材区间，不是要删除的区间 |
 | cut/transcript | `{words:[{id,text,startMs,endMs}]}`，源词 ID 要稳定 |
@@ -66,10 +66,10 @@ source({kind:"authored",note} 或 {kind:"reference",referenceId,startMs,endMs,ob
 tags[], controls[], objects[{id,label,parameters[]}], cues[{id,label,required}],
 mediaSlots[{id,label,kind:image|video|either,required}], styleBindings{参数key:tokenKey},
 contentParameters:[内容控件key],
-constraints{aspectRatios:["16:9"],minFrames,maxFrames,notes}, sampleValues{}, code
+constraints{aspectRatios:["16:9"],minFrames,maxFrames,notes}, sampleValues{}, dependencies?{包名:精确版本}, code
 ```
 
-`code` 是导出 `VisualAsset` 的 React/Remotion 源码，只支持明确的 `react`、`react/jsx-runtime`、`remotion` 导入，拒绝自由本地模块、动态 import 与 require；媒体从传入 mediaSrc/materials 取得；不要引用原视频截图或外部源码假装完成重建。requiresSourceMedia 声明需要主视频；mediaSlots 声明独立补充素材。带必需素材槽的资产先加入目标段落并绑定真实文件，再生成段落样片，不能造空白视频回执。库样片通过 `materialSceneId` 读取目标段落已提供的 `visualSlot:{moduleId,slotId}` 请求或明确组件媒体绑定；不能只改 provided 状态。
+`code` 导出 `VisualAsset`。React/Remotion 是隐式依赖；其它动画导入通过 `dependencies` 声明，先读 visual-library.capabilities.runtimeDependencies 取得本机实际包名、版本及可用性。本版提供 Three.js、React Three Fiber 和 Remotion ThreeCanvas；运行所需包缺失或版本不符时先由维护者恢复锁文件，资产保存不会自动安装。媒体从 mediaSrc/materials 取得；不接受自由路径、服务端包或动态 require/import 调用。requiresSourceMedia 声明主视频，mediaSlots 声明独立素材；真实文件绑定与 required 检查保持不变。
 
 controls 是有 key/label/type/required/default 的判别对象；text、color、boolean 各用对应默认值，number 可加 min/max/step，select 用 options 与其中一个字符串默认值，list 用 itemType:text|number、minItems/maxItems 与同类型数组默认值。values/sampleValues 是标量或文字/数字数组；不能把数组拼成字符串。`previewBackground` 是六位预览底色，默认 #F1F1E8；`contentParameters` 明确哪些控件表示内容，换内容检查只使用有效内容参数、声明所需的主视频和实际素材槽；未使用的附带视频不计为复用差异。语义事件的标识在资产预览中作为 beats 的 label 和 wordId，应用后 cueBindings 映射到真实稳定词 ID。
 
@@ -83,7 +83,9 @@ controls 是有 key/label/type/required/default 的判别对象；text、color�
 
 ## 动画代码
 
-新复用效果通过视觉库资产接口保存代码和元数据；历史场景仍可在 `workbench-local/scenes/` 维护参数化源码与清单。不能只加固定清单或恢复旧 194 库来代替资产入库。读项目 `SCENE_MODULES.md`、`scene-program-binding.ts`，沿用 Remotion 引擎；不要另起 HyperFrames 工程。声明可编辑对象和参数，使用传入真实素材与 beats，保持确定性 seek。素材/文字/颜色/位置在用户参数中，动作与布局逻辑在代码中。
+原创项目场景直接在 `workbench-local/scenes/` 编写 TSX 与清单，用 production/scenes 绑定当前段落；不必先入库。清单可声明 dependencies 和 styleBindings，准确协议读项目 `SCENE_MODULES.md`。设计与实现沿用 Remotion，按需要使用 SVG、Canvas、着色器、ThreeCanvas。先实现代表创意的镜头，再补齐必要的对象参数与口播绑定；交付前保护用户覆盖和锁。认可后可保存动画或提炼新库资产，不用几个固定场景替代创作。
+
+风格适配依据 summary/production 返回的 stylePackInfo：brief 提供文字、运动、构图、声音方向；coverage 指出已映射、部分映射、保留设置和待设计段落。声明相同 token 的原创资产无需加入包成员；专用预设仍限成员。参数映射不生成构图或音乐，也不表示实际画面已通过。
 
 段落 schema 与 design 对象参考 `production-store.ts`、`creative-design.ts`；参数与锁定参考 `editable-objects.ts`。只保存设计文字不会自动产生动画。
 

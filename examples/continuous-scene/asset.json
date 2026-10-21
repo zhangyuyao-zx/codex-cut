@@ -1,0 +1,27 @@
+{
+  "id": "example-frame-pipeline",
+  "version": "1.0.0",
+  "name": "画面的旅程 · 原创连续镜头",
+  "description": "画面阵列汇成数量，再沿渲染流程演变成像素队列。用于说明项目原创场景的制作方式，不自动导入资产库。",
+  "kind": "recipe",
+  "mount": "SCENE",
+  "source": {"kind":"authored","note":"原创图解，流程为示意；不含参考视频帧、品牌、人物或音轨。"},
+  "dependencies": {"three":"0.186.1"},
+  "controls": [
+    {"key":"seconds","label":"视频秒数","type":"number","default":60,"min":1,"max":600},
+    {"key":"frameRate","label":"每秒帧数","type":"number","default":60,"min":1,"max":120},
+    {"key":"takeaway","label":"结尾观点","type":"text","default":"像素流转，才是负担。"},
+    {"key":"background","label":"背景","type":"color","default":"#F5F2EA"},
+    {"key":"ink","label":"文字","type":"color","default":"#18232E"},
+    {"key":"accent","label":"强调色","type":"color","default":"#315BFA"}
+  ],
+  "objects": [
+    {"id":"count","label":"画面数量","parameters":["seconds","frameRate"]},
+    {"id":"takeaway","label":"结尾观点","parameters":["takeaway","ink","accent","background"]}
+  ],
+  "cues": [{"id":"multiply","label":"画面数量","required":false},{"id":"trace","label":"渲染流程","required":false},{"id":"queue","label":"像素队列","required":false},{"id":"conclude","label":"结尾观点","required":false}],
+  "styleBindings": {"background":"background","ink":"ink","accent":"accent"},
+  "contentParameters": ["seconds","frameRate","takeaway"],
+  "constraints": {"aspectRatios":["16:9"],"minFrames":510,"maxFrames":1800,"notes":"示例默认18秒；用于实际口播时按内容重编动作与停留，不挤压到短句。"},
+  "sampleValues": {}
+}

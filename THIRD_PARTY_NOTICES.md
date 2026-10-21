@@ -8,6 +8,10 @@ Codex Cut includes dependencies installed through npm and component adaptations 
 | [lifeprompt-team/remotion-scenes](https://github.com/lifeprompt-team/remotion-scenes) | `02c7a84241da7010b5f59c420b0110aafd1d6f0d` | MIT. Copyright (c) 2026 lifeprompt-team. |
 | [Curvable/motion](https://github.com/Curvable/motion) | `48aa412b5f4a15d5a31fe02f6e7e43e654ca091a` | MIT. Copyright (c) 2026 Curvable. |
 | [jessai2026/remotion-playground](https://github.com/jessai2026/remotion-playground) | `fe10b866da07c5799b226d7ff9598c1dc35d7159` | Repository LICENSE: MIT, Copyright (c) 2025 Remotion Playground. The package metadata says ISC; Codex Cut retains the more conservative repository notice. |
+| [Three.js](https://github.com/mrdoob/three.js) | npm `three@0.186.1` | MIT. Original license installed with the package. |
+| [React Three Fiber](https://github.com/pmndrs/react-three-fiber) | npm `@react-three/fiber@9.8.2` | MIT. Original license installed with the package. |
+
+`@remotion/three@4.0.489` follows Remotion's own license, like the existing Remotion runtime. The original continuous-scene example uses Three.js mathematics and SVG; it does not copy animation code or assets from the projects reviewed during research.
 
 ## MIT License text
 

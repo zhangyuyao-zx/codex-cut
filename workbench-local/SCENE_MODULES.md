@@ -14,6 +14,10 @@
 
 ## 新增场景
 
+原创场景是正常入口，不必先成为库资产。按表达直接编写镜头、看实际效果并修改；有复用价值时再提炼。原生清单可选 `styleBindings:{控件key:风格tokenKey}`，让原创布局沿用整片样式；保留用户显式设置与锁，未适配部分会显示在风格覆盖报告中。
+
+使用 Three.js 时在清单声明 `dependencies`，例如 `{"three":"0.186.1","@remotion/three":"4.0.489"}`（导入 Fiber 时另声明 `@react-three/fiber@9.8.2`）。准确能力见资产库响应 `capabilities.runtimeDependencies`。入口和本地辅助代码的动画导入需要声明；依赖与帧时间参与预览/导出的相同结果身份，保存动画保留版本要求。缺失或不匹配时拒绝复用，不自动安装。使用 ThreeCanvas 时通过 useCurrentFrame 驱动状态。
+
 在 `workbench-local/scenes/` 新增一个 `<id>.json` 和一个 `.tsx` 文件。定义示例见 hero-keyword.json / HeroKeyword.tsx 和 word-flow.json / WordFlow.tsx。manifest 包含 id、label、entry、exportName、controls；entry 只能是此目录内的文件。controls 描述 text/number/color/boolean/select/list 参数及默认值、范围和必填规则。select/list 使用与新库相同的控件类型，列表值保持数组。
 
 每个段落增加：

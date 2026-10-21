@@ -73,6 +73,7 @@ export async function bindScenePrograms(
         modulePath: module.modulePath,
         exportName: module.exportName,
         sourceHash: module.sourceHash,
+        ...(module.dependencies?{dependencies:module.dependencies}:{}),
         ownsBackground:module.visualAsset?.mount==='SCENE',
         from,
         duration: Math.max(1, end - from),

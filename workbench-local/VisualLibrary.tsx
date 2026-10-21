@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Player} from '@remotion/player';
 import {ObjectProperties} from './ObjectProperties';
+import {StyleCoverage} from './StyleCoverage';
 import {memberKey, resolveVisualValues, type ReferenceVideo, type StylePack, type VisualAsset, type VisualPreview, type VisualValue} from './visual-library-contract';
 import type {SceneModuleDetail} from './scene-modules';
 import type {SceneModuleInput} from './SceneModuleSurface';
@@ -21,7 +22,7 @@ type ProductionContext = {
   plan:{revision:number;scenes:{id:string;title:string;startWordId:string;endWordId:string}[];requests?:{sceneId:string;status:string;fileName?:string;visualSlot?:{moduleId:string;slotId:string}}[]};
   resolved:{stale?:boolean;issues?:string[];scenes:{id:string;startMs:number|null;endMs:number|null}[];words:{sourceId:string;text:string;startMs:number;endMs:number}[]};
 };
-type PackCheck = {key:string;revision:number;affected:unknown[];conflicts:unknown[]};
+type PackCheck = {key:string;revision:number;affected:unknown[];conflicts:unknown[];coverage?:import('./visual-application').StyleCoverage};
 const statusLabel = {draft:'候选',review:'待审阅',ready:'可用',archived:'已归档'};
 const stageLabel:Record<ReferenceVideo['stage'],string> = {imported:'已导入，待准备',preparing:'正在准备',analysis:'待分析',authoring:'待提炼',review:'待审阅',complete:'已完成',failed:'准备失败'};
 const errorText = (error:unknown) => error instanceof Error ? error.message : String(error);
@@ -217,7 +218,7 @@ export function VisualLibrary({api,onDirtyChange,onOpenScene}:{api:(path:string,
   async function applyAsset(){if(!asset||!content||!production||!draft)return;const snapshot=structuredClone(content),savedKey=key;
     const values=applicationValues(asset,{...draft,content:snapshot});
     await action('apply-asset',async()=>{await apiRef.current('production/visual-asset',{expectedRevision:production.plan.revision,member:{id:asset.id,version:asset.version},sceneId:targetScene,values,cueBindings:bindings,trial:asset.status!=='ready'});markSaved(savedKey,snapshot);onOpenScene();});}
-  async function checkPack(){if(!pack||!production)return;await action('check-pack',async()=>{const result=await apiRef.current('production/style-pack',{expectedRevision:production.plan.revision,member:{id:pack.id,version:pack.version},mode:'preview'});setPackCheck({key:memberKey(pack),revision:production.plan.revision,affected:Array.isArray(result.affected)?result.affected:[],conflicts:Array.isArray(result.conflicts)?result.conflicts:[]});});}
+  async function checkPack(){if(!pack||!production)return;await action('check-pack',async()=>{const result=await apiRef.current('production/style-pack',{expectedRevision:production.plan.revision,member:{id:pack.id,version:pack.version},mode:'preview'});setPackCheck({key:memberKey(pack),revision:production.plan.revision,affected:Array.isArray(result.affected)?result.affected:[],conflicts:Array.isArray(result.conflicts)?result.conflicts:[],coverage:result.coverage});});}
   const canApplyPack=pack&&packCheck?.key===memberKey(pack)&&packCheck.revision===production?.plan.revision;
   const cueSelect=(cue:VisualAsset['cues'][number])=><label key={cue.id}>{cue.label}<select value={bindings[cue.id]??''} onChange={event=>{const wordId=event.target.value;setCueBindings(previous=>({...previous,[`${key}:${targetScene}`]:{...bindings,[cue.id]:wordId}}));}}><option value="">{cue.required?'选择真实口播词':'沿用默认错峰'}</option>{targetWords.map((word,index)=><option value={word.sourceId} key={word.sourceId}>{index+1}. {word.text} · {(word.startMs/1000).toFixed(2)}s</option>)}</select></label>;
 
@@ -305,11 +306,11 @@ export function VisualLibrary({api,onDirtyChange,onOpenScene}:{api:(path:string,
           </>:<p className="vl-muted">当前还没有可绑定的视觉段落。先在包装页建立段落后继续。</p>}
         </section>
       </>:scope==='packs'&&pack?<>
-        <div className="vl-inspector-title"><h3>将风格应用到方案</h3><span className={'vl-badge '+(pack.status==='ready'?'ready':'')}>{statusLabel[pack.status]}</span></div><p className="vl-muted">先查看会影响哪些段落。用户已锁定的参数会保留。</p>
+        <div className="vl-inspector-title"><h3>整片创作方向</h3><span className={'vl-badge '+(pack.status==='ready'?'ready':'')}>{statusLabel[pack.status]}</span></div><p className="vl-muted">可用包内效果，也可按同一视觉语言原创镜头。先查看适配范围；已有设置和用户锁会保留。</p>
         <button onClick={()=>void loadProduction()}>刷新当前方案</button>{productionError&&<p className="error">{productionError}</p>}
         <button className="primary vl-apply" disabled={!!busy||!production?.plan.scenes.length||pack.status==='archived'} onClick={()=>void checkPack()}>预览应用范围</button>
-        {canApplyPack&&packCheck&&<section className="vl-section"><h3>将调整 {packCheck.affected.length} 项</h3>{packCheck.affected.length>0?<ul>{packCheck.affected.map((item,index)=><li key={index}>{checkDescription(item)}</li>)}</ul>:<p className="vl-muted">当前方案没有匹配的可调整参数。</p>}{packCheck.conflicts.length>0&&<><h4>保留的内容与冲突</h4><ul>{packCheck.conflicts.map((item,index)=><li key={index}>{checkDescription(item)}</li>)}</ul></>}
-          <button className="primary vl-apply" disabled={!!busy||!packCheck.affected.length} onClick={()=>void action('apply-pack',async()=>{await apiRef.current('production/style-pack',{expectedRevision:production!.plan.revision,member:{id:pack.id,version:pack.version},mode:'apply'});onOpenScene();})}>{pack.status==='ready'?'确认应用风格包':'试用此候选风格包'}</button></section>}
+        {canApplyPack&&packCheck&&<section className="vl-section"><StyleCoverage coverage={packCheck.coverage}/>{!packCheck.affected.length&&<p className="vl-muted">可以先设为创作方向，再由 Codex 为当前内容设计画面。</p>}{packCheck.conflicts.length>0&&<><h4>需要处理</h4><ul>{packCheck.conflicts.map((item,index)=><li key={index}>{checkDescription(item)}</li>)}</ul></>}
+          <button className="primary vl-apply" disabled={!!busy||packCheck.conflicts.length>0} onClick={()=>void action('apply-pack',async()=>{await apiRef.current('production/style-pack',{expectedRevision:production!.plan.revision,member:{id:pack.id,version:pack.version},mode:'apply'});onOpenScene();})}>{!packCheck.affected.length?'设为创作方向':pack.status==='ready'?'应用样式并保留已有设置':'试用此风格与样式'}</button></section>}
         {pack.status==='draft'&&<section className="vl-section"><p className="vl-muted">试用不等于入库。包内各资产通过检查并已生成连续演示后，可明确确认这个风格版本。</p>{!pack.demonstration?.url&&<p className="vl-muted">尚未生成真实连续演示，暂不能确认入库。</p>}{pack.members.some(member=>library?.assets.find(a=>memberKey(a)===memberKey(member))?.status!=='ready')&&<p className="vl-muted">先选定要保留的成员资产，再确认整套风格。</p>}<button disabled={!!busy||!pack.demonstration?.url||pack.members.some(member=>library?.assets.find(a=>memberKey(a)===memberKey(member))?.status!=='ready')} onClick={()=>void action('ready-pack',async()=>{acceptLibrary(await apiRef.current('visual-library/pack-status',{expectedRevision:library!.revision,member:{id:pack.id,version:pack.version},status:'ready',userConfirmed:true}));setNotice('当前风格包版本已标记为可用。');})}>确认此风格包可用</button></section>}
       </>:scope==='references'&&reference?<>
         <h3>继续提炼</h3><p>把这条指令交给 Codex，继续查看实际画面、记录表达机制并制作候选。</p><div className="vl-command">请提炼参考视频 {reference.id}</div><button onClick={()=>void action('copy',async()=>{await navigator.clipboard.writeText('请提炼参考视频 '+reference.id);setNotice('提炼指令已复制。');})}>复制指令</button>

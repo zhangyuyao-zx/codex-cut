@@ -64,6 +64,7 @@ import type {VisualLibraryService} from './visual-library-service';
 import {assertNoNewLegacyComponents,parseVisualComponentId,visualComponentId} from './component-library';
 import {visualMemberSchema,memberKey,resolveVisualValues,styleValuesFor} from './visual-library-contract';
 import {planStyleApplication,resolveVisualCues} from './visual-application';
+import {creativeRuntimeAliases,creativeRenderOptions} from './creative-runtime-dependencies';
 const exec = promisify(execFile);
 export async function productionRoutes(
   root: string,
@@ -201,6 +202,7 @@ export async function productionRoutes(
           const identity=await graph;
           return {
             sceneId: s.id,
+            ...(d.visualAdapter?{runtimeIdentity:(d as any).sourceHash}:{}),
             source: identity.error ? "" : await readFile(d.modulePath, "utf8"),
             ...identity,
           };
@@ -456,7 +458,12 @@ export async function productionRoutes(
         previousReview = null;
     }
     let stylePackInfo:any=null;
-    if(plan.stylePack&&visualLibrary){try{const p=await visualLibrary.store.getPack(plan.stylePack);stylePackInfo={id:p.id,version:p.version,name:p.name,status:p.status};}catch{stylePackInfo={...plan.stylePack,name:'已固定的风格版本',unavailable:true};}}
+    if(plan.stylePack&&visualLibrary){try{
+      const p=await visualLibrary.store.getPack(plan.stylePack);
+      const state=await visualLibrary.store.get();
+      const application=planStyleApplication(plan,p,state.assets,moduleCatalog);
+      stylePackInfo={id:p.id,version:p.version,name:p.name,status:p.status,coverage:application.coverage,brief:application.brief};
+    }catch{stylePackInfo={...plan.stylePack,name:'已固定的风格版本',unavailable:true};}}
     const result={
       capabilities:{sceneTransitions:true},
       plan,
@@ -561,7 +568,8 @@ export async function productionRoutes(
           appAdapter: d.appAdapter,
           visualAdapter: d.visualAdapter,
           moduleUrl:d.moduleUrl,
-          sourceHash:d.visualAdapter?d.asset.sourceHash:undefined,
+          sourceHash:d.visualAdapter?(d as any).sourceHash:undefined,
+          ...(d.visualAdapter&&d.asset.dependencies?{dependencies:d.asset.dependencies}:{}),
           mediaSources,
           props: d.resolvedParameters,
           mediaSrc: d.requiredMedia||d.visualAdapter ? "source.mp4" : undefined,
@@ -645,7 +653,7 @@ export async function productionRoutes(
     const plan=await store.get();if(plan.revision!==req.body.expectedRevision)throw Error('项目已更新，请刷新后重试');
     const pack=await visualLibrary.store.getPack(visualMemberSchema.parse(req.body.member));if(pack.status==='archived')throw Error('该风格包已归档');
     const state=await visualLibrary.store.get();for(const member of pack.members)await visualLibrary.store.verifyAsset(await visualLibrary.store.getAsset(member));
-    const change=planStyleApplication(plan,pack,state.assets);
+    const change=planStyleApplication(plan,pack,state.assets,await sceneModules.list());
     if(req.body.mode==='preview'){res.json(change);return;}
     if(req.body.mode!=='apply')throw Error('请选择预览影响或应用风格');
     if(change.conflicts.length)throw Error(change.conflicts.join('\n'));
@@ -1547,12 +1555,14 @@ export async function productionRoutes(
     }
     ticket.check();
     task.stage = "编译画面";
+    const creativeAliases=await creativeRuntimeAliases(root);
     const serveUrl = await bundle({
       outDir: resolve(runDir, "bundle"),
       webpackOverride: (config) => ({
         ...config,
         resolve: {
           ...config.resolve,
+          alias:{...config.resolve?.alias,...Object.fromEntries(Object.entries(creativeAliases).map(([name,entry])=>[name+'$',entry]))},
           extensionAlias: {
             ...config.resolve?.extensionAlias,
             ".js": [".js", ".ts", ".tsx"],
@@ -1565,7 +1575,7 @@ export async function productionRoutes(
     ticket.check();
     await assertTaskCurrent(task);
     ticket.check();
-    const runtime = remotionRuntime(root);
+    const runtime = {...remotionRuntime(root),...creativeRenderOptions([...(props.scenePrograms??[]),...(props.componentLayers??[])].map((item:any)=>item.dependencies))};
     const composition = await selectComposition({
       serveUrl,
       id: "Production",

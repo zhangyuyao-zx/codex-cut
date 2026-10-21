@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import {visualControlSchema} from "./visual-library-contract";
+import {validateCreativeDependencies,resolveCreativeDependencies,assertNativeCreativeImports} from './creative-runtime-dependencies';
+import type {CreativeDependencies} from './creative-runtime-dependency-contract';
 
 /**
  * A scene module is authored as a normal TSX/JSX file, but its manifest is
@@ -72,6 +74,8 @@ export type SceneModuleControl =
   | SceneModuleListControl;
 
 export interface SceneModuleManifest {
+  readonly dependencies?: CreativeDependencies;
+  readonly styleBindings?: Readonly<Record<string,string>>;
   readonly id: string;
   readonly label: string;
   readonly entry: string;
@@ -437,6 +441,8 @@ function parseManifest(
         "controls",
         "acceptsMaterials",
         "objects",
+        "dependencies",
+        "styleBindings",
       ],
       "manifest",
     );
@@ -530,6 +536,17 @@ function parseManifest(
     value.acceptsMaterials === undefined
       ? false
       : (value.acceptsMaterials as boolean);
+  let dependencies:CreativeDependencies|undefined;
+  if(value.dependencies!==undefined) {
+    try{dependencies=validateCreativeDependencies(value.dependencies);}
+    catch(error){throw invalidManifest(expectedId,(error as Error).message);}
+  }
+  let styleBindings:Record<string,string>|undefined;
+  if(value.styleBindings!==undefined) {
+    if(!isRecord(value.styleBindings)||Object.entries(value.styleBindings).some(([key,token])=>!keys.has(key)||!isSafeParameterKey(token)||!/^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(token)))
+      throw invalidManifest(expectedId,'styleBindings must map declared controls to safe token keys');
+    styleBindings={...value.styleBindings} as Record<string,string>;
+  }
   return {
     id: value.id,
     label: value.label,
@@ -538,6 +555,8 @@ function parseManifest(
     controls,
     objects,
     acceptsMaterials,
+    ...(dependencies===undefined?{}:{dependencies}),
+    ...(styleBindings===undefined?{}:{styleBindings}),
   };
 }
 
@@ -749,7 +768,11 @@ export function createSceneModules(root: string, external?: ExternalSceneModules
       scenesDirectory,
     );
     const sourceDigest = createHash("sha256").update(manifestBytes).update(sourceBytes);
+    assertNativeCreativeImports(sourceBytes.toString('utf8'),manifest.dependencies);
+    const runtime=await resolveCreativeDependencies(manifest.dependencies,root);
+    if(runtime.fingerprint)sourceDigest.update('\0dependencies\0'+runtime.fingerprint);
     for (const dependency of await localSourceDependencies(root, modulePath)) {
+      if(/\.[cm]?[jt]sx?$/iu.test(dependency.path))assertNativeCreativeImports(dependency.bytes?dependency.bytes.toString('utf8'):await readFile(dependency.filePath,'utf8'),manifest.dependencies);
       sourceDigest.update("\0" + dependency.path + "\0");
       if(dependency.bytes)sourceDigest.update(dependency.bytes);
       else for await(const chunk of createReadStream(dependency.filePath))sourceDigest.update(chunk);

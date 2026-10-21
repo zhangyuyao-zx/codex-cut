@@ -8,6 +8,7 @@ import { ObjectProperties } from "./ObjectProperties";
 import { LegacyProgramPreview } from "./LegacyProgramPreview";
 import { SaveAnimation } from "./AnimationTemplates";
 import {productionContextIdentityMatches, scenePreviewReadiness} from "./preview-readiness";
+import {StyleCoverage} from './StyleCoverage';
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -518,6 +519,7 @@ export function Production({
         <div className="eyebrow">制作方案</div>
         <h2>视觉段落</h2>
         {data.stylePackInfo&&<p className="production-style-pack"><strong>{data.stylePackInfo.name}</strong><small>v{data.stylePackInfo.version} · {data.stylePackInfo.unavailable?'库文件待恢复':data.stylePackInfo.status==='ready'?'已选用':'候选试用'}</small></p>}
+        <StyleCoverage coverage={data.stylePackInfo?.coverage} compact/>
         <div className="segment-progress">
           已确认 {confirmedCount} / {segmentReviews.length} 段
         </div>

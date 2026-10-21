@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {creativeDependencySchema} from './creative-runtime-dependency-contract';
 
 export const visualId = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/u, '编号只能含小写字母、数字、下划线和短横线');
 export const visualVersion = z.string().regex(/^\d{1,4}\.\d{1,4}\.\d{1,4}$/u, '版本使用 1.0.0 格式');
@@ -37,6 +38,7 @@ export const visualAssetInputSchema = z.object({
   contentParameters:z.array(key).max(64).default([]),
   constraints:z.object({aspectRatios:z.array(z.literal('16:9')).min(1).default(['16:9']),minFrames:z.number().int().positive().max(108000).default(1),maxFrames:z.number().int().positive().max(108000).default(18000),notes:z.string().max(4000).default('')}).strict().default({aspectRatios:['16:9'],minFrames:1,maxFrames:18000,notes:''}),
   sampleValues:visualValuesSchema.default({}),
+  dependencies:creativeDependencySchema.optional(),
   code:z.string().min(1).max(512000),
 }).strict().superRefine((asset,ctx)=>{
   const keys=asset.controls.map(c=>c.key);
@@ -58,7 +60,7 @@ export type VisualAsset = Omit<VisualAssetInput,'code'> & {
   moduleId:string;sourceHash:string;createdAt:string;status:'draft'|'review'|'ready'|'archived';
   reviews:VisualReview[];previews:VisualPreview[];
 };
-export type VisualPreview = {id:string;kind:'reference'|'replacement';sourceHash:string;values:Record<string,VisualValue>;durationFrames:number;cueFrames?:Record<string,number>;referenceId?:string;url:string;createdAt:string;status:'rendering'|'done'|'failed'|'cancelled';progress:number;error?:string;targetIdentity:string;contentIdentity?:string;outputHash?:string};
+export type VisualPreview = {id:string;kind:'reference'|'replacement';sourceHash:string;values:Record<string,VisualValue>;durationFrames:number;dependencyFingerprint?:string;cueFrames?:Record<string,number>;referenceId?:string;url:string;createdAt:string;status:'rendering'|'done'|'failed'|'cancelled';progress:number;error?:string;targetIdentity:string;contentIdentity?:string;outputHash?:string};
 export type VisualReview = {id:string;createdAt:string;previewId:string;note:string;kind:'visual'|'reuse'|'accepted';sourceHash:string};
 
 export const stylePackInputSchema = z.object({
@@ -75,7 +77,7 @@ export const stylePackInputSchema = z.object({
   for(const k of Object.keys(pack.overrides))if(!members.includes(k))ctx.addIssue({code:'custom',message:`预设引用非成员资产：${k}`});
 });
 export type StylePackInput = z.infer<typeof stylePackInputSchema>;
-export type StylePack = StylePackInput & {createdAt:string;status:'draft'|'ready'|'archived';acceptedAt?:string;demonstration?:{id:string;url:string;outputHash:string;createdAt:string;members:{id:string;version:string;sourceHash:string;previewId:string}[]}};
+export type StylePack = StylePackInput & {createdAt:string;status:'draft'|'ready'|'archived';acceptedAt?:string;demonstration?:{id:string;url:string;outputHash:string;createdAt:string;members:{id:string;version:string;sourceHash:string;previewId:string;dependencyFingerprint?:string}[]}};
 export type ReferenceVideo = {
   id:string;name:string;createdAt:string;sourceUrl?:string;sha256:string;durationMs:number;width:number;height:number;
   fileName:string;stage:'imported'|'preparing'|'analysis'|'authoring'|'review'|'complete'|'failed';
@@ -111,7 +113,8 @@ export function resolveVisualValues(controls:readonly VisualControl[], input:Rec
 
 export function styleValuesFor(asset:VisualAsset, pack:StylePack):Record<string,VisualValue>{
   const values:Record<string,VisualValue>={};
-  if(!pack.members.some(m=>memberKey(m)===memberKey(asset)))return values;
   for(const [parameter,token] of Object.entries(asset.styleBindings))if(Object.hasOwn(pack.tokens,token))values[parameter]=pack.tokens[token];
-  return {...values,...pack.overrides[memberKey(asset)]};
+  // Original assets can opt into the same visual vocabulary without joining the pack.
+  // Per-asset presets remain scoped to the pack's pinned members.
+  return {...values,...(pack.members.some(m=>memberKey(m)===memberKey(asset))?pack.overrides[memberKey(asset)]:{})};
 }

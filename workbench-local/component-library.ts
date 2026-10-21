@@ -20,7 +20,7 @@ export async function createComponentLibrary(root:string,presetDir=resolve(root,
     if(!visual)throw Error('视觉资产库未接入');
     const asset=await visual.store.getAsset(member),module=await visual.sceneProvider.detail(asset.moduleId);
     if(!module)throw Error('资产实现不存在');
-    return {...asset,id,name:asset.name,description:asset.description,category:asset.kind,source:'对标提炼与原创资产',runtime:true,appAdapter:false,visualAdapter:true,mount:asset.mount,preview:asset.previews.findLast(p=>p.status==='done')?.url??null,thumbnail:null,thumbnailProps:asset.sampleValues,mediaSlots:asset.mediaSlots,modulePath:module.modulePath,moduleUrl:module.moduleUrl,exportName:module.exportName,width:1920,height:1080,fields:asset.controls.map(c=>({...c,name:c.key,value:c.default,sample:asset.sampleValues[c.key]})),asset} as unknown as Detail;
+    return {...asset,sourceHash:module.sourceHash,id,name:asset.name,description:asset.description,category:asset.kind,source:'对标提炼与原创资产',runtime:true,appAdapter:false,visualAdapter:true,mount:asset.mount,preview:asset.previews.findLast(p=>p.status==='done')?.url??null,thumbnail:null,thumbnailProps:asset.sampleValues,mediaSlots:asset.mediaSlots,modulePath:module.modulePath,moduleUrl:module.moduleUrl,exportName:module.exportName,width:1920,height:1080,fields:asset.controls.map(c=>({...c,name:c.key,value:c.default,sample:asset.sampleValues[c.key]})),asset} as unknown as Detail;
   }
   async function validate(selection:any){
     const member=parseVisualComponentId(selection.componentId);if(!member)return {...await legacy.validate(selection),visualAdapter:false,asset:undefined,moduleUrl:undefined};

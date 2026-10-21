@@ -12,6 +12,7 @@ import { roughcutRoutes } from "./roughcut-routes";
 import { ProjectStore } from "./project-store";
 import {checkpointRoutes} from './checkpoint-routes';
 import {createVisualLibraryService} from './visual-library-service';
+import {creativeRuntimeAliases} from './creative-runtime-dependencies';
 const root = process.cwd(),
   dir = resolve(process.env.WORKBENCH_PROJECT_DIR || resolve(root, "projects/local-workbench")),
   media = resolve(dir, "media");
@@ -229,6 +230,7 @@ app.use((err: any, _req: any, res: any, _next: any) =>
   res.status(409).json({ error: err.message }),
 );
 const vite = await createServer({
+  resolve:{alias:Object.entries(await creativeRuntimeAliases(root)).map(([name,replacement])=>({find:new RegExp('^'+name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$'),replacement})),dedupe:['react','react-dom','remotion','@react-three/fiber','three']},
   optimizeDeps: {include: ["react/jsx-runtime", "react/jsx-dev-runtime"]},
   configFile: false,
   root: resolve(root, "workbench-local"),
