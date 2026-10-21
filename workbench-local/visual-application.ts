@@ -19,6 +19,7 @@ export function resolveVisualCues(cues:readonly {id:string;label:string;required
 export type StyleCoverageEntry = {
   sceneId:string;title:string;status:'mapped'|'partial'|'unmapped'|'unimplemented'|'conflict';
   mapped:string[];preserved:string[];missing:string[];reason:string;
+  values?:{parameter:string;label:string;token:string;expected:VisualValue;effective:unknown;source:'pack'|'scene'|'user';locked:boolean}[];
 };
 export type StyleCoverage = {total:number;mapped:number;partial:number;unmapped:number;preserved:number;scenes:StyleCoverageEntry[]};
 
@@ -32,16 +33,20 @@ export function planStyleApplication(plan:ProductionState,pack:StylePack,assets:
   const affected:string[]=[],conflicts:string[]=[],entries:StyleCoverageEntry[]=[];
   const assetFor=(id:string)=>assets.find(a=>a.moduleId===id||'visual:'+memberKey(a)===id);
   const scenes=plan.scenes.map(scene=>{
-    const entry:StyleCoverageEntry={sceneId:scene.id,title:scene.title,status:'unmapped',mapped:[],preserved:[],missing:[],reason:''};
+    const entry:StyleCoverageEntry={sceneId:scene.id,title:scene.title,status:'unmapped',mapped:[],preserved:[],missing:[],reason:'',values:[]};
     try{
       let next:Scene={...scene};let primaryMapped=false;let changed=false;
       const apply=(definition:{controls:readonly SceneModuleControl[];styleBindings?:Readonly<Record<string,string>>},defaults:Record<string,VisualValue>,explicit:Record<string,unknown>,overrides:Record<string,unknown>={},prefix='')=>{
         resolveSceneModuleParameters(definition.controls,{...defaults,...explicit,...overrides});
-        for(const [key,token] of Object.entries(definition.styleBindings??{}))if(!Object.hasOwn(pack.tokens,token)&&!Object.hasOwn(defaults,key))entry.missing.push(prefix+key);
+        for(const [key,token] of Object.entries(definition.styleBindings??{}))if(!Object.hasOwn(pack.tokens,token))entry.missing.push(prefix+key);
         for(const [key,value] of Object.entries(defaults)){
           entry.mapped.push(prefix+key);
           const effective=Object.hasOwn(overrides,key)?overrides[key]:Object.hasOwn(explicit,key)?explicit[key]:value;
           if(JSON.stringify(effective)!==JSON.stringify(value))entry.preserved.push(prefix+key);
+          entry.values!.push({parameter:prefix+key,label:definition.controls.find(c=>c.key===key)?.label??key,
+            token:definition.styleBindings?.[key]??key,expected:value,effective,
+            source:Object.hasOwn(overrides,key)?'user':Object.hasOwn(explicit,key)?'scene':'pack',
+            locked:!prefix&&Boolean(scene.editor?.locks.includes(key))});
         }
         return defaults;
       };
@@ -51,7 +56,7 @@ export function planStyleApplication(plan:ProductionState,pack:StylePack,assets:
         if(definition){
           const defaults=a?styleValuesFor(a,pack):boundStyleValues(m?.styleBindings,pack);
           if(Object.keys(defaults).length){
-            next={...next,program:{...scene.program,styleDefaults:apply(definition,defaults,scene.program.parameters,scene.editor?.overrides)}};
+            next={...next,program:{...scene.program,styleDefaults:{...scene.program.styleDefaults,...apply(definition,defaults,scene.program.parameters,scene.editor?.overrides)}}};
             primaryMapped=changed=true;
           }else for(const key of Object.keys(definition.styleBindings??{}))entry.missing.push(key);
         }
@@ -59,7 +64,7 @@ export function planStyleApplication(plan:ProductionState,pack:StylePack,assets:
       if(scene.components)next.components=scene.components.map(c=>{
         const a=assetFor(c.componentId);if(!a)return c;
         const defaults=styleValuesFor(a,pack);if(!Object.keys(defaults).length)return c;
-        changed=true;return {...c,styleDefaults:apply(a,defaults,c.props,{},c.id+'.')};
+        changed=true;return {...c,styleDefaults:{...c.styleDefaults,...apply(a,defaults,c.props,{},c.id+'.')}};
       });
       if(changed)affected.push(scene.title);
       entry.status=!scene.program?'unimplemented':!changed?'unmapped':!primaryMapped||entry.missing.length||entry.preserved.length?'partial':'mapped';
@@ -72,4 +77,28 @@ export function planStyleApplication(plan:ProductionState,pack:StylePack,assets:
   });
   const coverage:StyleCoverage={total:entries.length,mapped:entries.filter(e=>e.status==='mapped').length,partial:entries.filter(e=>e.status==='partial').length,unmapped:entries.filter(e=>['unmapped','unimplemented','conflict'].includes(e.status)).length,preserved:entries.filter(e=>e.preserved.length).length,scenes:entries};
   return {affected,conflicts,coverage,brief:{typography:pack.typography,motion:pack.motion,composition:pack.composition,sound:pack.sound,coverage:pack.coverage,limitations:pack.limitations},selection:{id:pack.id,version:pack.version,name:pack.name,status:pack.status},scenes:preserveSceneEdits(plan.scenes,scenes,'codex')};
+}
+
+/** Explicit reset of style-bound values only; content, geometry and locked edits survive. */
+export function followSceneStyle(scene:Scene,pack:StylePack,assets:VisualAsset[],modules:readonly SceneModuleDetail[],actor:'user'|'codex') {
+  const next=structuredClone(scene);
+  if(!next.program)throw Error('此段尚未实现画面');
+  const asset=assets.find(a=>a.moduleId===next.program!.moduleId);
+  const definition=asset??modules.find(m=>m.id===next.program!.moduleId);
+  if(!definition?.styleBindings||!Object.keys(definition.styleBindings).length)throw Error('此段尚未接入共同样式，需要 Codex 适配场景代码');
+  const defaults=asset?styleValuesFor(asset,pack):boundStyleValues(definition.styleBindings,pack);
+  for(const key of Object.keys(defaults)) {
+    if(next.editor?.locks.includes(key))continue;
+    delete next.program.parameters[key];
+    if(actor==='user'&&next.editor)delete next.editor.overrides[key];
+  }
+  next.program.styleDefaults={...next.program.styleDefaults,...defaults};
+  next.components=next.components?.map(component=>{
+    const a=assets.find(a=>a.moduleId===component.componentId||'visual:'+memberKey(a)===component.componentId);
+    if(!a)return component;
+    const values=styleValuesFor(a,pack),props={...component.props};
+    if(actor==='user')for(const key of Object.keys(values))delete props[key];
+    return {...component,props,styleDefaults:{...component.styleDefaults,...values}};
+  });
+  return next;
 }

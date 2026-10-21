@@ -1,6 +1,6 @@
 # 独立工作台操作
 
-当前是 Codex 驱动的本地视频工作台，v0.2.1 支持项目原创连续场景、固定动画依赖与逐段风格覆盖，详见[当前状态](PLAN_STATUS.md)及[原创示例](../examples/continuous-scene/README.md)。参考提炼升级的用户验收进度见[执行计划](../docs/plans/2026-10-21-reference-distillation-style-packs.md)。对话留在 Codex，工作台显示当前工程和实际结果。旧 App 壳与内置 Agent 不在本版本中。
+当前是 Codex 驱动的本地视频工作台，v0.2.2 支持共同样式持续继承、全片真实关键帧对照与独立画面观察；保留项目原创连续场景与固定动画依赖。详见[当前状态](PLAN_STATUS.md)及[原创示例](../examples/continuous-scene/README.md)。参考提炼升级的用户验收进度见[执行计划](../docs/plans/2026-10-21-reference-distillation-style-packs.md)。对话留在 Codex，工作台显示当前工程和实际结果。旧 App 壳与内置 Agent 不在本版本中。
 
 在仓库根目录执行 `npm start`、`npm run status`、`npm run stop`，或双击根目录启动/停止脚本。默认服务为 `http://127.0.0.1:4340`。命令行入口是 `node node_modules/tsx/dist/cli.mjs workbench-local/cli.ts`，修改前读取修订、选择与未保存草稿，保留用户覆盖和锁。
 
@@ -9,6 +9,7 @@
 「视觉资产库」包含风格包、单项资产、对标与提炼。新库默认为空；需要原创几何示例时，启动服务后执行 `node examples/paper-style/import.mjs`。旧 194 项位于 `modules/legacy/`，只供历史工程兼容，不能继续用于新选型。
 
 - [参考提炼与视觉资产库](../docs/REFERENCE_LIBRARY.md)：版本、状态、参数、媒体、风格包和接口。
+- [全片风格与分镜](../docs/FILM_DIRECTION.md)：共同参数、跟随样式、构图对照与观察记录。
 - [场景协议](SCENE_MODULES.md)：原创场景、时间绑定与参数化。
 - [恢复说明](RECOVERY.md)：代码、项目及视觉库的配对备份。
 - [插件](plugin-package/codex-cut/README.md)：7 个本地工具及按需操作说明。

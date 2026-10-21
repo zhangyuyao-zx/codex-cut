@@ -119,6 +119,25 @@ test('project visual mutations retain production revision checks and cannot use 
  assert.equal(calls.find(call=>call.method==='POST').body.actor,'codex');
 });
 
+test('film overview and observations use exact project revision without granting user approval',async t=>{
+ const {calls}=mockService(t);
+ assert(tools.find(tool=>tool.name==='read_project').inputSchema.properties.section.enum.includes('storyboard'));
+ assert.equal((await invoke('read_project',{section:'storyboard'})).path,'/api/production/storyboard');
+ assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+ for(const operation of ['production/storyboard','production/visual-review','production/follow-style']){
+  calls.length=0;
+  await assert.rejects(invoke('update_project',{operation,expectedRevision:40,data:{sceneId:'existing-scene'}}),/制作版本/);
+  assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+  await invoke('update_project',{operation,expectedRevision:7,data:{sceneId:'existing-scene',actor:'user'}});
+  const write=calls.find(call=>call.method==='POST');
+  assert.equal(write.path,'/api/'+operation);assert.equal(write.body.expectedRevision,7);assert.equal(write.body.actor,'codex');
+  assert(!calls.some(call=>call.path.endsWith('/approve')));
+ }
+ calls.length=0;
+ await assert.rejects(invoke('update_project',{operation:'production/visual-review',expectedRevision:7,data:{userConfirmed:true}}),/不能代替用户/);
+ assert.equal(calls.length,0);
+});
+
 test('cut writes still use cut revision independently from production and library',async t=>{
  const {calls}=mockService(t);
  for(const expectedRevision of [7,40])await assert.rejects(invoke('update_project',{operation:'cut/ranges',expectedRevision,data:{ranges:[]}}),/粗剪版本/);

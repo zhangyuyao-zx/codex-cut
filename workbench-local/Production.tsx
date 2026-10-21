@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { SceneModulePreview } from "./SceneModulePreview";
 import {ActionReview} from "./ActionReview";
 import {reviewActions, localPlaybackTime} from "./action-review";
@@ -8,6 +8,7 @@ import { ObjectProperties } from "./ObjectProperties";
 import { LegacyProgramPreview } from "./LegacyProgramPreview";
 import { SaveAnimation } from "./AnimationTemplates";
 import {productionContextIdentityMatches, scenePreviewReadiness} from "./preview-readiness";
+import {FilmStoryboard} from './FilmStoryboard';
 import {StyleCoverage} from './StyleCoverage';
 
 const segmentStatusLabels: Record<string, string> = {
@@ -381,6 +382,17 @@ export function Production({
       if (!r.ok) throw Error(d.error);
     });
   }
+  const chooseScene = useCallback((id: string, frame?:number) => {
+    if (dirty || busy || !data) return;
+    const item = data.resolved.scenes.find((s: any) => s.id === id);
+    if (!item) return;
+    const seconds = frame===undefined ? (item.startMs || 0) / 1000 : Math.max(item.startMs/1000,Math.min((item.endMs-1)/1000,frame/30));
+    video.current?.pause();
+    setSelected(id); setTime(seconds); setEntryFrame(Math.round(seconds * 30));
+    setSelectedObject(""); setSamplePlayback("latest"); setViewedSampleId("");
+    setView("scene"); setNotice("");
+    setSeekVersion(v => v + 1);
+  }, [dirty,busy,data]);
   if (!data)
     return <div className="loading">{error || "正在读取制作方案…"}</div>;
   const segmentReviews = segmentReviewsFor(data),
@@ -479,17 +491,7 @@ export function Production({
   const nextScene = data.resolved.scenes[sceneIndex + 1];
   const editingView = view === "scene";
   const approvedCurrent = selectedReview?.status === "approved" && selectedApproved?.current !== false;
-  function chooseScene(id: string) {
-    if (dirty || busy) return;
-    const item = data.resolved.scenes.find((s: any) => s.id === id);
-    if (!item) return;
-    const seconds = (item.startMs || 0) / 1000;
-    video.current?.pause();
-    setSelected(id); setTime(seconds); setEntryFrame(Math.round(seconds * 30));
-    setSelectedObject(""); setSamplePlayback("latest"); setViewedSampleId("");
-    setView("scene"); setNotice("");
-    setSeekVersion(v => v + 1);
-  }
+
   function openSample() {
     video.current?.pause();
     restoreVideoTime.current = (selectedReview?.from || 0) / 30;
@@ -519,7 +521,7 @@ export function Production({
         <div className="eyebrow">制作方案</div>
         <h2>视觉段落</h2>
         {data.stylePackInfo&&<p className="production-style-pack"><strong>{data.stylePackInfo.name}</strong><small>v{data.stylePackInfo.version} · {data.stylePackInfo.unavailable?'库文件待恢复':data.stylePackInfo.status==='ready'?'已选用':'候选试用'}</small></p>}
-        <StyleCoverage coverage={data.stylePackInfo?.coverage} compact/>
+        <StyleCoverage coverage={data.stylePackInfo?.coverage} compact selectedSceneId={selected} disabled={dirty||busy||rendering} onFollow={()=>run(()=>api("production/follow-style",{expectedRevision:data.plan.revision,sceneId:selected,actor:"user"}))}/>
         <div className="segment-progress">
           已确认 {confirmedCount} / {segmentReviews.length} 段
         </div>
@@ -612,6 +614,7 @@ export function Production({
 
       </aside>
       <main>
+        {data.capabilities?.filmDirection&&<FilmStoryboard api={api} data={data} selected={selected} disabled={dirty||busy||rendering} onSelect={chooseScene}/>}
         <div className="workflow-strip"><strong>{scene?.title || '包装与审阅'}</strong><span>段落 {data.plan.scenes.findIndex((s: any) => s.id === selected) + 1} · {resolved?.startMs !== null && resolved?.endMs !== null ? (((resolved?.endMs || 0) - (resolved?.startMs || 0)) / 1000).toFixed(1) : "—"} 秒</span></div>
         <div className="editor-modebar">
           <div className="mode-segment" aria-label="段落工作模式">

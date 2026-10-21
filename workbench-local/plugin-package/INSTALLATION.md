@@ -1,4 +1,14 @@
-# Codex Cut 插件安装记录 · 2026-09-17
+# Codex Cut 插件安装记录
+
+## 0.2.2 · 2026-10-21
+
+- 源码：仓库 `workbench-local/plugin-package/codex-cut`；个人源 `~/plugins/codex-cut`。
+- 保留已有 local-config.json，复制更新后的 manifest、桥接、Skill 和说明，再执行宿主现有的 `codex plugin add codex-cut@personal --json`。
+- 命令返回 version 0.2.2、安装路径 `~/.codex/plugins/cache/personal/codex-cut/0.2.2`。核对 manifest、bridge、Skill 和 operations 与源码字节一致，本机连接配置未改。
+- 安装副本通过脚本实际读取新 storyboard 入口；工作台 4340/4341 已加载 filmDirection 能力。插件工具 schema 在宿主新聊天加载，不将旧聊天脚本验证当作热更新。
+- 本轮增加全片实际关键帧、观察和跟随样式操作，工具仍为 7 个；模型身份继续为 Codex，修订、草稿和用户确认边界保留。
+
+## 0.1.0 历史记录 · 2026-09-17
 
 - 插件：`codex-cut@personal`，版本 `0.1.0`。
 - 源码：本目录 `codex-cut/`。

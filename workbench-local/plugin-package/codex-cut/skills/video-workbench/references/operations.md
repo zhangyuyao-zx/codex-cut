@@ -10,6 +10,7 @@
 
 - `open_workbench {}` 只启动/复用服务并返回 URL，不切换素材。使用 `open_in_codex` 等现有浏览器面板能力展示该 URL。
 - `read_project {section:"summary"}` 是常规入口。`production` 返回完整方案；带 `sceneId` 只返回该段与编辑信息。`cut` 返回剪辑及词时间。
+- `read_project {section:"storyboard"}` 返回整片真实关键帧、当前/历史样片标记、画面观察及设计描述相似提示。读取不会生成画面；没有关键帧时先执行下表的 production/storyboard。图片在本机返回的 frame.url，先实际查看再记录观察。
 - `read_project {section:"visual-library",query?}` 读取新资产、风格包、参考、favorites、活动任务及当前可用的 replacementMedia。候选和可用资源分开看状态。`references` 只返回参考列表和进展；query 按用途、名称等文字筛选。
 - `read_project {section:"visual-asset",member:{id,version}}` 读资产与真实模块详情；`style-pack` 用相同 member 读风格包。也可改用独立 `id`、`version`，两种写法不能混用。
 - 旧 `library` 仅返回新库 ready 资产与包，不返回旧 194 项。`component` 需 componentId，仅为历史工程兼容读取；不能用历史组件恢复新选型入口。
@@ -33,6 +34,9 @@
 | production/cancel-render | `{id:正在运行的任务ID}` |
 | production/visual-asset | `{member:{id,version},sceneId,values,cueBindings:{cueId:真实wordId},trial:true}`；候选必须明确 trial，可用资产可省略。应用 SCENE 或可支持的 OBJECT 资产，TRANSITION 需先编排相邻画面 |
 | production/style-pack | `{member:{id,version},mode:"preview"}` 返回 affected/conflicts/coverage/brief/selection/scenes；审阅覆盖与保留设置后，以相同方案 revision 提交 `mode:"apply"`。可先选择创作方向，再适配尚未映射的原创场景；不强行覆盖用户设置 |
+| production/follow-style | `{sceneId}`，将该段未锁定的基础样式跟随当前包；只处理有 styleBindings 的字段。Codex 身份保留所有用户 overrides；用户在工作台点按钮时可清除未锁定样式覆盖，内容与位置等非样式字段保留 |
+| production/storyboard | `{}`，从已有成功样片提取每段最多三张真实关键帧，不重新制作视频；耗时期间不要重复提交。返回更新总览 |
+| production/visual-review | `{sceneId,key,renderId,frameIds:[真实帧id],style:"consistent"或"revise"或"unreviewed",composition:"distinct"或"intentional-repeat"或"revise"或"unreviewed",note,comparedTo?:[{sceneId,key,renderId,frameIds}]}`。只引用当前样片及实际查看的图片；未做相邻对照不填写 comparedTo。不是段落确认 |
 | cut/import | `{path:"用户指定的本地绝对路径"}`；保护当前项目，再导入，不能当作新建工程 |
 | cut/ranges | `{ranges:[{startMs,endMs}]}`，是保留的原素材区间，不是要删除的区间 |
 | cut/transcript | `{words:[{id,text,startMs,endMs}]}`，源词 ID 要稳定 |
@@ -86,6 +90,10 @@ controls 是有 key/label/type/required/default 的判别对象；text、color�
 原创项目场景直接在 `workbench-local/scenes/` 编写 TSX 与清单，用 production/scenes 绑定当前段落；不必先入库。清单可声明 dependencies 和 styleBindings，准确协议读项目 `SCENE_MODULES.md`。设计与实现沿用 Remotion，按需要使用 SVG、Canvas、着色器、ThreeCanvas。先实现代表创意的镜头，再补齐必要的对象参数与口播绑定；交付前保护用户覆盖和锁。认可后可保存动画或提炼新库资产，不用几个固定场景替代创作。
 
 风格适配依据 summary/production 返回的 stylePackInfo：brief 提供文字、运动、构图、声音方向；coverage 指出已映射、部分映射、保留设置和待设计段落。声明相同 token 的原创资产无需加入包成员；专用预设仍限成员。参数映射不生成构图或音乐，也不表示实际画面已通过。
+
+stylePackInfo.tokens 是固定包的共同样式值，`coverage.scenes[].values` 列出每个映射字段的 expected、effective、source 与 locked。字体、字号、线宽、圆角、间距、时长及缓动可以使用相同机制。优先级为共同默认值 → 段落显式参数 → 用户 overrides。新段落在预览、渲染和参数检查时自动继承；共同样式不要再复制成段落显式参数，否则后者会被保留为差异。未声明绑定或未实际读取该参数的代码需要 Codex 适配，不能靠填报映射宣称统一。
+
+全片分镜放在现有包装页，可折叠、放大、选择前中后三帧并跳到具体段落。设计描述相同只提示复查，不按组件 ID 判定重复、不强迫更换构图。Codex 需对照真实画面检查视觉语言与表达变化，并播放检查节奏；无视觉能力只做准备和结构检查。观察保存在 production/storyboard/reviews.json，与用户确认独立；段落、样片文件或对照来源变化后自动标为历史观察。只更新受影响段落，继续沿用用户逐段确认与最终合成。
 
 段落 schema 与 design 对象参考 `production-store.ts`、`creative-design.ts`；参数与锁定参考 `editable-objects.ts`。只保存设计文字不会自动产生动画。
 

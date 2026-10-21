@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {planStyleApplication,resolveVisualCues} from './visual-application';
+import {planStyleApplication,resolveVisualCues,followSceneStyle} from './visual-application';
 import {assertNoNewLegacyComponents} from './component-library';
 import {resolveVisualValues,visualAssetInputSchema} from './visual-library-contract';
 
@@ -59,4 +59,29 @@ it('validates structural inputs and bound constraints instead of silently trunca
   expect(()=>resolveVisualValues([{key:'items',label:'步骤',type:'list',itemType:'text',minItems:2,maxItems:4}],{items:['只有一步']})).toThrow('数量');
   expect(()=>resolveVisualValues([{key:'mode',label:'布局',type:'select',options:['left','center']}],{mode:'unknown'})).toThrow('选项');
   expect(visualAssetInputSchema.safeParse({id:'a',version:'1.0.0',name:'a',description:'b',kind:'component',mount:'OBJECT',source:{kind:'authored',note:'test'},controls:[{type:'number',key:'size',label:'大小',min:5,max:2}],code:'export const VisualAsset=()=>null;'}).success).toBe(false);
+});
+
+it('inherits typography, geometry and motion values while explaining explicit deviations',()=>{
+  const controls:any=[{key:'fontFamily',label:'字体',type:'text'},{key:'radius',label:'圆角',type:'number'},{key:'motionFrames',label:'运动时长',type:'number'}];
+  const module:any={id:'custom',controls,styleBindings:{fontFamily:'fontFamily',radius:'radius',motionFrames:'motionFrames'}};
+  const pack:any={members:[],tokens:{fontFamily:'Arial',radius:24,motionFrames:18},overrides:{}};
+  const scene:any={id:'a',title:'新增场景',program:{moduleId:'custom',parameters:{radius:32}},editor:{overrides:{motionFrames:22},locks:['motionFrames']}};
+  const applied=planStyleApplication({scenes:[scene]} as any,pack,[],[module]);
+  expect(applied.scenes[0].program!.styleDefaults).toEqual(pack.tokens);
+  expect(applied.coverage.scenes[0].values).toContainEqual({parameter:'motionFrames',label:'运动时长',token:'motionFrames',expected:18,effective:22,source:'user',locked:true});
+  expect(applied.coverage.scenes[0].values).toContainEqual({parameter:'fontFamily',label:'字体',token:'fontFamily',expected:'Arial',effective:'Arial',source:'pack',locked:false});
+  expect(scene.program.styleDefaults).toBeUndefined();
+});
+
+it('explicit follow-style changes only style fields and keeps locked/manual edits owned by the user',()=>{
+  const module:any={id:'custom',controls:[],styleBindings:{accent:'accent',fontFamily:'fontFamily'}};
+  const pack:any={members:[],tokens:{accent:'#112233',fontFamily:'Arial'},overrides:{}};
+  const scene:any={id:'a',program:{moduleId:'custom',parameters:{accent:'#223344',fontFamily:'Serif',headline:'保留内容',x:120}},editor:{overrides:{accent:'#556677',fontFamily:'My Font',x:180},locks:['accent']}};
+  const user=followSceneStyle(scene,pack,[],[module],'user');
+  expect(user.program!.parameters).toEqual({accent:'#223344',headline:'保留内容',x:120});
+  expect(user.editor).toEqual({overrides:{accent:'#556677',x:180},locks:['accent']});
+  const codex=followSceneStyle(scene,pack,[],[module],'codex');
+  expect(codex.editor).toEqual(scene.editor);
+  expect(scene.program.parameters.fontFamily).toBe('Serif');
+  expect(()=>followSceneStyle(scene,pack,[],[{id:'custom'}] as any,'user')).toThrow('尚未接入');
 });

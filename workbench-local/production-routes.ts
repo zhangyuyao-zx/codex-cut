@@ -63,8 +63,10 @@ import {previousTransitionScene,transitionRenderPlan,withoutEntryTransition,asse
 import type {VisualLibraryService} from './visual-library-service';
 import {assertNoNewLegacyComponents,parseVisualComponentId,visualComponentId} from './component-library';
 import {visualMemberSchema,memberKey,resolveVisualValues,styleValuesFor} from './visual-library-contract';
-import {planStyleApplication,resolveVisualCues} from './visual-application';
+import {planStyleApplication,resolveVisualCues,followSceneStyle} from './visual-application';
 import {creativeRuntimeAliases,creativeRenderOptions} from './creative-runtime-dependencies';
+import {createFilmReviewStore,filmReviewInputSchema,type FilmReviewScene} from './film-review';
+import {compositionComparisons} from './film-direction';
 const exec = promisify(execFile);
 export async function productionRoutes(
   root: string,
@@ -88,6 +90,7 @@ export async function productionRoutes(
   );
   const selectionStore = await createEditorSelection(dir);
   const lane = new RenderLane();
+  const filmReview=createFilmReviewStore({directory:dir,ffmpeg:runtimeCommand('ffmpeg')});
   const contentDigest=createContentDigester();
   const segmentStore = new SegmentReviewStore(
     resolve(dir, "segment-reviews.json"),
@@ -152,18 +155,6 @@ export async function productionRoutes(
     ]);
     if (sceneId && !originalPlan.scenes.some((s) => s.id === sceneId))
       throw Error("段落不存在");
-    const effectivePlan = {...originalPlan, requests:activeMaterialRequests(originalPlan)};
-    const selectPlan = (id?: string) =>
-      id
-        ? {
-            ...effectivePlan,
-            scenes: originalPlan.scenes.filter((s) => s.id === id),
-            requests: effectivePlan.requests.filter((r) => r.sceneId === id),
-            feedback: originalPlan.feedback.filter((r) => r.sceneId === id),
-          }
-        : effectivePlan;
-    const plan = transitionRenderPlan(effectivePlan,sceneId);
-    const resolved = resolveProduction(plan, cut);
     let moduleCatalog: any[] = [],
       moduleCatalogError = "";
     try {
@@ -171,6 +162,25 @@ export async function productionRoutes(
     } catch (e) {
       moduleCatalogError = (e as Error).message;
     }
+    // Resolve the pinned style at read/bind time as well as when it is selected.
+    // New scenes inherit immediately; user overrides stay above shared defaults.
+    let stylePackInfo:any=null;
+    let styledScenes=originalPlan.scenes;
+    if(originalPlan.stylePack&&visualLibrary){try{
+      const pack=await visualLibrary.store.getPack(originalPlan.stylePack);
+      const state=await visualLibrary.store.get();
+      const application=planStyleApplication(originalPlan,pack,state.assets,moduleCatalog);
+      styledScenes=application.scenes;
+      stylePackInfo={id:pack.id,version:pack.version,name:pack.name,status:pack.status,
+        tokens:pack.tokens,coverage:application.coverage,brief:application.brief};
+    }catch{stylePackInfo={...originalPlan.stylePack,name:'已固定的风格版本',unavailable:true};}}
+    const effectivePlan = {...originalPlan,scenes:styledScenes,requests:activeMaterialRequests(originalPlan)};
+    const selectPlan = (id?: string) => id ? {...effectivePlan,
+      scenes:effectivePlan.scenes.filter(s=>s.id===id),
+      requests:effectivePlan.requests.filter(r=>r.sceneId===id),
+      feedback:effectivePlan.feedback.filter(r=>r.sceneId===id)} : effectivePlan;
+    const plan=transitionRenderPlan(effectivePlan,sceneId);
+    const resolved=resolveProduction(plan,cut);
     const codeFiles = [
         "Scene.tsx",
         "ProductionProgram.tsx",
@@ -278,7 +288,7 @@ export async function productionRoutes(
       }
     }
     const preciseScenes=new Set<string>();
-    const plainSceneKeys=Object.fromEntries(await Promise.all(originalPlan.scenes.map(async scene=>{
+    const plainSceneKeys=Object.fromEntries(await Promise.all(effectivePlan.scenes.map(async scene=>{
       const own=selectPlan(scene.id);
       const single={...own,scenes:own.scenes.map(withoutEntryTransition)},range=ranges.find(r=>r.sceneId===scene.id);
       const fallback=()=>[scene.id,keyFor(single)] as const;
@@ -307,16 +317,16 @@ export async function productionRoutes(
         return [scene.id,hash] as const;
       }catch{return fallback();}
     })));
-    const sceneKeys=Object.fromEntries(originalPlan.scenes.map(scene=>{
-      const previous=previousTransitionScene(originalPlan,scene.id);
+    const sceneKeys=Object.fromEntries(effectivePlan.scenes.map(scene=>{
+      const previous=previousTransitionScene(effectivePlan,scene.id);
       if(!previous)return [scene.id,plainSceneKeys[scene.id]];
       const range=ranges.find(r=>r.sceneId===scene.id),exit=ranges.find(r=>r.sceneId===previous.id);
       return [scene.id,createHash('sha256').update(JSON.stringify({version:1,plain:plainSceneKeys[scene.id],
         entryTransition:scene.entryTransition,outgoingPlain:plainSceneKeys[previous.id],range,exit})).digest('hex')];
     }));
-    const key=sceneId?sceneKeys[sceneId]:originalPlan.scenes.length&&originalPlan.scenes.every(s=>preciseScenes.has(s.id))?
+    const key=sceneId?sceneKeys[sceneId]:effectivePlan.scenes.length&&effectivePlan.scenes.every(s=>preciseScenes.has(s.id))?
       createHash('sha256').update(JSON.stringify({version:2,duration:Math.round(resolved.durationMs*30/1000),
-        scenes:originalPlan.scenes.map(s=>({id:s.id,key:sceneKeys[s.id]}))})).digest('hex'):keyFor(plan);
+        scenes:effectivePlan.scenes.map(s=>({id:s.id,key:sceneKeys[s.id]}))})).digest('hex'):keyFor(plan);
     const ledger = await segmentStore.get();
     const segmentReviews = ranges.map((r) => {
       const review = segmentReviewState(
@@ -457,22 +467,15 @@ export async function productionRoutes(
       if (!sourceAssetUrl || sourceAssetUrl !== cut.asset?.url)
         previousReview = null;
     }
-    let stylePackInfo:any=null;
-    if(plan.stylePack&&visualLibrary){try{
-      const p=await visualLibrary.store.getPack(plan.stylePack);
-      const state=await visualLibrary.store.get();
-      const application=planStyleApplication(plan,p,state.assets,moduleCatalog);
-      stylePackInfo={id:p.id,version:p.version,name:p.name,status:p.status,coverage:application.coverage,brief:application.brief};
-    }catch{stylePackInfo={...plan.stylePack,name:'已固定的风格版本',unavailable:true};}}
     const result={
-      capabilities:{sceneTransitions:true},
+      capabilities:{sceneTransitions:true,filmDirection:true},
       plan,
       stylePackInfo,
       cut,
       selection: await selectionStore.get(),
       previousReview,
       sceneEditors: Object.fromEntries(
-        originalPlan.scenes.map((s) => {
+        effectivePlan.scenes.map((s) => {
           const m = s.program
             ? moduleCatalog.find((m) => m.id === s.program!.moduleId)
             : null;
@@ -589,7 +592,24 @@ export async function productionRoutes(
       }
     return layers;
   }
+  async function inheritStyle<T extends Awaited<ReturnType<typeof store.get>>>(plan:T):Promise<T>{
+    if(!plan.stylePack||!visualLibrary)return plan;
+    const pack=await visualLibrary.store.getPack(plan.stylePack);
+    const assets=(await visualLibrary.store.get()).assets;
+    const application=planStyleApplication(plan,pack,assets,await sceneModules.list());
+    return {...plan,scenes:application.scenes};
+  }
   async function validateEdits(scenes: any[]) {
+    const currentPlan=await store.get();
+    if(currentPlan.stylePack&&visualLibrary){
+      const pack=await visualLibrary.store.getPack(currentPlan.stylePack);
+      const assets=(await visualLibrary.store.get()).assets;
+      const inherited=planStyleApplication({...currentPlan,scenes},pack,assets,await sceneModules.list());
+      scenes=scenes.map(scene=>{
+        const defaults=inherited.scenes.find(s=>s.id===scene.id)?.program?.styleDefaults;
+        return scene.program?{...scene,program:{...scene.program,styleDefaults:{...defaults,...scene.program.styleDefaults}}}:scene;
+      });
+    }
     assertTransitionPredecessors({scenes});
     for (const s of scenes) {
       if(s.entryTransition&&!s.program)throw Error("完整场景转场需要明确的动画实现");
@@ -615,7 +635,62 @@ export async function productionRoutes(
       }
     }
   }
+  function filmScenes(c:Awaited<ReturnType<typeof context>>):FilmReviewScene[]{
+    return c.segmentReviews.map(review=>{
+      const scene=c.plan.scenes.find(s=>s.id===review.sceneId)!;
+      const resolved=c.resolved.scenes.find(s=>s.id===scene.id);
+      const candidates=[review.latest,review.approved,...review.history].filter((r:any)=>r?.status==='done'&&r.url);
+      const render=candidates.find((r:any)=>r.current)??candidates[0];
+      const actions=resolved?reviewActions(scene.design,resolved.beats,resolved.startMs,resolved.endMs,c.resolved.words):[];
+      const candidateFrames=actions.filter(a=>!a.issue).flatMap(a=>a.startMs===null?[]:
+        [Math.round((a.endMs??a.startMs+600)*30/1000)-1]);
+      return {sceneId:scene.id,title:scene.title,key:review.key,from:review.from,end:review.end,candidateFrames,render:render??undefined};
+    });
+  }
+  async function filmOverview(c:Awaited<ReturnType<typeof context>>){
+    return {...await filmReview.describe(filmScenes(c)),revision:c.plan.revision,
+      comparisons:compositionComparisons(c.plan.scenes)};
+  }
   const router = Router();
+  router.get('/storyboard',async(_req,res,next)=>{try{res.json(await filmOverview(await context()));}catch(error){next(error);}});
+  router.get('/storyboard/frame/:id',async(req,res,next)=>{try{
+    const file=await filmReview.resolveFrame(String(req.params.id));
+    if(!file){res.status(404).json({error:'关键帧不存在，请更新全片画面'});return;}
+    res.set('Cache-Control','private, max-age=31536000, immutable').type('jpg').sendFile(file);
+  }catch(error){next(error);}});
+  router.post('/storyboard',async(req,res,next)=>{try{
+    if((await selectionStore.get())?.hasUnsavedChanges)throw Error('请先保存或放弃当前画面修改');
+    const c=await context();
+    if(c.plan.revision!==req.body.expectedRevision)throw Error('项目已更新，请刷新后重试');
+    if(lane.isBusy())throw Error('请等待当前制作任务完成');
+    await filmReview.capture(filmScenes(c));
+    res.json(await filmOverview(await context()));
+  }catch(error){next(error);}});
+  router.post('/visual-review',async(req,res,next)=>{try{
+    if((await selectionStore.get())?.hasUnsavedChanges)throw Error('请先保存或放弃当前画面修改');
+    const {expectedRevision,actor:unusedActor,...input}=req.body;
+    const parsed=filmReviewInputSchema.parse(input),c=await context();
+    if(c.plan.revision!==expectedRevision)throw Error('项目已更新，请重新读取实际画面');
+    await filmReview.record(parsed,filmScenes(c));
+    res.json(await filmOverview(await context()));
+  }catch(error){next(error);}});
+  router.post('/follow-style',async(req,res,next)=>{try{
+    const plan=await store.get();
+    if(plan.revision!==req.body.expectedRevision)throw Error('项目已更新，请刷新后重试');
+    if((await selectionStore.get())?.hasUnsavedChanges)throw Error('请先保存或放弃当前画面修改');
+    if(lane.isBusy())throw Error('请等待当前制作任务完成');
+    if(!plan.stylePack||!visualLibrary)throw Error('请先选择全片风格');
+    const original=plan.scenes.find(scene=>scene.id===req.body.sceneId);
+    if(!original)throw Error('段落不存在');
+    const actor=req.body.actor==='user'?'user':'codex';
+    const pack=await visualLibrary.store.getPack(plan.stylePack);
+    const assets=(await visualLibrary.store.get()).assets;
+    const scene=followSceneStyle(original,pack,assets,await sceneModules.list(),actor);
+    const scenes=plan.scenes.map(s=>s.id===scene.id?scene:s);
+    await validateEdits(scenes);
+    await store.setScenes(plan.revision,plan.source,scenes,actor);
+    res.json(await context());
+  }catch(error){next(error);}});
   router.post('/visual-asset',async(req,res,next)=>{try{
     if(!visualLibrary)throw Error('视觉资产库未接入');
     const [plan,cut]=await Promise.all([store.get(),cutStore.get()]);
@@ -921,7 +996,7 @@ export async function productionRoutes(
         if(patch.entryTransition===null)delete edited.entryTransition;
       }
       assertTransitionPredecessors({scenes:plan.scenes.map(s=>s.id===scene.id?edited:s)});
-      const scoped={...plan,scenes:[edited],requests:plan.requests.filter(r=>r.sceneId===scene.id)};
+      const scoped=await inheritStyle({...plan,scenes:[edited],requests:plan.requests.filter(r=>r.sceneId===scene.id)});
       await validateEdits([edited]);
       const check=resolveProduction(scoped,cut);
       if(check.issues.length||check.stale)throw Error(check.issues.join("\n")||"请先同步剪辑时间");
@@ -938,11 +1013,11 @@ export async function productionRoutes(
       const current = await store.get();
       const actor = req.body.actor === "user" ? "user" : "codex";
       assertNoNewLegacyComponents(current.scenes,req.body.scenes??[]);
-      const candidate = {
+      const candidate = await inheritStyle({
         ...current,
         source: req.body.source,
         scenes: preserveSceneEdits(current.scenes, req.body.scenes, actor),
-      };
+      });
       await validateEdits(candidate.scenes);
       const check = resolveProduction(candidate, cut);
       if (check.issues.length || check.stale)
