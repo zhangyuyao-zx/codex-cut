@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
 import { SceneTransitionSurface, type SceneTransitionOutgoing } from "./SceneTransitionSurface";
 class Boundary extends React.Component<
@@ -52,8 +52,8 @@ function PreviewFailure({error,onError,fallbackUrl}:{error:Error;onError?:(messa
 }
 export function SceneModulePreview({
   module,
-  scene,
-  outgoing,
+  scene: sceneValue,
+  outgoing: outgoingValue,
   onTime,
   seekVersion = 0,
   fallbackUrl,
@@ -72,6 +72,18 @@ export function SceneModulePreview({
   onError?: (message: string) => void;
 }) {
   const player = useRef<PlayerRef>(null);
+  // These are JSON scene snapshots. The parent also rerenders on frameupdate
+  // and polling, so object identity alone must not change Player inputProps:
+  // Remotion restarts its playback clock when its composition config changes.
+  const sceneKey = JSON.stringify(sceneValue);
+  const scene = useMemo(() => sceneValue, [sceneKey]);
+  const outgoingSnapshotKey = JSON.stringify(outgoingValue);
+  const outgoing = useMemo(() => outgoingValue, [outgoingSnapshotKey]);
+  const timeCallback = useRef(onTime);
+  timeCallback.current = onTime;
+  const readyCallback = useRef(onReady);
+  readyCallback.current = onReady;
+  const reportReady = useCallback(() => readyCallback.current?.(), []);
   const moduleKey = module.moduleUrl + ":" + module.sourceHash;
   const outgoingKey = outgoing
     ? outgoing.module?.moduleUrl + ":" + outgoing.module?.sourceHash
@@ -128,18 +140,25 @@ export function SceneModulePreview({
   useEffect(() => {
     const p = player.current;
     if (!p) return;
-    const changed = (e: any) => onTime((scene.from + e.detail.frame) / 30);
+    const changed = (e: any) => timeCallback.current((scene.from + e.detail.frame) / 30);
     p.addEventListener("frameupdate", changed);
     p.pause();
     const frame = Math.min(playerDuration - 1, Math.max(0, initialFrame));
     p.seekTo(frame);
-    onTime((scene.from + frame) / 30);
+    timeCallback.current((scene.from + frame) / 30);
     return () => p.removeEventListener("frameupdate", changed);
-  }, [renderer, scene.id, scene.from, onTime, initialFrame, seekVersion, playerDuration]);
+  }, [renderer, scene.id, scene.from, initialFrame, seekVersion, playerDuration]);
   const withLayers=(s:any)=>({...s,componentLayers:s.componentLayers?.map((l:any)=>({...l,...l.visualAdapter?{renderer:layerRenderers[l.moduleUrl+':'+l.sourceHash]}:{}}))});
-  const outgoingInput = outgoing && outgoingRenderer?.key === outgoingKey
+  const outgoingInput = useMemo(() => outgoing && outgoingRenderer?.key === outgoingKey
     ? {renderer:outgoingRenderer.component,scene:withLayers(outgoing.scene),frame:outgoing.frame}
-    : undefined;
+    : undefined, [outgoing, outgoingRenderer, outgoingKey, layerRenderers]);
+  const inputProps = useMemo(() => ({
+    renderer: renderer?.component,
+    scene: withLayers(scene),
+    outgoing: outgoingInput,
+    includeAudio: true,
+    onReady: reportReady,
+  }), [renderer, scene, outgoingInput, layerRenderers, reportReady]);
   return renderer?.key === moduleKey && (!outgoing || outgoingInput) ? (
     <Boundary
       key={module.sourceHash + scene.id + outgoingKey}
@@ -150,7 +169,7 @@ export function SceneModulePreview({
       <Player
         ref={player}
         component={PreviewSurface}
-        inputProps={{ renderer:renderer.component, scene:withLayers(scene), outgoing:outgoingInput, includeAudio: true, onReady }}
+        inputProps={inputProps}
         errorFallback={({error})=><PreviewFailure error={error} onError={onError} fallbackUrl={fallbackUrl}/>}
         compositionWidth={1920}
         compositionHeight={1080}
