@@ -6,6 +6,7 @@ import {
   type TimelineClip,
 } from "./cut-timeline";
 import { cutPreviewGeometry } from "./cut-preview-geometry";
+import {EditorWorkspace, SidebarTabs, FittedCanvas} from './EditorWorkspace';
 
 type CutState = {
   revision: number;
@@ -156,6 +157,7 @@ function NumericField({
 }
 
 export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyChange }: MultiAssetCutProps) {
+  const [leftTab,setLeftTab] = useState('assets');
   const timeline = useMemo(
     () => timelineForState(state),
     [state.timeline, state.asset, state.words, state.ranges],
@@ -540,7 +542,7 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
   const assetBin = (
     <section className="multi-asset-library" aria-label="多素材箱">
       <div className="eyebrow">素材箱</div>
-      <h2>多素材粗剪 <small>{assets.length} 个素材</small></h2>
+      <h2>项目素材 <small>{assets.length} 个</small></h2>
       <label className="upload multi-asset-upload">
         ＋ {state.asset ? "追加视频" : "导入视频"}
         <input
@@ -613,9 +615,10 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
   const preview = (
     <section className="multi-asset-preview-panel" aria-label="单片段属性预览">
       <div className="canvas-title">
-        <span>单片段属性预览{draftAsset ? ` · ${draftAsset.name}` : ""}</span>
+        <span>{draftAsset?.name || '剪辑预览'}</span>
         <small>1920 × 1080 · 30 fps</small>
       </div>
+      <FittedCanvas className="cut-preview-fit">
       <div className="multi-asset-preview-stage">
         {previewSource && draft ? (
           <div
@@ -665,6 +668,7 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
         )}
         {previewSource && draft && !previewGeometry && <div className="multi-asset-preview-loading">正在读取素材画面尺寸…</div>}
       </div>
+      </FittedCanvas>
       <div className="multi-asset-preview-controls" aria-label="单片段预览控制">
         <button type="button" disabled={!draft || !previewSource} onClick={togglePreviewPlayback}>
           {previewPlaying ? "暂停" : "播放"}
@@ -795,20 +799,27 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
     </section>
   );
 
+  const Shell = compact ? 'div' : EditorWorkspace;
   return (
-    <div className={compact ? "multi-asset-editor compact" : "multi-asset-editor"}>
-      {assetBin}
-      <div className="multi-asset-center">
+    <Shell className={compact ? "multi-asset-editor compact" : "multi-asset-editor cut-workspace"}>
+      <aside className="left editor-sidebar">
+        <SidebarTabs value={leftTab} onChange={setLeftTab} items={[{id:'assets',label:'素材'},{id:'transcript',label:'文稿'}]}/>
+        <div className="sidebar-scroll" hidden={leftTab !== 'assets'}>{assetBin}</div>
+        <div className="sidebar-scroll" hidden={leftTab !== 'transcript'}>{transcript}</div>
+      </aside>
+      <div className="multi-asset-center editor-main">
         {preview}
-        {clipList}
-        {transcript}
+        <div className="cut-document-dock">{clipList}</div>
       </div>
-      <div className="multi-asset-right">
+      <aside className="multi-asset-right right editor-inspector">
+        <div className="editor-panel-title">片段属性</div>
+        <div className="sidebar-scroll">
         {inspector}
         {(error || state.error) && <div className="error multi-asset-error">{error || state.error}</div>}
         {(working || state.busy) && <p className="status multi-asset-message">{working || "正在生成连续预览…"}</p>}
         {message && <p className="status multi-asset-message">{message}</p>}
-      </div>
-    </div>
+        </div>
+      </aside>
+    </Shell>
   );
 }

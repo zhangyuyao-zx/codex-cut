@@ -1,3 +1,4 @@
+import {assertObjectHierarchy} from './editor-commands';
 import {localSourceDependencies} from "./source-dependencies";
 import {createReadStream} from 'node:fs';
 import { createHash } from "node:crypto";
@@ -85,7 +86,9 @@ export interface SceneModuleManifest {
     id: string;
     label: string;
     parameters: string[];
-    canvas?: {transform?: boolean; text?: string};
+    parentId?: string;
+    kind?: 'text'|'image'|'video'|'shape'|'group';
+    canvas?: {transform?: boolean; text?: string; visibility?: boolean; reorder?: boolean};
   }[];
   /** Modules without this field do not consume production material requests. */
   readonly acceptsMaterials?: boolean;
@@ -524,18 +527,21 @@ function parseManifest(
           expectedId,
           "invalid editable object or unknown parameter",
         );
-      assertExactKeys(o, ["id", "label", "parameters", "canvas"], "object");
-      let canvas: {transform?: boolean; text?: string} | undefined;
+      assertExactKeys(o, ["id", "label", "parameters", "canvas", "parentId", "kind"], "object");
+      if(o.parentId!==undefined&&!isSafeId(o.parentId))throw invalidManifest(expectedId,'parentId must be an object ID');
+      if(o.kind!==undefined&&!['text','image','video','shape','group'].includes(o.kind as string))throw invalidManifest(expectedId,'invalid object kind');
+      let canvas: NonNullable<SceneModuleManifest['objects']>[number]['canvas'];
       if (o.canvas !== undefined) {
         if (!isRecord(o.canvas)) throw invalidManifest(expectedId, 'canvas must describe declared editing capabilities');
-        assertExactKeys(o.canvas, ['transform', 'text'], 'object.canvas');
+        assertExactKeys(o.canvas, ['transform', 'text', 'visibility', 'reorder'], 'object.canvas');
         if (o.canvas.transform !== undefined && typeof o.canvas.transform !== 'boolean')
           throw invalidManifest(expectedId, 'canvas.transform must be boolean');
+        for(const key of ['visibility','reorder'])if(o.canvas[key]!==undefined&&typeof o.canvas[key]!=='boolean')throw invalidManifest(expectedId,'canvas.'+key+' must be boolean');
         const textKey = o.canvas.text;
         if (textKey !== undefined && (typeof textKey !== 'string' || !o.parameters.includes(textKey) ||
           !controls.some(c => c.key === textKey && c.type === 'text')))
           throw invalidManifest(expectedId, 'canvas.text must refer to a text control of this object');
-        canvas = o.canvas as {transform?: boolean; text?: string};
+        canvas = o.canvas as NonNullable<SceneModuleManifest['objects']>[number]['canvas'];
       }
       ids.add(o.id);
       objects.push({
@@ -543,9 +549,12 @@ function parseManifest(
         label: o.label,
         parameters: o.parameters as string[],
         ...(canvas ? {canvas} : {}),
+        ...(o.parentId!==undefined?{parentId:o.parentId as string}:{}),
+        ...(o.kind!==undefined?{kind:o.kind as NonNullable<SceneModuleManifest['objects']>[number]['kind']}:{}),
       });
     }
   }
+  try{assertObjectHierarchy(objects);}catch(error){throw invalidManifest(expectedId,(error as Error).message);}
   const acceptsMaterials =
     value.acceptsMaterials === undefined
       ? false

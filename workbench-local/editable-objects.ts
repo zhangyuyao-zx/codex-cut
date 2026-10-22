@@ -79,7 +79,7 @@ export function preserveSceneEdits(
   actor: "user" | "codex" = "codex",
 ) {
   for (const old of previous) {
-    const objectEdits=old.editor && (Object.keys(old.editor.objectTransforms??{}).length || old.editor.objectLocks?.length);
+    const objectEdits=old.editor && (Object.keys(old.editor.objectTransforms??{}).length || old.editor.objectLocks?.length || Object.keys(old.editor.objectVisibility??{}).length || Object.keys(old.editor.objectOrder??{}).length);
     const parameterEdits=old.editor && (Object.keys(old.editor.overrides).length || old.editor.locks.length || objectEdits);
     if(parameterEdits || old.editor?.entryTransition!==undefined) {
       const candidate=next.find(s=>s.id===old.id);

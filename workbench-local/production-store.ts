@@ -79,6 +79,8 @@ export const sceneSchema = z
         entryTransition: sceneEntryTransitionSchema.nullable().optional(),
         objectTransforms: z.record(idSchema,z.object({x:z.number().finite().min(-20000).max(20000).optional(),y:z.number().finite().min(-20000).max(20000).optional(),scale:z.number().finite().min(0.05).max(8).optional(),rotation:z.number().finite().min(-3600).max(3600).optional()}).strict()).optional(),
         objectLocks: z.array(idSchema).max(1000).optional(),
+        objectVisibility: z.record(idSchema,z.boolean()).optional(),
+        objectOrder: z.record(z.string().regex(/^(root|group:[A-Za-z0-9][A-Za-z0-9_-]*)$/),z.array(idSchema).max(1000)).optional(),
       })
       .strict()
       .optional(),
@@ -143,7 +145,7 @@ export const productionStateSchema = z
 
 const journalFieldSchema=z.object({present:z.boolean(),value:z.json().optional()}).strict();
 const journalSchema=z.object({
-  entries:z.array(z.object({operationId:z.string().uuid(),fingerprint:z.string(),sceneId:idSchema,objectId:idSchema,actor:z.enum(['user','codex']),label:z.string(),moduleId:idSchema.optional(),status:z.enum(['applied','undone']),actionRevision:revisionSchema,changes:z.array(z.object({kind:z.enum(['transform','parameter','objectLock','parameterLock']),key:z.string(),before:journalFieldSchema,after:journalFieldSchema}).strict())}).strict()),
+  entries:z.array(z.object({operationId:z.string().uuid(),fingerprint:z.string(),sceneId:idSchema,objectId:idSchema,actor:z.enum(['user','codex']),label:z.string(),moduleId:idSchema.optional(),status:z.enum(['applied','undone']),actionRevision:revisionSchema,changes:z.array(z.object({kind:z.enum(['transform','parameter','objectLock','parameterLock','visibility','layerOrder']),key:z.string(),before:journalFieldSchema,after:journalFieldSchema}).strict())}).strict()),
   receipts:z.record(z.string().uuid(),z.string()),
 }).strict();
 export const productionEnvelopeSchema = z
@@ -679,9 +681,9 @@ class ProductionStoreImpl implements ProductionStore {
       const descriptor=await resolve(clone(scene),clone(envelope.state));
       assertEditorTargetsCompatible(editorTargetsFor(envelope.editorJournal),scene.id,descriptor);
       const reduced=applyEditorCommand(scene.editor,descriptor,command);
-      const nextState=parseState({...envelope.state,revision:nextRevision(envelope.state.revision),scenes:envelope.state.scenes.map(s=>s.id===scene.id?{...s,editor:{...s.editor,...reduced.editor,objectTransforms:reduced.editor.objectTransforms,objectLocks:reduced.editor.objectLocks}}:s)},'Invalid editor command state');
+      const nextState=parseState({...envelope.state,revision:nextRevision(envelope.state.revision),scenes:envelope.state.scenes.map(s=>s.id===scene.id?{...s,editor:{...s.editor,...reduced.editor,objectTransforms:reduced.editor.objectTransforms,objectLocks:reduced.editor.objectLocks,objectVisibility:reduced.editor.objectVisibility,objectOrder:reduced.editor.objectOrder}}:s)},'Invalid editor command state');
       const journal:EditorJournal=clone(envelope.editorJournal??{entries:[],receipts:{}});
-      journal.entries.push({operationId:command.operationId,fingerprint,sceneId:scene.id,objectId:command.objectId,actor:command.actor,moduleId:scene.program?.moduleId,label:command.changes.every(c=>c.kind==='transform')?'调整对象':command.changes.some(c=>c.kind==='objectLock'||c.kind==='parameterLock')?'对象锁定':'修改对象参数',changes:reduced.changes,status:'applied',actionRevision:nextState.revision});
+      journal.entries.push({operationId:command.operationId,fingerprint,sceneId:scene.id,objectId:command.objectId,actor:command.actor,moduleId:scene.program?.moduleId,label:command.changes.every(c=>c.kind==='transform')?'调整对象':command.changes.some(c=>c.kind==='objectLock'||c.kind==='parameterLock')?'对象锁定':command.changes.some(c=>c.kind==='layerOrder')?'调整图层顺序':command.changes.some(c=>c.kind==='visibility')?'调整图层可见性':'修改对象参数',changes:reduced.changes,status:'applied',actionRevision:nextState.revision});
       journal.receipts[command.operationId]=fingerprint;
       return this.commit({...envelope,editorJournal:journal},nextState,{recordHistory:false});
     });
@@ -703,7 +705,7 @@ class ProductionStoreImpl implements ProductionStore {
       if(scene.program?.moduleId!==entry.moduleId)throw new EditorCommandError('EDITOR_CONFLICT','段落动画实现已更换，不能重放旧对象操作');
       const descriptor=await resolve(clone(scene),clone(envelope.state));
       const editor=replayEditorChanges(scene.editor,descriptor,entry,direction,request.actor);
-      const nextState=parseState({...envelope.state,revision:nextRevision(envelope.state.revision),scenes:envelope.state.scenes.map(s=>s.id===scene.id?{...s,editor:{...s.editor,...editor,objectTransforms:editor.objectTransforms,objectLocks:editor.objectLocks}}:s)},'Invalid editor replay state');
+      const nextState=parseState({...envelope.state,revision:nextRevision(envelope.state.revision),scenes:envelope.state.scenes.map(s=>s.id===scene.id?{...s,editor:{...s.editor,...editor,objectTransforms:editor.objectTransforms,objectLocks:editor.objectLocks,objectVisibility:editor.objectVisibility,objectOrder:editor.objectOrder}}:s)},'Invalid editor replay state');
       if(direction==='undo'){
         // Removing an override inherits today's author value, which may have
         // changed while the override was active. Capture that replay baseline.

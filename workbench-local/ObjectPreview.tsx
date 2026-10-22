@@ -1,6 +1,6 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {objectTransformFor, type CanvasObjectCapability, type CanvasTransform} from './editor-commands';
-import {transformAtPointer, type CanvasGesture} from './canvas-geometry';
+import {transformAtPointer, parentCanvasTransform, type CanvasGesture} from './canvas-geometry';
 import './canvas-editor.css';
 
 type CanvasEditing = {
@@ -18,23 +18,25 @@ type CanvasEditing = {
 type SelectionBox = {x: number; y: number; width: number; height: number; rotation: number};
 type TextEdit = {id: string; key: string; before: string; value: string};
 
-export function ObjectPreview({objects, selected, onSelect, canvas, children}: {
+export function ObjectPreview({objects, selected, sceneId, onSelect, onObjectContextMenu, canvas, children}: {
   objects: readonly CanvasObjectCapability[];
   selected: string;
+  sceneId?: string;
   onSelect: (id: string) => void;
+  onObjectContextMenu?: (anchor: {id: string; x: number; y: number}) => void;
   canvas?: CanvasEditing;
   children: React.ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const current = useRef({canvas, objects, selected});
-  current.current = {canvas, objects, selected};
+  const current = useRef({canvas, objects, selected, sceneId});
+  current.current = {canvas, objects, selected, sceneId};
   const gesture = useRef<(CanvasGesture & {id: string; pointerId: number; last: CanvasTransform}) | null>(null);
   const [box, setBox] = useState<SelectionBox | null>(null);
   const [textEdit, setTextEdit] = useState<TextEdit | null>(null);
   const textRef = useRef<TextEdit | null>(null);
   const lastTap = useRef<{id: string; at: number} | null>(null);
   const findNode = (id: string) => Array.from(host.current?.querySelectorAll<HTMLElement>('[data-canvas-object]') ?? [])
-    .find(node => node.dataset.canvasObject === id);
+    .find(node => node.dataset.canvasObject === id && (!current.current.sceneId || node.closest<HTMLElement>('[data-canvas-scene]')?.dataset.canvasScene === current.current.sceneId));
   const capability = objects.find(object => object.id === selected);
   const locked = canvas?.locks?.includes(selected) ?? false;
 
@@ -49,8 +51,9 @@ export function ObjectPreview({objects, selected, onSelect, canvas, children}: {
       const rect = node.getBoundingClientRect(), bounds = container.getBoundingClientRect();
       const viewportScale = root.getBoundingClientRect().width / 1920;
       const value = objectTransformFor({objectTransforms: current.current.canvas?.transforms}, current.current.selected);
+      const parent = parentCanvasTransform(current.current.canvas?.transforms,current.current.objects,current.current.selected);
       const next = {x: rect.left + rect.width / 2 - bounds.left, y: rect.top + rect.height / 2 - bounds.top,
-        width: node.offsetWidth * viewportScale * value.scale, height: node.offsetHeight * viewportScale * value.scale, rotation: value.rotation};
+        width: node.offsetWidth * viewportScale * value.scale * parent.scale, height: node.offsetHeight * viewportScale * value.scale * parent.scale, rotation: value.rotation + parent.rotation};
       if (!next.width || !next.height) {setBox(null); return;}
       setBox(previous => previous && Object.keys(next).every(key => Math.abs(previous[key as keyof SelectionBox] - next[key as keyof SelectionBox]) < .05) ? previous : next);
     };
@@ -98,7 +101,13 @@ export function ObjectPreview({objects, selected, onSelect, canvas, children}: {
     textRef.current = edit; setTextEdit(edit); editCanvas.onActiveChange(true);
   };
 
-  return <div ref={host} className={'object-preview' + (canvas ? ' canvas-editable' : '')}
+  return <div ref={host} tabIndex={0} role="region" aria-label="视频画布" className={'object-preview' + (canvas ? ' canvas-editable' : '')}
+    onContextMenu={event => {
+      if (!onObjectContextMenu || canvas?.disabled) return;
+      const id = (event.target as Element).closest<HTMLElement>('[data-editable-object]')?.dataset.editableObject;
+      if (!id || !objects.some(object => object.id === id)) return;
+      event.preventDefault(); onObjectContextMenu({id, x:event.clientX, y:event.clientY});
+    }}
     onClickCapture={event => {
       if ((event.target as Element).closest('[data-canvas-editor-ui]')) return;
       const id = (event.target as Element).closest?.('[data-editable-object]')?.getAttribute('data-editable-object');
@@ -112,6 +121,8 @@ export function ObjectPreview({objects, selected, onSelect, canvas, children}: {
       if (!id) return;
       const object = objects.find(item => item.id === id);
       if (!object) return;
+      if (canvas.disabled) return;
+      event.currentTarget.focus({preventScroll:true});
       onSelect(id);
       if (!object.canvas?.transform || canvas.disabled || canvas.locks?.includes(id)) {
         if (id !== selected) canvas.onInteractionStart();
@@ -121,10 +132,11 @@ export function ObjectPreview({objects, selected, onSelect, canvas, children}: {
       const node = findNode(id), root = node?.closest<HTMLElement>('[data-canvas-scene]');
       if (!node || !root) return;
       const rect = node.getBoundingClientRect(), before = objectTransformFor({objectTransforms: canvas.transforms}, id);
+      const parent = parentCanvasTransform(canvas.transforms, objects, id);
       gesture.current = {id, pointerId: event.pointerId, before, last: before,
         mode: (handle?.dataset.canvasHandle as CanvasGesture['mode']) ?? 'move',
         start: {x: event.clientX, y: event.clientY}, center: {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2},
-        viewportScale: root.getBoundingClientRect().width / 1920};
+        viewportScale: root.getBoundingClientRect().width / 1920 * parent.scale, parentRotation:parent.rotation};
       event.currentTarget.setPointerCapture(event.pointerId);
       canvas.onActiveChange(true); event.preventDefault(); event.stopPropagation();
     }}
@@ -162,7 +174,7 @@ export function ObjectPreview({objects, selected, onSelect, canvas, children}: {
       beginText(id);
       event.preventDefault(); event.stopPropagation();
     }}>
-    <style>{selected ? `.object-preview [data-editable-object="${selected.replace(/[^a-zA-Z0-9_-]/g, '')}"]{outline:2px solid #0a84ff;outline-offset:3px;}` : ''}</style>
+    <style>{selected && (!canvas || !capability?.canvas) ? `.object-preview [data-editable-object="${selected.replace(/[^a-zA-Z0-9_-]/g, '')}"]{outline:2px solid #0a84ff;outline-offset:3px;}` : ''}</style>
     {children}
     {box && capability?.canvas && <div data-canvas-editor-ui className={'canvas-selection-frame' + (locked ? ' is-locked' : '')}
       style={{left: box.x, top: box.y, width: box.width, height: box.height, transform: `translate(-50%,-50%) rotate(${box.rotation}deg)`}}>

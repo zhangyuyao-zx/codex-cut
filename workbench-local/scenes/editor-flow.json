@@ -1,0 +1,17 @@
+{
+  "id":"editor-flow","label":"编辑演示 · 流程","entry":"EditorFlow.tsx","exportName":"EditorFlow",
+  "controls":[
+    {"key":"caption","label":"标题","type":"text","default":"让信息，一步一步发生。"},
+    {"key":"first","label":"第一步","type":"text","default":"理解内容"},
+    {"key":"second","label":"第二步","type":"text","default":"编排重点"},
+    {"key":"third","label":"第三步","type":"text","default":"实现动画"},
+    {"key":"accent","label":"强调色","type":"color","default":"#426b58"}
+  ],
+  "objects":[
+    {"id":"caption","label":"画面标题","kind":"text","parameters":["caption"],"canvas":{"transform":true,"text":"caption","visibility":true,"reorder":true}},
+    {"id":"flow","label":"流程组","kind":"group","parameters":["accent"],"canvas":{"transform":true,"visibility":true,"reorder":true}},
+    {"id":"first","label":"01 理解内容","kind":"text","parentId":"flow","parameters":["first"],"canvas":{"transform":true,"text":"first","visibility":true,"reorder":true}},
+    {"id":"second","label":"02 编排重点","kind":"text","parentId":"flow","parameters":["second"],"canvas":{"transform":true,"text":"second","visibility":true,"reorder":true}},
+    {"id":"third","label":"03 实现动画","kind":"text","parentId":"flow","parameters":["third"],"canvas":{"transform":true,"text":"third","visibility":true,"reorder":true}}
+  ]
+}

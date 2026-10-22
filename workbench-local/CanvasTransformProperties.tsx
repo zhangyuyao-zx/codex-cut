@@ -1,14 +1,15 @@
 import React from 'react';
 import type {CanvasTransform} from './editor-commands';
 
-export function CanvasTransformProperties({value, locked, disabled, onChange, onLock, onActiveChange}: {
+export function CanvasTransformProperties({value, locked, lockInherited, disabled, onChange, onLock, onActiveChange}: {
   value: CanvasTransform; locked: boolean; disabled: boolean;
   onChange: (key: keyof CanvasTransform, value: number) => void;
   onLock: () => void;
   onActiveChange?: (active: boolean) => void;
+  lockInherited?: boolean;
 }) {
   return <section className="canvas-transform-properties">
-    <h4>画布调整 <button disabled={disabled} aria-pressed={locked} onClick={onLock}>{locked ? '解锁对象' : '锁定对象'}</button></h4>
+    <h4>画布调整 <button disabled={disabled || lockInherited} aria-pressed={locked} onClick={onLock}>{lockInherited ? '父组已锁定' : locked ? '解锁对象' : '锁定对象'}</button></h4>
     <div className="canvas-transform-grid">{([
       ['x', '水平偏移 · px', -20000, 20000, 1], ['y', '垂直偏移 · px', -20000, 20000, 1],
       ['scale', '等比缩放 · 倍', .05, 8, .01], ['rotation', '旋转 · °', -3600, 3600, 1],

@@ -1,7 +1,10 @@
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {CanvasEditsProvider,EditableCanvasObject} from './EditableCanvasObject';
 import {afterEach,describe,expect,it} from 'vitest';
 import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import {join} from 'node:path';import {randomUUID} from 'node:crypto';
-import {applyEditorCommand,objectTransformFor,assertObjectEditsCompatible,assertEditorTargetsCompatible,type EditorCommand,type EditorDescriptor,type EditorReplayRequest} from './editor-commands';
+import {applyEditorCommand,objectTransformFor,objectVisibleFor,objectParentKey,objectSiblingsFor,objectOrderFor,objectLockedFor,assertObjectEditsCompatible,assertEditorTargetsCompatible,type EditorCommand,type EditorDescriptor,type EditorReplayRequest} from './editor-commands';
 import {createProductionStore,type Scene,type ProductionStore} from './production-store';
 const directories:string[]=[];
 afterEach(async()=>{await Promise.all(directories.splice(0).map(dir=>rm(dir,{recursive:true,force:true})));});
@@ -160,10 +163,82 @@ describe('atomic production editor commands',()=>{
  it('reads old envelopes without a journal, preserves new fields through bulk/animation writes, and retains legacy global undo',async()=>{
   const {store,directory}=await fixture();const old=JSON.parse(await readFile(join(directory,'production.json'),'utf8'));expect(old.editorJournal).toBeUndefined();expect((await store.editorHistory()).undo).toEqual([]);
   await baseEdit(store,{intent:'第二版'});expect((await store.undo(2)).scenes[0].intent).toBe('说明');
-  const state=await store.get(),edited={...initial,editor:{overrides:{caption:'保留'},locks:['caption'],objectTransforms:{title:{scale:1.2}},objectLocks:['title'],entryTransition:null}};
+  const state=await store.get(),edited={...initial,editor:{overrides:{caption:'保留'},locks:['caption'],objectTransforms:{title:{scale:1.2}},objectLocks:['title'],objectVisibility:{title:false},objectOrder:{root:['amount','title']},entryTransition:null}};
   await store.setScenes(state.revision,null,[edited],'user');await baseEdit(store,{program:{moduleId:'module',parameters:{caption:'Codex 内容'}}});const current=await store.get();
   await store.setSceneWithRequests(current.revision,{...current.scenes[0],editor:undefined},[]);
   const reopened=await createProductionStore(directory);expect((await reopened.get()).scenes[0].editor).toEqual(edited.editor);
   const snapshot=await reopened.getEditorSnapshot();expect(snapshot.history).toEqual({undo:[],redo:[]});expect(snapshot.state.revision).toBe(6);
+ });
+});
+
+const layerObjects:EditorDescriptor['objects']=[
+ {id:'group',parameters:[],kind:'group',canvas:{visibility:true,reorder:true}},
+ {id:'background',parameters:[],kind:'shape',canvas:{visibility:true,reorder:true}},
+ {id:'title',parentId:'group',parameters:['caption'],kind:'text',canvas:{visibility:true,reorder:true,transform:true,text:'caption'}},
+ {id:'amount',parentId:'group',parameters:['amount'],kind:'shape',canvas:{visibility:true,reorder:true,transform:true}},
+];
+const layerDescriptor=async(scene:Scene):Promise<EditorDescriptor>=>({...await descriptor(scene),objects:layerObjects});
+const visibility=(revision:number,before=true,after=false,extra:Partial<EditorCommand>={})=>command(revision,[{kind:'visibility',key:'visible',before,after}],extra);
+const order=(revision:number,before=['title','amount'],after=['amount','title'],extra:Partial<EditorCommand>={})=>command(revision,[{kind:'layerOrder',key:'siblings',before,after}],extra);
+describe('layer editing contract',()=>{
+ it('renders hidden wrappers and sibling stacking only from explicit overrides while preserving authored styles and child motion',()=>{
+  const child=React.createElement(EditableCanvasObject,{id:'title',parentId:'group',style:{position:'absolute',zIndex:19},children:React.createElement('span',{style:{transform:'rotate(4deg)'}},'content')});
+  const render=(props:Record<string,unknown>)=>renderToStaticMarkup(React.createElement(CanvasEditsProvider,{...props,children:child}));
+  expect(render({})).toContain('z-index:19');expect(render({})).not.toContain('display:none');
+  const html=render({visibility:{title:false},order:{'group:group':['amount','title']},transforms:{title:{x:42,scale:1.2}}});
+  expect(html).toContain('display:none');expect(html).toContain('z-index:1');expect(html).toContain('translate:42px 0px');expect(html).toContain('scale:1.2');expect(html).toContain('transform:rotate(4deg)');
+ });
+ it('uses authored sibling defaults, validates every sibling capability and rejects parent transfer/invalid permutations',async()=>{
+  const d=await layerDescriptor(initial);
+  expect(objectVisibleFor(undefined,'title')).toBe(true);expect(objectParentKey('group')).toBe('group:group');expect(objectParentKey()).toBe('root');
+  expect(objectSiblingsFor(d,'title')).toEqual(['title','amount']);expect(objectOrderFor(undefined,d,'group')).toEqual(['group','background']);
+  for(const ids of [['title'],['title','title'],['title','background'],['amount','title','group']])expect(()=>applyEditorCommand(undefined,d,order(1,undefined,ids))).toThrow('完整排列');
+  const incapable={...d,objects:d.objects.map(o=>o.id==='amount'?{...o,canvas:{visibility:true}}:o)};
+  expect(()=>applyEditorCommand(undefined,incapable,order(1))).toThrow('排序能力');
+  expect(()=>applyEditorCommand(undefined,{...d,objects:[{id:'title',parameters:[],canvas:{reorder:true}}]},order(1,['title'],['title']))).toThrow('排序能力');
+  expect(()=>applyEditorCommand(undefined,{...d,objects:objects},visibility(1))).toThrow('可见性');
+  const edited=applyEditorCommand(undefined,d,order(1)).editor;
+  expect(()=>assertObjectEditsCompatible(edited,{...d,objects:d.objects.map(o=>o.id==='amount'?{...o,parentId:undefined}:o)})).toThrow('排序能力');
+  expect(()=>assertObjectEditsCompatible({...edited,objectOrder:{'group:missing':['title','amount']}},d)).toThrow('父级');
+ });
+ it('persists hide/show and exact field presence across undo/redo/reopen without changing another parent order or geometry',async()=>{
+  const {store,directory}=await fixture(),hide=visibility(1),children=order(2),roots=order(3,['group','background'],['background','group'],{objectId:'group'});
+  const baseline=JSON.parse(await readFile(join(directory,'production.json'),'utf8')).history;
+  await store.editorCommand(hide,layerDescriptor);await store.editorCommand(children,layerDescriptor);await store.editorCommand(roots,layerDescriptor);
+  await store.editorCommand(transform(4,'x',0,33),layerDescriptor);
+  await store.editorUndo(replay(children.operationId,5),layerDescriptor);await store.editorUndo(replay(hide.operationId,6),layerDescriptor);
+  let scene=(await store.get()).scenes[0];expect(scene.editor?.objectVisibility).toBeUndefined();expect(scene.editor?.objectOrder).toEqual({root:['background','group']});expect(scene.editor?.objectTransforms).toEqual({title:{x:33}});
+  const reopened=await createProductionStore(directory);await reopened.editorRedo(replay(hide.operationId,7),layerDescriptor);await reopened.editorRedo(replay(children.operationId,8),layerDescriptor);
+  const show=visibility(9,false,true);await reopened.editorCommand(show,layerDescriptor);await reopened.editorUndo(replay(show.operationId,10),layerDescriptor);
+  scene=(await reopened.get()).scenes[0];expect(scene.editor?.objectVisibility).toEqual({title:false});expect(scene.editor?.objectOrder).toEqual({root:['background','group'],'group:group':['amount','title']});
+  expect(JSON.parse(await readFile(join(directory,'production.json'),'utf8')).history).toEqual(baseline);
+  const state=await reopened.get();await reopened.setScenes(state.revision,null,[{...scene,editor:undefined}]);
+  expect((await reopened.get()).scenes[0].editor).toEqual(scene.editor);
+  await expect(reopened.setScenes(state.revision+1,null,[])).rejects.toThrow('用户调整');
+  await expect(reopened.setScenes(state.revision+1,null,[{...initial,program:{moduleId:'other',parameters:{}}}])).rejects.toThrow('迁移');
+ });
+ it('rebases unrelated stale visibility/order edits, conflicts on the same object/group, and rejects same-field inverse divergence',async()=>{
+  const {store,directory}=await fixture(),hide=visibility(1),children=order(1);
+  await store.editorCommand(hide,layerDescriptor);await store.editorCommand(children,layerDescriptor);await store.editorCommand(visibility(1,true,false,{objectId:'amount'}),layerDescriptor);
+  const disk=await readFile(join(directory,'production.json'),'utf8');
+  await expect(store.editorCommand(visibility(1),layerDescriptor)).rejects.toThrow('字段');
+  await expect(store.editorCommand(order(1),layerDescriptor)).rejects.toThrow('字段');expect(await readFile(join(directory,'production.json'),'utf8')).toBe(disk);
+  await store.editorCommand(order(4,['amount','title'],['title','amount'],{objectId:'amount'}),layerDescriptor);
+  await expect(store.editorUndo(replay(children.operationId,5),layerDescriptor)).rejects.toThrow('字段');
+ });
+ it('protects locked siblings and inherited group locks for Codex including later locks on undo and redo',async()=>{
+  const {store}=await fixture(),agentOrder=order(1,undefined,undefined,{actor:'codex'});
+  await store.editorCommand(agentOrder,layerDescriptor);
+  await store.editorCommand(command(2,[{kind:'objectLock',key:'locked',before:false,after:true}],{objectId:'amount'}),layerDescriptor);
+  await expect(store.editorUndo({...replay(agentOrder.operationId,3),actor:'codex'},layerDescriptor)).rejects.toThrow('锁定');
+  await expect(store.editorCommand(order(3,['amount','title'],['title','amount'],{actor:'codex'}),layerDescriptor)).rejects.toThrow('锁定');
+  await store.editorCommand(command(3,[{kind:'objectLock',key:'locked',before:true,after:false}],{objectId:'amount'}),layerDescriptor);
+  await store.editorUndo({...replay(agentOrder.operationId,4),actor:'codex'},layerDescriptor);
+  await store.editorCommand(command(5,[{kind:'objectLock',key:'locked',before:false,after:true}],{objectId:'group'}),layerDescriptor);
+  await expect(store.editorRedo({...replay(agentOrder.operationId,6),actor:'codex'},layerDescriptor)).rejects.toThrow('锁定');
+  const state=await store.get(),d=await layerDescriptor(state.scenes[0]);expect(objectLockedFor(state.scenes[0].editor,d,'title')).toBe(true);
+  for(const c of [visibility(6,true,false,{actor:'codex'}),transform(6,'x',0,1,{actor:'codex'}),command(6,[{kind:'parameter',key:'caption',before:'作者文字',after:'模型'}],{actor:'codex'})])await expect(store.editorCommand(c,layerDescriptor)).rejects.toThrow('锁定');
+  await store.editorCommand(visibility(6),layerDescriptor);
+  await expect(store.editorUndo(replay(agentOrder.operationId,7),layerDescriptor)).rejects.toThrow('自己的编辑');
  });
 });

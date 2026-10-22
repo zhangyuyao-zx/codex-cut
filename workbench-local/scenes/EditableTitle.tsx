@@ -13,11 +13,13 @@ export function EditableTitle({parameters}: SceneModuleInput) {
   const accent = String(parameters.accent);
   return <AbsoluteFill style={{background: '#f1f3ec', color: '#1b2923', fontFamily: 'PingFang SC, sans-serif'}}>
     <div style={{position: 'absolute', left: 154, top: 128, fontSize: 24, letterSpacing: 3, color: '#708077'}}>CODEX CUT · 可视化编辑</div>
-    <svg width={430} height={430} viewBox="0 0 430 430" style={{position: 'absolute', right: 70, top: 268, opacity: .13}}>
+    <EditableCanvasObject id="orb" style={{position: 'absolute', right: 70, top: 268, width:430,height:430}}>
+    <svg width={430} height={430} viewBox="0 0 430 430" style={{opacity: .13}}>
       <circle cx="215" cy="215" r="182" fill="none" stroke={accent} strokeWidth="2"/>
       <circle cx="215" cy="215" r="120" fill={accent}/>
       <circle cx="345" cy="86" r="14" fill={accent}/>
     </svg>
+    </EditableCanvasObject>
     <EditableCanvasObject id="headline" style={{position: 'absolute', left: 150, top: 285, width: 1350}}>
       <div data-canvas-text="caption" style={{fontSize: Number(parameters.fontSize), fontWeight: 650, lineHeight: 1.3,
         letterSpacing: -4, whiteSpace: 'pre-wrap', opacity: progress, translate: `0 ${(1 - progress) * 24}px`}}>{String(parameters.caption)}</div>

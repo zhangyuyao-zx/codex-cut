@@ -11,7 +11,8 @@
     {"key": "motionFrames", "label": "出现时长", "type": "number", "default": 18, "min": 1, "max": 60}
   ],
   "objects": [
-    {"id": "headline", "label": "标题", "parameters": ["caption", "fontSize"], "canvas": {"transform": true, "text": "caption"}},
-    {"id": "note", "label": "补充说明", "parameters": ["note", "accent", "motionFrames"], "canvas": {"transform": true, "text": "note"}}
+    {"id": "orb", "label": "几何装饰", "kind": "shape", "parameters": ["accent"], "canvas": {"transform": true, "visibility":true, "reorder":true}},
+    {"id": "headline", "label": "标题", "kind":"text", "parameters": ["caption", "fontSize"], "canvas": {"transform": true, "text": "caption", "visibility":true, "reorder":true}},
+    {"id": "note", "label": "补充说明", "kind":"text", "parameters": ["note", "accent", "motionFrames"], "canvas": {"transform": true, "text": "note", "visibility":true, "reorder":true}}
   ]
 }

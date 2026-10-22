@@ -22,6 +22,8 @@ export type SceneModuleInput = {
   transitionOutgoingFrame?: number;
   ownsBackground?:boolean;
   objectTransforms?: Record<string, Partial<CanvasTransform>>;
+  objectVisibility?: Record<string, boolean>;
+  objectOrder?: Record<string, string[]>;
 };
 export function SceneModuleSurface({
   renderer: Renderer,
@@ -43,7 +45,7 @@ export function SceneModuleSurface({
         muted
         style={{width: "100%", height: "100%", objectFit: "contain"}}
       />}
-      <CanvasEditsProvider transforms={scene.objectTransforms}><Renderer {...scene} /></CanvasEditsProvider>
+      <CanvasEditsProvider transforms={scene.objectTransforms} visibility={scene.objectVisibility} order={scene.objectOrder}><Renderer {...scene} /></CanvasEditsProvider>
       {scene.componentLayers?.map((l) => (
         <Sequence
           key={l.id}

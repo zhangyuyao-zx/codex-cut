@@ -1,0 +1,16 @@
+{
+  "id":"editor-number","label":"编辑演示 · 数字","entry":"EditorNumber.tsx","exportName":"EditorNumber",
+  "controls":[
+    {"key":"caption","label":"标题","type":"text","default":"把重点，放大到清晰。"},
+    {"key":"value","label":"数字","type":"number","default":3600,"min":1,"max":99999},
+    {"key":"unit","label":"数字说明","type":"text","default":"张画面 / 每分钟"},
+    {"key":"note","label":"注释","type":"text","default":"数字先被看见，意义随后发生。"},
+    {"key":"accent","label":"强调色","type":"color","default":"#426b58"}
+  ],
+  "objects":[
+    {"id":"caption","label":"画面标题","kind":"text","parameters":["caption"],"canvas":{"transform":true,"text":"caption","visibility":true,"reorder":true}},
+    {"id":"number","label":"核心数字","kind":"text","parameters":["value","accent"],"canvas":{"transform":true,"visibility":true,"reorder":true}},
+    {"id":"unit","label":"数字说明","kind":"text","parameters":["unit"],"canvas":{"transform":true,"text":"unit","visibility":true,"reorder":true}},
+    {"id":"note","label":"底部注释","kind":"text","parameters":["note"],"canvas":{"transform":true,"text":"note","visibility":true,"reorder":true}}
+  ]
+}

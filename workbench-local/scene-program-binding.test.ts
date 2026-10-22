@@ -11,10 +11,12 @@ const materialModules={validate:async(p:any)=>({modulePath:'/local/custom.tsx',e
 vi.mock('remotion', async(importOriginal) => ({...await importOriginal<typeof import('remotion')>(), useCurrentFrame: () => 0}));
 describe('custom scene binding',()=>{
  it('carries user geometry and parameter overrides into the shared render input without changing word timing', async () => {
-   const edited:ProductionState={...plan,scenes:[{...plan.scenes[0],editor:{overrides:{accent:'#abcdef'},locks:['accent'],objectTransforms:{headline:{x:120,y:-24,scale:1.25,rotation:18}}}}]};
+   const edited:ProductionState={...plan,scenes:[{...plan.scenes[0],editor:{overrides:{accent:'#abcdef'},locks:['accent'],objectTransforms:{headline:{x:120,y:-24,scale:1.25,rotation:18}},objectVisibility:{headline:false},objectOrder:{root:['headline','background']}}}]};
    const [bound]=await bindScenePrograms(edited,resolveProduction(edited,cut),modules);
    expect(bound.parameters).toEqual({accent:'#abcdef'});
    expect(bound.objectTransforms).toEqual({headline:{x:120,y:-24,scale:1.25,rotation:18}});
+   expect(bound.objectVisibility).toEqual({headline:false});
+   expect(bound.objectOrder).toEqual({root:['headline','background']});
    expect(bound.beats[0].frame).toBe(30);
  });
  it('binds arbitrary ids and text to local frames after roughcut',async()=>{const [s]=await bindScenePrograms(plan,resolveProduction(plan,cut),modules);expect(s.from).toBe(15);expect(s.duration).toBe(75);expect(s.beats[0].frame).toBe(30);expect(s.words.map(w=>w.text)).toEqual(['另一篇','完全不同','文稿']);expect(s.parameters).toEqual({accent:'#123456'});});

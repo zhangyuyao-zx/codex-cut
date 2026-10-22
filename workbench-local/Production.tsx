@@ -12,9 +12,12 @@ import {FilmStoryboard} from './FilmStoryboard';
 import {StyleCoverage} from './StyleCoverage';
 import {sceneEntry,completedReview,type ReviewRequest} from './review-navigation';
 import type {PlayerRef} from '@remotion/player';
-import {applyEditorCommand, objectTransformFor, type CanvasTransform, type EditorChange, type EditorCommand, type EditorReplayRequest} from './editor-commands';
+import {applyEditorCommand, objectTransformFor, objectLockedFor, objectVisibleFor, type CanvasTransform, type EditorChange, type EditorCommand, type EditorReplayRequest} from './editor-commands';
 import {transformChanges} from './canvas-geometry';
 import {CanvasTransformProperties} from './CanvasTransformProperties';
+import {EditorWorkspace, SidebarTabs, EditorDock, FittedCanvas} from './EditorWorkspace';
+import {LayerPanel, ObjectLayerMenu, type LayerMenuAnchor} from './LayerPanel';
+import {EditorIcon} from './EditorIcon';
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -87,6 +90,19 @@ export function Production({
   const [canvasDraft, setCanvasDraft] = useState<{id: string; transform?: CanvasTransform; text?: {key: string; value: string}} | null>(null);
   const [canvasActive, setCanvasActive] = useState(false);
   const [canvasSaving, setCanvasSaving] = useState(false);
+  const [leftTab, setLeftTab] = useState('scenes');
+  const [inspectorTab, setInspectorTab] = useState('properties');
+  const [layerMenu, setLayerMenu] = useState<LayerMenuAnchor | null>(null);
+  const keyboardAction = useRef<(event: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (event.defaultPrevented || event.isComposing || target?.closest('input,textarea,select,button,a,summary,[contenteditable="true"],[role="menu"],[role="treeitem"],[role="separator"]')) return;
+      keyboardAction.current(event);
+    };
+    window.addEventListener('keydown', keydown);
+    return () => window.removeEventListener('keydown', keydown);
+  }, []);
   const scenePlayer = useRef<PlayerRef>(null);
   const canvasInFlight = useRef(false);
   const canvasInteracting = useRef(false);
@@ -327,6 +343,7 @@ export function Production({
     ...(canvasDraft?.transform ? {[canvasDraft.id]: canvasDraft.transform} : {})};
   const canvasValues = {...parameters, ...(canvasDraft?.text ? {[canvasDraft.text.key]: canvasDraft.text.value} : {})};
   const selectedCanvasObject = sceneEditor?.objects?.find((object: any) => object.id === selectedObject && object.canvas);
+  const effectiveObjectLocks = (sceneEditor?.objects || []).filter((object: any) => objectLockedFor(scene?.editor, {objects: sceneEditor.objects}, object.id)).map((object: any) => object.id);
   useEffect(() => {
     if (!dirty) {
       setTitle(scene?.title || "");
@@ -437,6 +454,36 @@ export function Production({
     } catch (error: any) {setError('操作结果尚未确认：' + error.message + '。请重试同一次操作，或重新读取已保存结果。');}
     finally {canvasInFlight.current = false; if (mounted.current) {setCanvasSaving(false); setBusy(false);}}
   };
+  const selectObject = (id: string) => {
+    if ((dirty || busy) && id !== selectedObject) return;
+    if (id !== selectedObject) pendingReview.current = null;
+    setLayerMenu(null); setSelectedObject(id); setLeftTab('layers'); setInspectorTab('properties');
+    if (view !== 'scene') {video.current?.pause(); setEntryFrame(Math.round(time * 30)); setView('scene');}
+  };
+  const editLayer = (id: string, changes: EditorChange[]) => {
+    if (dirty || busy || !scopedLoaded) return;
+    pendingReview.current = null; scenePlayer.current?.pause(); video.current?.pause();
+    if (view !== 'scene') {setEntryFrame(Math.round(time * 30)); setView('scene');}
+    setSelectedObject(id); editCanvas(id, changes);
+  };
+  keyboardAction.current = event => {
+    if (!data || busy || dirty || layerMenu) return;
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      const direction = event.shiftKey ? 'redo' : 'undo';
+      if (data.editorHistory?.[direction]?.length) {event.preventDefault(); void replayCanvas(direction);} return;
+    }
+    if (event.key === 'Escape') {setSelectedObject(''); return;}
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (view === 'scene' && scenePlayer.current) {const p = scenePlayer.current; if (p.isPlaying()) p.pause(); else p.play();}
+      else if (video.current) {if (video.current.paused) void video.current.play().catch(() => {}); else video.current.pause();}
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault(); const delta = event.key === 'ArrowRight' ? 1 : -1;
+      if (view === 'scene' && scenePlayer.current && resolved?.startMs != null && resolved?.endMs != null) {const p = scenePlayer.current; p.pause(); p.seekTo(Math.max(0, Math.min(Math.max(0, Math.round((resolved.endMs-resolved.startMs) * .03)-1), p.getCurrentFrame() + delta)));}
+      else if (video.current) {video.current.pause(); video.current.currentTime = Math.max(0, Math.min(video.current.duration || 0, video.current.currentTime + delta / 30));}
+    }
+  };
   const save = async () => {
     if (canvasReplay.current) {await replayCanvas(canvasReplay.current.direction); return;}
     if (canvasCommand.current) {if (!await persistCanvasCommand(canvasCommand.current) || !parameterDirty) return;}
@@ -520,6 +567,7 @@ export function Production({
   }
   const enterScene=useCallback((entry:NonNullable<ReturnType<typeof sceneEntry>>)=>{
     pendingReview.current=null;
+    setLayerMenu(null);
     video.current?.pause();
     restoreVideoTime.current=entry.view==='sample'?entry.seconds:null;
     setSelected(entry.sceneId);setTime(entry.seconds);setEntryFrame(entry.frame);
@@ -684,10 +732,11 @@ export function Production({
     currentLatest ? (feedbackOpen ? `${feedbackOpen} 条反馈待处理` : currentLatest.pendingMaterials ? "补齐素材后可确认" : "样片已就绪，播放后确认") :
     selectedLatest?.status === "failed" ? "生成失败，可以重试" : selectedLatest ? "画面已更新，请重新生成样片" : "编辑满意后，生成带原声的本段样片");
   return (
-    <div className="production-workspace">
-      <aside className="left">
-        <div className="eyebrow">制作方案</div>
-        <h2>视觉段落</h2>
+    <EditorWorkspace className="production-workspace">
+      <aside className="left editor-sidebar">
+        <SidebarTabs value={leftTab} onChange={setLeftTab} items={[{id:'scenes',label:'段落'},{id:'layers',label:'图层',count:sceneEditor?.objects?.length || 0}]}/>
+        <div className="sidebar-scroll" hidden={leftTab !== 'scenes'}>
+        <div className="panel-section-heading"><span>视觉段落</span><small>{data.plan.scenes.length} 段</small></div>
         {data.stylePackInfo&&<p className="production-style-pack"><strong>{data.stylePackInfo.name}</strong><small>{data.stylePackInfo.unavailable?'风格文件待恢复':'全片风格'}</small></p>}
         <StyleCoverage coverage={data.stylePackInfo?.coverage} compact selectedSceneId={selected} disabled={dirty||busy||rendering} onFollow={()=>run(()=>api("production/follow-style",{expectedRevision:data.plan.revision,sceneId:selected,actor:"user"}))}/>
         <div className="segment-progress">
@@ -758,9 +807,13 @@ export function Production({
         </div>
         </details>
 
+        </div>
+        <div className="sidebar-scroll" hidden={leftTab !== 'layers'}>
+          <div className="layer-scene-title">{scene?.title || '当前段落'}</div>
+          <LayerPanel objects={sceneEditor?.objects || []} editor={scene?.editor} selected={selectedObject} disabled={dirty || busy || !scopedLoaded} onSelect={selectObject} onEdit={editLayer} onMenu={setLayerMenu}/>
+        </div>
       </aside>
-      <main>
-        {data.capabilities?.filmDirection&&<FilmStoryboard api={api} data={data} selected={selected} disabled={dirty||busy||rendering} onSelect={chooseScene}/>}
+      <main className="editor-main production-main">
         <div className="workflow-strip"><strong>{scene?.title || '包装与审阅'}</strong><span>段落 {data.plan.scenes.findIndex((s: any) => s.id === selected) + 1} · {resolved?.startMs != null && resolved?.endMs != null ? ((resolved.endMs - resolved.startMs) / 1000).toFixed(1) : "—"} 秒</span></div>
         <div className="editor-modebar">
           <div className="mode-segment" aria-label="段落工作模式">
@@ -768,6 +821,10 @@ export function Production({
             <button aria-pressed={view === "sample"} disabled={!scopedLoaded || !reviewHasPlayback(selectedReview) || dirty} onClick={openSample}>审阅样片</button>
           </div>
           <span className="preview-state">{dirty ? "未保存" : !scopedLoaded && (view === "scene" || view === "sample") ? "正在读取" : editingView ? "实时预览" : view === "sample" ? playbackTask?.current ? "最新样片" : "历史样片" : view === "previous" ? "历史成片" : view === "review" ? "整片预览" : "粗剪预览"}</span>
+          <div className="canvas-edit-toolbar" aria-label="编辑操作">
+            <button className="editor-icon-button" aria-label="撤销画面调整" disabled={busy || dirty || !data.editorHistory?.undo?.length} onClick={() => void replayCanvas('undo')} title={'撤销 · ⌘Z' + (data.editorHistory?.undo?.[0]?.label ? ' · '+data.editorHistory.undo[0].label : '')}><EditorIcon name="undo"/></button>
+            <button className="editor-icon-button" aria-label="重做画面调整" title="重做 · ⇧⌘Z" disabled={busy || dirty || !data.editorHistory?.redo?.length} onClick={() => void replayCanvas('redo')}><EditorIcon name="redo"/></button>
+          </div>
           <details className="version-menu"><summary>版本与对照</summary><div>
             {reviewHasPlayback(selectedReview)&&<button disabled={busy||dirty||rendering||!scopedLoaded} onClick={renderSegment}>重新制作本段</button>}
             <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("cut");}}>查看粗剪</button>
@@ -776,11 +833,6 @@ export function Production({
             {!data.editorSnapshot?.hasCommands && <button disabled={busy || dirty} onClick={() => run(() => api("production/undo", {expectedRevision: data.plan.revision}))}>撤销上次方案修改</button>}
           </div></details>
         </div>
-        {canvasAvailable && editingView && <div className="canvas-edit-toolbar">
-          <button disabled={busy || dirty || !data.editorHistory?.undo?.length} onClick={() => void replayCanvas('undo')} title={data.editorHistory?.undo?.[0]?.label}>撤销画面调整</button>
-          <button disabled={busy || dirty || !data.editorHistory?.redo?.length} onClick={() => void replayCanvas('redo')}>重做</button>
-          <span className="hint">{canvasSaving ? '正在保存画面调整…' : canvasPending ? '操作结果待确认，可重试' : '拖动位置 · 角点缩放 · 圆点旋转 · 双击改字'}</span>
-        </div>}
         {view === "previous" && (
           <p className="notice">
             正在播放上一次成功导出的版本，尚未包含当前修改。
@@ -855,13 +907,15 @@ export function Production({
             </details>
           </div>
         )}
-        <div className="cut-canvas">
+        <FittedCanvas>
           <ObjectPreview
+            sceneId={selected}
             objects={editingView ? sceneEditor?.objects || [] : []}
             selected={selectedObject}
-            onSelect={setSelectedObject}
+            onSelect={selectObject}
+            onObjectContextMenu={anchor => {if (!dirty && !busy) {selectObject(anchor.id); setLayerMenu(anchor);}}}
             canvas={canvasAvailable && editingView ? {
-              transforms: canvasTransforms, locks: scene?.editor?.objectLocks || [], values: canvasValues,
+              transforms: canvasTransforms, locks: effectiveObjectLocks, values: canvasValues,
               disabled: busy || parameterDirty || (canvasPending && !canvasSaving),
               onInteractionStart: () => {pendingReview.current = null; scenePlayer.current?.pause();},
               onActiveChange: active => {canvasInteracting.current = active; setCanvasActive(active);},
@@ -976,7 +1030,7 @@ export function Production({
               <div className="empty">请先在剪辑页生成连续预览</div>
             )}
           </ObjectPreview>
-        </div>
+        </FittedCanvas>
         {(scopedError || scopedProgramError) && (
           <p className="error">
             当前段落暂不可用：{scopedError || scopedProgramError}
@@ -1018,21 +1072,6 @@ export function Production({
           </div>
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
-        {scene&&<details className="scene-plan"><summary>设计与口播说明</summary>
-          <CreativeDesignPanel design={design} beats={scene.beats}/>
-          <details><summary>口播与动作定位（高级）</summary>
-          <ActionReview key={`actions:${selected}`} disabledReason={view === 'previous' || (view === 'sample' && !playbackTask?.current) || (view === 'review' && !currentReview) ? '正在查看历史视频；切到编辑画面或当前版本后检查动作。' : undefined} actions={reviewActions(design, resolved?.beats || [], resolved?.startMs ?? null, resolved?.endMs ?? null, scopedCandidate?.resolved?.words || [])} onSeek={(frame, objectId) => {
-              pendingReview.current=null;
-              setEntryFrame(frame);
-              setSeekVersion(v => v + 1);
-              if (objectId && sceneEditor?.objects.some((o: any) => o.id === objectId)) setSelectedObject(objectId);
-              if (view === 'scene') { setTime(frame / 30); return; }
-              if (video.current) {
-                video.current.pause();
-                video.current.currentTime = localPlaybackTime(frame, view === 'sample' ? playbackOffset : 0, video.current.duration || duration);
-                setTime(video.current.currentTime + (view === 'sample' ? playbackOffset : 0));
-              }
-            }}/></details></details>}
         {selectedLatest?.status === "done" && !selectedLatest.current && (
           <p className="hint">
             当前段落样片来自旧方案，请重新制作后再确认。
@@ -1085,64 +1124,25 @@ export function Production({
         {(error || data.job?.status === "failed") && (
           <p className="error">{error || data.job.error}</p>
         )}
-        {scene && (
-          <>
-            <div className="transcript-head">
-              <h2>这段怎么改</h2>
-              <small>
-                {feedbackInScene
-                  ? `记录在当前 ${time.toFixed(2)} 秒`
-                  : "请点击本段的时间点后记录反馈"}
-              </small>
-            </div>
-            <div className="feedback-compose">
-              <input
-                aria-label="本段反馈"
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="例如：第二个信息出现太早，人物再大一点"
-              />
-              <button
-                disabled={busy || dirty || !feedbackInScene || !feedback.trim()}
-                onClick={() =>
-                  run(async () => {
-                    await api("production/feedback", {
-                      expectedRevision: data.plan.revision,
-                      feedback: {
-                        sceneId: selected,
-                        timeMs: Math.round(time * 1000),
-                        text: feedback,
-                      },
-                    });
-                    setFeedback("");
-                  })
-                }
-              >
-                留下修改意见
-              </button>
-            </div>
-            {comments.map((f: any) => (
-              <div className="feedback-row" key={f.id}>
-                <span>
-                  {(f.timeMs / 1000).toFixed(2)}s · {f.text}
-                  <small>
-                    {f.status === "resolved" ? "已处理" : "待 Codex 处理"}
-                  </small>
-                </span>
-              </div>
-            ))}
-          </>
-        )}
+        <EditorDock>
+          <div className="scene-rail-heading"><span>段落导航</span><small>{data.resolved.scenes.length} 段 · {duration.toFixed(1)} 秒</small><span className="rail-shortcuts">空格 播放 / 暂停 · ← → 逐帧</span></div>
+          <div className="scene-rail" aria-label="全片段落导航">{data.resolved.scenes.map((item:any,index:number) => <button key={item.id} type="button" disabled={dirty || busy} aria-current={item.id === selected ? 'true' : undefined}
+            style={{flex:Math.max(1,(item.endMs || 0)-(item.startMs || 0))}} onClick={() => chooseScene(item.id)}>
+            <small>{String(index+1).padStart(2,'0')}</small><span>{item.title}</span><em>{Math.max(0,((item.endMs || 0)-(item.startMs || 0))/1000).toFixed(1)}s</em>
+          </button>)}</div>
+        {data.capabilities?.filmDirection&&<FilmStoryboard api={api} data={data} selected={selected} disabled={dirty||busy||rendering} onSelect={chooseScene}/>}
+        </EditorDock>
       </main>
-      <aside className="right">
-        <div className="eyebrow">当前段落</div>
+      <aside className="right editor-inspector">
+        <SidebarTabs value={inspectorTab} onChange={setInspectorTab} items={[{id:'properties',label:'属性'},{id:'review',label:'审阅',count:comments.filter((item:any)=>item.status !== 'resolved').length || undefined},{id:'materials',label:'素材',count:requests.filter((item:any)=>item.status === 'missing').length || undefined}]}/>
         {scene ? (
           <>
-            <h2>画面属性</h2>
-            <p className="hint">选中对象可直接调整。构图或动作的修改交给 Codex。</p>
+            <section className="inspector-panel sidebar-scroll" hidden={inspectorTab !== 'properties'}>
+            <div className="inspector-object-heading"><span className="inspector-object-icon"><EditorIcon name={selectedCanvasObject?.canvas?.text ? 'type' : 'shape'}/></span><div><strong>{sceneEditor?.objects.find((item:any)=>item.id === selectedObject)?.label || '画面属性'}</strong><small>{selectedObject && !objectVisibleFor(scene.editor,selectedObject) ? '图层已隐藏，可在左侧显示' : selectedObject ? '当前选中的对象' : '选择对象以开始编辑'}</small></div></div>
             {selectedCanvasObject?.canvas.transform && <CanvasTransformProperties
               value={objectTransformFor({objectTransforms: canvasTransforms}, selectedObject)}
-              locked={scene?.editor?.objectLocks?.includes(selectedObject) || false}
+              locked={effectiveObjectLocks.includes(selectedObject)}
+              lockInherited={effectiveObjectLocks.includes(selectedObject) && !scene?.editor?.objectLocks?.includes(selectedObject)}
               disabled={busy || parameterDirty || canvasSaving || !!canvasDraft || canvasPending}
               onActiveChange={active => {canvasInteracting.current = active; setCanvasActive(active);}}
               onLock={() => editCanvas(selectedObject, [{kind: 'objectLock', key: 'locked', before: !!scene?.editor?.objectLocks?.includes(selectedObject), after: !scene?.editor?.objectLocks?.includes(selectedObject)}])}
@@ -1169,16 +1169,13 @@ export function Production({
               <p className="hint">{data.plan.scenes[0]?.id===selected?'首段直接开始。':dirty?'先保存画面调整，再修改衔接。':'衔接在本段样片中审阅，不改变口播时间。'}</p>
             </details>}
             <ObjectProperties
-              disabled={canvasActive || canvasSaving || !!canvasDraft || busy || canvasPending}
+              hideObjectPicker
+              disabled={canvasActive || canvasSaving || !!canvasDraft || busy || canvasPending || effectiveObjectLocks.includes(selectedObject)}
               editor={sceneEditor}
               selected={selectedObject}
               values={parameters}
               locks={locks}
-              onSelect={(id) => {
-                pendingReview.current=null;
-                setSelectedObject(id);
-                setView("scene");
-              }}
+              onSelect={selectObject}
               onChange={(key, value) => {
                 if (canvasActive || canvasSaving || canvasDraft || busy || canvasPending) return;
                 if (!parameterDirty) draftEditorBase.current = {values: {...parameters}, overrides: {...overrides}, locks: [...locks]};
@@ -1202,7 +1199,9 @@ export function Production({
             <p className="inspector-save-state" role="status">{dirty ? "修改即时预览 · 在画面下方保存" : "所有修改已保存"}</p>
             <hr />
             {scene.program && <SaveAnimation api={api} scene={scene} revision={data.plan.revision} sourceHash={data.sceneModules.find((m:any)=>m.id===scene.program.moduleId)?.sourceHash} disabled={dirty||busy}/>}
-            <h2>需要的素材</h2>
+            </section>
+            <section className="inspector-panel sidebar-scroll" hidden={inspectorTab !== 'materials'}>
+            <div className="panel-section-heading"><span>本段素材需求</span><small>{requests.length} 项</small></div>
             {dirty && requests.length > 0 && <p className="hint">先保存当前画面调整，再替换素材。</p>}
             {requests.map((r: any) => (
               <div className="material-request" key={r.id}>
@@ -1294,11 +1293,78 @@ export function Production({
                 添加需求
               </button>
             </details>
+            </section>
+            <section className="inspector-panel sidebar-scroll review-inspector" hidden={inspectorTab !== 'review'}>
+        {scene && (
+          <>
+            <div className="transcript-head">
+              <h2>这段怎么改</h2>
+              <small>
+                {feedbackInScene
+                  ? `记录在当前 ${time.toFixed(2)} 秒`
+                  : "请点击本段的时间点后记录反馈"}
+              </small>
+            </div>
+            <div className="feedback-compose">
+              <input
+                aria-label="本段反馈"
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="例如：第二个信息出现太早，人物再大一点"
+              />
+              <button
+                disabled={busy || dirty || !feedbackInScene || !feedback.trim()}
+                onClick={() =>
+                  run(async () => {
+                    await api("production/feedback", {
+                      expectedRevision: data.plan.revision,
+                      feedback: {
+                        sceneId: selected,
+                        timeMs: Math.round(time * 1000),
+                        text: feedback,
+                      },
+                    });
+                    setFeedback("");
+                  })
+                }
+              >
+                留下修改意见
+              </button>
+            </div>
+            {comments.map((f: any) => (
+              <div className="feedback-row" key={f.id}>
+                <span>
+                  {(f.timeMs / 1000).toFixed(2)}s · {f.text}
+                  <small>
+                    {f.status === "resolved" ? "已处理" : "待 Codex 处理"}
+                  </small>
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+        {scene&&<details className="scene-plan"><summary>设计与口播说明</summary>
+          <CreativeDesignPanel design={design} beats={scene.beats}/>
+          <details><summary>口播与动作定位（高级）</summary>
+          <ActionReview key={`actions:${selected}`} disabledReason={view === 'previous' || (view === 'sample' && !playbackTask?.current) || (view === 'review' && !currentReview) ? '正在查看历史视频；切到编辑画面或当前版本后检查动作。' : undefined} actions={reviewActions(design, resolved?.beats || [], resolved?.startMs ?? null, resolved?.endMs ?? null, scopedCandidate?.resolved?.words || [])} onSeek={(frame, objectId) => {
+              pendingReview.current=null;
+              setEntryFrame(frame);
+              setSeekVersion(v => v + 1);
+              if (objectId && sceneEditor?.objects.some((o: any) => o.id === objectId)) setSelectedObject(objectId);
+              if (view === 'scene') { setTime(frame / 30); return; }
+              if (video.current) {
+                video.current.pause();
+                video.current.currentTime = localPlaybackTime(frame, view === 'sample' ? playbackOffset : 0, video.current.duration || duration);
+                setTime(video.current.currentTime + (view === 'sample' ? playbackOffset : 0));
+              }
+            }}/></details></details>}
+            </section>
           </>
         ) : (
-          <p className="hint">提交场景设计后可修改标题、补充素材并反馈。</p>
+          <p className="editor-empty-copy">设计一段画面后，可以在这里调整、补充素材和反馈。</p>
         )}
       </aside>
-    </div>
+      {layerMenu && <ObjectLayerMenu objects={sceneEditor?.objects || []} editor={scene?.editor} disabled={dirty || busy} anchor={layerMenu} onEdit={editLayer} onClose={() => setLayerMenu(null)}/>}
+    </EditorWorkspace>
   );
 }

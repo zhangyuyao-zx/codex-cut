@@ -73,6 +73,10 @@
 
 manifest 可声明 `objects:[{id,label,parameters:[控制项key]}]`；场景实际对象容器标记 `data-editable-object="id"`。只公开已映射到代码的参数。当前接通原三段动画的人物/标题，以及 hero-keyword、word-flow 中声明的对象；不是任意图层自动可编辑。
 
+直接画布编辑使用可选 `canvas:{transform:true,text:"文字控件key",visibility:true,reorder:true}`，并用公共 `EditableCanvasObject` 包住稳定布局。`text` 必须是本对象的 text 控件；`kind` 可为 text/image/video/shape/group；固定分组使用 `parentId`，父级必须存在且不能循环，包装节点也传相同 `parentId`。默认对象仍兼容。未声明的隐藏/排序能力不显示为可用操作。
+
+`editor.objectTransforms`、`objectVisibility` 和 `objectOrder` 与用户参数一起保存，预览及导出共享。排序数组从后向前，同级必须全部声明 reorder，不能把排序当作换父级。未覆盖顺序时保留作者 DOM/style；明确覆盖后由包装节点 zIndex 执行。分组需采用真实、固定的嵌套定位；作者不应在可编辑子对象之外引入未适配的坐标变换。父组锁保护子对象。完整协议见 [B 阶段实现](../docs/implementation/2026-10-22-editor-shell-and-layers.md)。
+
 - `editor:{overrides,locks}` 与基础参数分开。渲染使用基础值叠加用户覆盖，页面显示选中对象对应字段。
 - 默认 `production/scenes` 是 Codex 创作更新，保留已有 editor。带用户调整的段落不能直接删除或更换不兼容模块，需先迁移。`actor:user` 用于用户页面保存，不能用来绕过用户锁。
 - 用户明确要求修改某参数时，用 `production/parameters {sceneId,patch}`，携带 expectedRevision。此接口会修改覆盖值，但拒绝 Codex 写入锁定字段。结构代码修改必须使用传入参数，不能硬编码规避用户覆盖。

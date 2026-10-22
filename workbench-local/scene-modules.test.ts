@@ -34,6 +34,16 @@ afterEach(async () => {
 });
 
 describe("scene modules", () => {
+  it('accepts optional layer metadata with old manifests and rejects unknown/self/cyclic parents and unsupported kinds',async()=>{
+    const root=await makeRoot(),base={id:'layers',label:'Layers',entry:'Layers.tsx',exportName:'Demo',controls:[]};
+    const object=(id:string,extra:Record<string,unknown>={})=>({id,label:id,parameters:[],...extra});
+    await writeModule(root,{...base,objects:[object('old')]});expect((await createSceneModules(root).detail('layers')).objects).toEqual([object('old')]);
+    const objects=[object('group',{kind:'group',canvas:{visibility:true,reorder:true}}),object('child',{parentId:'group',kind:'image',canvas:{visibility:true,reorder:false}})];
+    await writeModule(root,{...base,objects});expect((await createSceneModules(root).detail('layers')).objects).toEqual(objects);
+    for(const objects of [[object('a',{parentId:'missing'})],[object('a',{parentId:'a'})],[object('a',{parentId:'b'}),object('b',{parentId:'a'})],[object('a',{kind:'unsupported'})],[object('a',{canvas:{visibility:'yes'}})],[object('a',{canvas:{reorder:1}})]]){
+      await writeModule(root,{...base,objects});await expect(createSceneModules(root).detail('layers')).rejects.toThrow('invalid manifest');
+    }
+  });
   it('accepts explicit canvas capabilities and rejects text editing mapped to another object or non-text control', async () => {
     const root = await makeRoot();
     const base = {id: 'canvas-scene', label: 'Canvas', entry: 'Canvas.tsx', exportName: 'Demo',

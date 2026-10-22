@@ -24,7 +24,7 @@ import { Transform } from "node:stream";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createProductionStore, type Scene, type ProductionState } from "./production-store";
-import {assertObjectEditsCompatible,assertEditorTargetsCompatible,editorValueEqual,objectTransformFor,type EditorDescriptor} from './editor-commands';
+import {assertObjectEditsCompatible,assertEditorTargetsCompatible,editorValueEqual,objectTransformFor,objectVisibleFor,objectOrderFor,objectLockedFor,type EditorDescriptor} from './editor-commands';
 import { createRoughcutService, findCutWord } from "./roughcut-service";
 import {
   resolveProduction,
@@ -511,6 +511,8 @@ export async function productionRoutes(
               locks: s.editor?.locks || [],
               objectLocks:s.editor?.objectLocks||[],
               objectTransforms:s.editor?.objectTransforms||{},
+              objectVisibility:s.editor?.objectVisibility||{},
+              objectOrder:s.editor?.objectOrder||{},
             },
           ];
         }),
@@ -650,8 +652,8 @@ export async function productionRoutes(
         if(previous?.editor&&(previous.editor.locks.length||previous.editor.objectLocks?.length)){
           const before=await editorDescriptor(previous,currentPlan),after=await editorDescriptor(s,{...currentPlan,scenes:currentPlan.scenes.map(scene=>scene.id===s.id?s:scene)});
           const lockedParameters=new Set(previous.editor.locks);
-          for(const objectId of previous.editor.objectLocks??[]){
-            if(!s.editor?.objectLocks?.includes(objectId)||!editorValueEqual(objectTransformFor(previous.editor,objectId),objectTransformFor(s.editor,objectId)))throw Error('对象已锁定，请由用户解锁后修改：'+objectId);
+          for(const objectId of before.objects.filter(object=>objectLockedFor(previous.editor,before,object.id)).map(object=>object.id)){
+            if(!objectLockedFor(s.editor,after,objectId)||!editorValueEqual(objectTransformFor(previous.editor,objectId),objectTransformFor(s.editor,objectId))||objectVisibleFor(previous.editor,objectId)!==objectVisibleFor(s.editor,objectId)||!editorValueEqual(objectOrderFor(previous.editor,before,objectId),objectOrderFor(s.editor,after,objectId)))throw Error('对象已锁定，请由用户解锁后修改：'+objectId);
             for(const key of before.objects.find(object=>object.id===objectId)?.parameters??[])lockedParameters.add(key);
           }
           for(const key of previous.editor.locks)if(!s.editor?.locks?.includes(key))throw Error('参数已锁定，请由用户解锁后修改：'+key);
@@ -1001,9 +1003,12 @@ export async function productionRoutes(
       heartbeat=setInterval(()=>{if(!closed&&!res.writableEnded&&!res.destroyed)res.write(': keepalive\n\n');},15000);heartbeat.unref();
     }catch(error){if(res.headersSent)close();else{cleanup();next(error);}}
   });
-  router.post('/editor/command',async(req,res,next)=>{try{await store.editorCommand(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
-  router.post('/editor/undo',async(req,res,next)=>{try{await store.editorUndo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
-  router.post('/editor/redo',async(req,res,next)=>{try{await store.editorRedo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
+  async function protectEditorDraft(input:{actor?:string}) {
+    if(input.actor==='codex'&&(await selectionStore.get()).hasUnsavedChanges)throw Error('当前画面还有未保存修改，请先保存或放弃草稿');
+  }
+  router.post('/editor/command',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorCommand(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
+  router.post('/editor/undo',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorUndo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
+  router.post('/editor/redo',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorRedo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
   router.post("/selection", async (req, res, next) => {
     try {
       const c = await context();
@@ -1035,12 +1040,12 @@ export async function productionRoutes(
       const patch = req.body.patch;
       if (!patch || typeof patch !== "object" || Array.isArray(patch))
         throw Error("参数修改必须为对象");
-      if (
-        req.body.actor !== "user" &&
-        (Object.keys(patch).some((k) => s.editor?.locks.includes(k)) ||
-          (await editorDescriptor(s,plan)).objects.some(object=>s.editor?.objectLocks?.includes(object.id)&&object.parameters.some(key=>Object.prototype.hasOwnProperty.call(patch,key))))
-      )
-        throw Error("参数已锁定，请由用户解锁后修改");
+      if (req.body.actor !== "user") {
+        const descriptor=await editorDescriptor(s,plan);
+        if(Object.keys(patch).some(key=>s.editor?.locks.includes(key)) || descriptor.objects.some(object=>
+          objectLockedFor(s.editor,descriptor,object.id)&&object.parameters.some(key=>Object.prototype.hasOwnProperty.call(patch,key))))
+          throw Error("参数已锁定，请由用户解锁后修改");
+      }
       const next = {
         ...s,
         editor: {

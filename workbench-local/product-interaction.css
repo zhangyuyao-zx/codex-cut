@@ -1,9 +1,4 @@
 /* Product controls are isolated from rendered scene content. */
-.app > :is(.production-workspace,.cut-workspace,.library-workspace) { height:calc(100dvh - 100px); }
-.app .production-workspace .production-scene { display:flex; flex-direction:column; gap:6px; padding:12px; border-radius:10px; text-align:left; }
-.app .production-scene b { font-size:13px; line-height:1.5; font-weight:550; }
-.app .production-scene small { font-variant-numeric:tabular-nums; font-size:11px; }
-.app .production-scene .segment-badge { align-self:flex-start; font-size:10px; }
 .app .project-export { margin-top:18px; padding-top:16px; border-top:1px solid var(--wb-line); }
 .app .project-export > summary { font-weight:600; cursor:pointer; }
 .app .project-export > summary span { float:right; color:var(--wb-muted); font-variant-numeric:tabular-nums; }
@@ -60,9 +55,6 @@
  .app .segment-command-buttons { margin-left:auto; }
 }
 @media(max-width:760px) {
- .app > :is(.production-workspace,.cut-workspace,.library-workspace) { display:flex; flex-direction:column; height:auto; }
- .app > :is(.production-workspace,.cut-workspace,.library-workspace) > :is(.left,.right) { flex:none; max-height:260px; overflow:auto; }
- .app > :is(.production-workspace,.cut-workspace,.library-workspace) > :is(main,.production-center) { flex:none; overflow:visible; }
  .app[data-mode=library]:not([data-left-collapsed=true]):not([data-right-collapsed=true]) > .library-workspace { grid-template-columns:minmax(0,1fr); }
  .app .library-list { grid-template-columns:repeat(3,minmax(0,1fr)); }
  .app .segment-command-buttons { flex-wrap:wrap; }

@@ -58,6 +58,8 @@
 
 原生场景的对象可声明 `canvas:{transform:true,text:"文字控件key"}`，并用 `EditableCanvasObject` 包住布局，把作者帧动画留在内部。不是任意 HTML/Canvas 像素自动可编辑；准确边界和示例见工作台 `docs/implementation/2026-10-22-direct-object-editing.md`。新工具架构仍需对应插件产物/宿主会话加载，不能声称当前会话自动热更新。
 
+B 阶段增加 `visibility`（key 为 visible，布尔 before/after）与 `layerOrder`（key 为 siblings，同级对象 ID 数组 before/after）。只有声明 canvas.visibility/reorder 的对象支持；顺序从后向前，必须为完整同级排列，不能改变父级。当前值通过 `objectVisibleFor`、`objectOrderFor` 等共享函数计算，不能猜省略字段。`objectVisibility`、`objectOrder` 与变换、用户覆盖和锁一并保留；父组锁保护子对象及受排序影响的对象。用 editor 命令调整，不能通过改 DOM 或替换整份场景绕过保护。
+
 ## 参考与视觉库修改 data
 
 以下操作均使用 `read_project {section:"visual-library"}` 返回的 revision。

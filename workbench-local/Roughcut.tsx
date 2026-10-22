@@ -5,6 +5,7 @@ import {
   wordIdsFromDomSelection,
 } from "./roughcut-selection";
 import { MultiAssetCut } from "./MultiAssetCut";
+import {EditorWorkspace, FittedCanvas} from './EditorWorkspace';
 import "./roughcut-interaction.css";
 
 type Word = { id: string; text: string; startMs: number; endMs: number };
@@ -346,7 +347,7 @@ export function Roughcut({
   );
 
   return (
-    <div className="cut-workspace">
+    <EditorWorkspace className="cut-workspace legacy-cut-workspace">
       <aside className="left">
         <div className="eyebrow">素材箱</div>
         <h2>口播粗剪</h2>
@@ -379,7 +380,7 @@ export function Roughcut({
           确认后再删除，剪后预览单独生成。
         </p>
       </aside>
-      <main>
+      <main className="editor-main legacy-cut-main">
         <div className="canvas-title">
           <span>
             {mode === "source" ? "原始素材" : "剪后预览"} · {time.toFixed(2)}s
@@ -404,7 +405,7 @@ export function Roughcut({
             </button>
           </div>
         </div>
-        <div className="cut-canvas">
+        <FittedCanvas>
           {s.asset ? (
             <video
               ref={video}
@@ -430,7 +431,8 @@ export function Roughcut({
           ) : (
             <div className="empty">导入一段口播，开始剪辑</div>
           )}
-        </div>
+        </FittedCanvas>
+        <section className="legacy-document-dock" aria-label="剪辑片段与文稿">
         <div className="cut-segments roughcut-segment-strip" aria-label="保留片段">
           {s.ranges.map((r: Range, i: number) => (
             <button
@@ -578,6 +580,7 @@ export function Roughcut({
         {(error || s.error || s.transcriptionError) && (
           <div className="error">{error || s.error || s.transcriptionError}</div>
         )}
+        </section>
       </main>
       <aside className="right">
         <div className="eyebrow">剪辑</div>
@@ -752,9 +755,9 @@ export function Roughcut({
         <p className="hint bottom">
           粗剪与动画样片目前独立保存。
           <br />
-          在「包装与审阅」查看当前剪辑对应的场景设计。
+          在「制作与审阅」查看当前剪辑对应的场景设计。
         </p>
       </aside>
-    </div>
+    </EditorWorkspace>
   );
 }

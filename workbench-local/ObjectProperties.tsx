@@ -30,10 +30,11 @@ function groupFor(c: any) {
   return c.type === 'text' || c.type === 'list' ? '内容' : '外观';
 }
 
-export function ObjectProperties({editor, selected, values, locks, onSelect, onChange, onLock, disabled}: {
+export function ObjectProperties({editor, selected, values, locks, onSelect, onChange, onLock, disabled, hideObjectPicker}: {
   editor: any; selected: string; values: Record<string, unknown>; locks: string[];
   onSelect: (id: string) => void; onChange: (key: string, value: unknown) => void; onLock?: (key: string) => void;
   disabled?: boolean;
+  hideObjectPicker?: boolean;
 }) {
   const object = editor?.objects.find((o: any) => o.id === selected);
   const controls = (editor?.controls || []).filter((c: any) => object ? object.parameters.includes(c.key) : !editor.objects?.length);
@@ -41,10 +42,10 @@ export function ObjectProperties({editor, selected, values, locks, onSelect, onC
     if (Number.isFinite(v) && (c.min === undefined || v >= c.min) && (c.max === undefined || v <= c.max)) onChange(c.key, v);
   };
   return <section className="object-properties"><fieldset disabled={disabled} style={{border: 0, padding: 0, margin: 0, minWidth: 0}}>
-    <h3>画面对象</h3>
-    <div className="object-chips">{editor?.objects.map((o: any) => <button key={o.id} className={o.id === selected ? 'selected' : ''} aria-pressed={o.id === selected} onClick={() => onSelect(o.id)}>{o.label}</button>)}</div>
+    {!hideObjectPicker && <><h3>画面对象</h3>
+    <div className="object-chips">{editor?.objects.map((o: any) => <button key={o.id} className={o.id === selected ? 'selected' : ''} aria-pressed={o.id === selected} onClick={() => onSelect(o.id)}>{o.label}</button>)}</div></>}
     {!editor?.objects?.length && <p className="hint">此段尚未声明画面对象；下方显示已公开参数。</p>}
-    {editor?.objects?.length > 0 && !object && <p className="hint">在画面或上方选择对象，查看它的属性。</p>}
+    {editor?.objects?.length > 0 && !object && <p className="editor-empty-copy">选中画面或图层中的对象，查看它的属性。</p>}
     {['内容','外观','位置与大小','动画'].map(group => {
       const fields = controls.filter((c: any) => groupFor(c) === group);
       return fields.length ? <section className="property-group" key={group}><h4>{group}</h4>{fields.map((c: any) => {

@@ -27,6 +27,7 @@ export function SaveAnimation({
       <p className="hint">
         保留这版动画、组件、已补充的素材和可编辑参数。用于新段落时由 Codex 适配内容与时机。
       </p>
+      {(Object.keys(scene.editor?.objectTransforms || {}).length > 0 || Object.keys(scene.editor?.objectVisibility || {}).length > 0 || Object.keys(scene.editor?.objectOrder || {}).length > 0 || scene.editor?.objectLocks?.length > 0) && <p className="hint">图层调整和图层锁目前保存在当前工程中，暂不随动画存档带走；需要完整保留时，请使用工程备份。</p>}
       <label>
         动画名称
         <input
