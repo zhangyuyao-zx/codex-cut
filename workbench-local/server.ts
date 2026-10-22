@@ -13,6 +13,7 @@ import { ProjectStore } from "./project-store";
 import {checkpointRoutes} from './checkpoint-routes';
 import {createVisualLibraryService} from './visual-library-service';
 import {creativeRuntimeAliases} from './creative-runtime-dependencies';
+import {createPreviewInvalidator} from './vite-preview-invalidation';
 const root = process.cwd(),
   dir = resolve(process.env.WORKBENCH_PROJECT_DIR || resolve(root, "projects/local-workbench")),
   media = resolve(dir, "media");
@@ -234,8 +235,20 @@ const vite = await createServer({
   optimizeDeps: {include: ["react/jsx-runtime", "react/jsx-dev-runtime"]},
   configFile: false,
   root: resolve(root, "workbench-local"),
-  server: { middlewareMode: true, hmr: {port: port + 20000}, fs: {allow:[root]} },
+  // Scene updates are versioned through the editor event stream. Vite's
+  // whole-page HMR would discard drafts; a second directory watcher is redundant.
+  server: { middlewareMode: true, hmr: false, watch: null, fs: {allow:[root]} },
   appType: "spa",
+});
+production.setSourceInvalidator(createPreviewInvalidator(vite,root));
+const browserSources=new Set<string>();
+app.use((req,res,next)=>{
+  if(req.method==='GET'&&/\.(?:[cm]?[jt]sx?|css)(?:\?|$)/.test(req.url))res.once('finish',()=>{
+    for(const file of vite.moduleGraph.fileToModulesMap.keys())if(file.startsWith(root+'/')&&!file.includes('/node_modules/')&&/\.(?:[cm]?[jt]sx?|css)$/.test(file)&&!browserSources.has(file)){
+      browserSources.add(file);production.observeBrowserSource(file);
+    }
+  });
+  next();
 });
 app.use(vite.middlewares);
 ready = true;

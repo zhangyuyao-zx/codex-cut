@@ -222,7 +222,10 @@ class EditorSelectionServiceImpl implements EditorSelectionService {
     return runSerialized(this.filePath, async () => {
       // Reload under the queue so concurrent service instances serialize from
       // the latest on-disk value before each write.
-      await loadSelection(this.filePath);
+      const current = await loadSelection(this.filePath);
+      if (current.updatedAt !== null && Object.entries(parsed.data).every(
+        ([key, value]) => current[key as keyof EditorSelectionInput] === value,
+      )) return clone(current);
       const next = storedEditorSelectionSchema.parse({
         ...parsed.data,
         updatedAt: new Date().toISOString(),

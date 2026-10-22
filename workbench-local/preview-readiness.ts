@@ -1,5 +1,6 @@
 type PreviewContext = {
-  plan?: { revision?: number; source?: {assetUrl?: string; cutRevision?: number} | null };
+  plan?: { revision?: number; source?: {assetUrl?: string; cutRevision?: number} | null; scenes?:{program?:{moduleId?:string}}[] };
+  editorSnapshot?:{modules?:{moduleId:string;sourceHash:string}[]};
   cut?: {
     revision?: number;
     asset?: {url?: string} | null;
@@ -11,6 +12,10 @@ type PreviewContext = {
 
 /** Plan revisions alone do not identify the cut used to build a scoped response. */
 export function productionContextIdentityMatches(current?: PreviewContext, scoped?: PreviewContext) {
+  // Same production revision can contain newly authored source. Only the
+  // selected scene and transition dependencies participate, not an unrelated module.
+  const relevant=new Set(scoped?.plan?.scenes?.flatMap(scene=>scene.program?.moduleId?[scene.program.moduleId]:[])??[]);
+  if([...relevant].some(id=>current?.editorSnapshot?.modules?.find(m=>m.moduleId===id)?.sourceHash!==scoped?.editorSnapshot?.modules?.find(m=>m.moduleId===id)?.sourceHash))return false;
   return Boolean(current && scoped &&
     typeof current.plan?.revision === "number" &&
     current.plan.revision === scoped.plan?.revision &&

@@ -48,4 +48,10 @@ describe("scene preview readiness across independent polling responses", () => {
       expect(scenePreviewReadiness(current, current)).toMatchObject({ready: false, kind: "error"});
     expect(scenePreviewReadiness(cutError, cutError)).toMatchObject({message: expect.stringContaining("编码失败")});
   });
+  it('checks authored module identity without clearing an unaffected scene',()=>{
+    const snapshot=(selectedHash:string,otherHash:string)=>({...context(),plan:{...context().plan,scenes:[{program:{moduleId:'selected'}}]},
+      editorSnapshot:{modules:[{moduleId:'selected',sourceHash:selectedHash},{moduleId:'other',sourceHash:otherHash}]}});
+    expect(productionContextIdentityMatches(snapshot('new','one'),snapshot('old','one'))).toBe(false);
+    expect(productionContextIdentityMatches(snapshot('same','new'),snapshot('same','old'))).toBe(true);
+  });
 });

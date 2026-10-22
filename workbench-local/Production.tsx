@@ -21,6 +21,8 @@ import {EditorIcon} from './EditorIcon';
 import {TimelineEditor,type TimelineEvent} from './TimelineEditor';
 import {cutEditorTimeline} from './cut-editor-model';
 import {SceneEventsPanel} from './SceneEventsPanel';
+import {createRefreshQueue, createSelectionPublisher, subscribeEditorChanges, reuseJsonFields} from './editor-sync';
+import {loadPreviewModule} from './preview-modules';
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -80,6 +82,7 @@ export function Production({
     [requestReason, setRequestReason] = useState(""),
     [substitute, setSubstitute] = useState(""),
     [error, setError] = useState(""),
+    [syncError,setSyncError]=useState(''),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
     [time, setTime] = useState(0),
@@ -98,12 +101,14 @@ export function Production({
   const [layerMenu, setLayerMenu] = useState<LayerMenuAnchor | null>(null);
   const [timelineActive,setTimelineActive]=useState(false);
   const [eventFieldDirty,setEventFieldDirty]=useState(false);
+  const [slowPreview,setSlowPreview]=useState(false);
+  useEffect(()=>{setSlowPreview(false);},[selected,data?.key]);
   const timelineModel=useMemo(()=>data?cutEditorTimeline(data.cut):null,[data?.cut]);
   const keyboardAction = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (event.defaultPrevented || event.isComposing || target?.closest('input,textarea,select,button,a,summary,[contenteditable="true"],[role="menu"],[role="treeitem"],[role="separator"]')) return;
+      if (event.defaultPrevented || event.isComposing || target?.closest('input,textarea,select,button,a,summary,video[controls],audio[controls],[contenteditable="true"],[role="menu"],[role="treeitem"],[role="separator"]')) return;
       keyboardAction.current(event);
     };
     window.addEventListener('keydown', keydown);
@@ -137,6 +142,14 @@ export function Production({
   const scopedSelection = useRef("");
   const mounted = useRef(false);
   const latestDataRevision = useRef<number | null>(null);
+  const latestContext=useRef(data);latestContext.current=data;
+  const latestTime=useRef(time);latestTime.current=time;
+  const apiRef=useRef(api);apiRef.current=api;
+  const deferredRefresh=useRef(false);
+  const refreshImplementation=useRef<()=>Promise<any>>(async()=>null);
+  const refreshQueue=useRef<ReturnType<typeof createRefreshQueue<any>> | null>(null);
+  if(!refreshQueue.current)refreshQueue.current=createRefreshQueue(()=>refreshImplementation.current());
+  const refresh=()=>refreshQueue.current!.request();
   scopedSelection.current = selected;
   useEffect(() => {
     mounted.current = true;
@@ -153,12 +166,13 @@ export function Production({
     const sceneId = selected;
     let disposed = false;
     let inFlight = false;
+    let retry:ReturnType<typeof setTimeout>|undefined,failures=0;
     const requestContext = async () => {
-      if (inFlight) return;
+      if (inFlight||disposed) return;
       inFlight = true;
       const sequence = ++scopedSequence.current;
       try {
-        const context = await api(
+        const context = await apiRef.current(
           "production/context?sceneId=" + encodeURIComponent(sceneId),
         );
         if (
@@ -168,8 +182,9 @@ export function Production({
           !mounted.current ||
           scopedSelection.current !== sceneId
         )
-          return;
-        setScopedState({sceneId, context, loading: false, error: ""});
+          {if(canvasInFlight.current||canvasInteracting.current)deferredRefresh.current=true;return;}
+        setScopedState(previous=>({sceneId, context:reuseJsonFields(previous.sceneId===sceneId?previous.context:null,context), loading: false, error: ""}));
+        failures=0;
       } catch (e: any) {
         if (
           disposed ||
@@ -184,6 +199,7 @@ export function Production({
           loading: false,
           error: e?.message || "当前段落读取失败",
         });
+        retry=setTimeout(()=>void requestContext(),Math.min(1000*2**failures++,15000));
       } finally {
         inFlight = false;
       }
@@ -191,13 +207,12 @@ export function Production({
     setScopedState(previous => previous.sceneId === sceneId && productionContextIdentityMatches(data, previous.context)
       ? previous : {sceneId, context: null, loading: true, error: ""});
     void requestContext();
-    const timer = setInterval(() => void requestContext(), 2000);
     return () => {
       disposed = true;
-      clearInterval(timer);
+      if(retry)clearTimeout(retry);
       scopedSequence.current += 1;
     };
-  }, [selected, data?.plan.revision, scopedReload]);
+  }, [selected, data?.plan.revision, data?.cut.revision, data?.key, scopedReload]);
   const latestSelection = useRef<any>(null);
   latestSelection.current = data
     ? {
@@ -212,24 +227,18 @@ export function Production({
         hasUnsavedChanges: dirty,
       }
     : null;
-  const selectionQueue = useRef<Promise<any>>(Promise.resolve());
-  const selectionSent = useRef("");
+  const selectionPublisher=useRef<ReturnType<typeof createSelectionPublisher<any>> | null>(null);
+  if(!selectionPublisher.current)selectionPublisher.current=createSelectionPublisher(value=>apiRef.current('production/selection',value),error=>{
+    if(mounted.current)setError('当前位置未保存：'+(error instanceof Error?error.message:String(error)));
+  });
   const publishSelection = () => {
     const value = latestSelection.current;
     if (!value || !restoredSelection.current) return;
-    const text = JSON.stringify(value);
-    if (text === selectionSent.current) return;
-    selectionSent.current = text;
-    selectionQueue.current = selectionQueue.current
-      .then(() => api("production/selection", value))
-      .catch((e) => {
-        selectionSent.current = "";
-        setError("当前位置未保存：" + e.message);
-      });
+    selectionPublisher.current!.publish(value);
   };
   useEffect(() => {
     const t = setInterval(publishSelection, 800);
-    return () => clearInterval(t);
+    return () => {clearInterval(t); selectionPublisher.current?.stop();};
   }, []);
   useEffect(() => {
     publishSelection();
@@ -244,6 +253,12 @@ export function Production({
     if (revision !== null && knownRevision !== null && revision < knownRevision)
       return false;
     if (revision !== null) latestDataRevision.current = revision;
+    const previous=latestContext.current,id=scopedSelection.current;
+    const oldKey=previous?.segmentReviews?.find((item:any)=>item.sceneId===id)?.key;
+    const newKey=next?.segmentReviews?.find((item:any)=>item.sceneId===id)?.key;
+    // A changed scene may need a fresh module, but it must reopen at the
+    // user's current position. Task progress and unrelated scenes do not seek.
+    if(oldKey&&newKey&&oldKey!==newKey)setEntryFrame(Math.round(latestTime.current*30));
     setData((current: any) => {
       const currentRevision = current?.plan?.revision;
       if (
@@ -253,14 +268,15 @@ export function Production({
         currentRevision > revision
       )
         return current;
-      return next;
+      return reuseJsonFields(current,next);
     });
     return true;
   };
-  const refresh = async () => {
-    if (canvasInFlight.current || canvasInteracting.current) return null;
-    const d = await api("production");
-    if (canvasInFlight.current || canvasInteracting.current) return null;
+  refreshImplementation.current = async () => {
+    if (canvasInFlight.current || canvasInteracting.current) {deferredRefresh.current=true;return null;}
+    const d = await apiRef.current("production");
+    if (!mounted.current) return null;
+    if (canvasInFlight.current || canvasInteracting.current) {deferredRefresh.current=true;return null;}
     if (!commitGlobalContext(d)) return null;
     if (!restoredSelection.current) {
       const saved = d.selection;
@@ -303,27 +319,28 @@ export function Production({
     return d;
   };
   useEffect(() => {
-    void refresh().catch((e) => setError(e.message));
-    const t = setInterval(
-      () => refresh().catch((e) => setError(e.message)),
-      2000,
-    );
-    return () => clearInterval(t);
+    const request=()=>refresh().then(result=>{if(mounted.current)setSyncError('');return result;}).catch(error=>{if(mounted.current)setSyncError('工程同步暂未完成：'+error.message);throw error;});
+    return subscribeEditorChanges({onChange:request,
+      onTask:event=>{
+        const snapshot=latestContext.current;
+        if(!snapshot)return;
+        const lifecycleChanged=(['job','sample'] as const).some(key=>snapshot[key]?.id!==event[key]?.id||snapshot[key]?.status!==event[key]?.status);
+        if(lifecycleChanged)return request();
+        setData((current:any)=>{
+          if(!current)return current;
+          const update=(key:'job'|'sample')=>current[key]?.id===event[key]?.id&&current[key]&&event[key]?{...current[key],progress:event[key].progress,stage:event[key].stage}:current[key];
+          const tasks=[event.job,event.sample].filter(Boolean);
+          const segmentReviews=current.segmentReviews?.map((review:any)=>{
+            const task=tasks.find(task=>task.id===review.latest?.id);
+            return task?{...review,latest:{...review.latest,stage:task.stage,progress:task.progress}}:review;
+          });
+          return {...current,job:update('job'),sample:update('sample'),segmentReviews};
+        });
+      }});
   }, []);
-  useEffect(() => {
-    const events = new EventSource('/api/production/editor/events');
-    const changed = (event: MessageEvent) => {
-      try {
-        const next = JSON.parse(event.data);
-        if (typeof next.revision === 'number' && next.revision > (latestDataRevision.current ?? -1))
-          void refresh().catch(error => setError(error.message));
-      } catch { /* Polling remains the fallback for unsupported or interrupted streams. */ }
-    };
-    events.addEventListener('revision', changed as EventListener);
-    events.onmessage = changed;
-    events.onopen = () => {void refresh().catch(error => setError(error.message));};
-    return () => events.close();
-  }, []);
+  useEffect(()=>{
+    if(!canvasActive&&!canvasSaving&&deferredRefresh.current){deferredRefresh.current=false;setScopedReload(value=>value+1);void refresh().catch(error=>setError(error.message));}
+  },[canvasActive,canvasSaving]);
   const scene = data?.plan.scenes.find((s: any) => s.id === selected),
     scopedCandidate =
       scopedState.sceneId === selected &&
@@ -345,6 +362,17 @@ export function Production({
     sceneEditor =
       scopedCandidate?.sceneEditors?.[selected] || data?.sceneEditors?.[selected];
   const canvasAvailable = sceneEditor?.objects?.some((object: any) => object.canvas);
+  useEffect(()=>{
+    if(!data?.plan?.scenes||!selected)return;
+    const index=data.plan.scenes.findIndex((item:any)=>item.id===selected);
+    const timer=setTimeout(()=>{
+      for(const target of data.plan.scenes.slice(Math.max(0,index-1),index+2)){
+        const module=data.sceneModules.find((item:any)=>item.id===target.program?.moduleId);
+        if(module)void loadPreviewModule(module).catch(()=>{});
+      }
+    },120);
+    return()=>clearTimeout(timer);
+  },[selected,data?.key]);
   const canvasTransforms = {...scene?.editor?.objectTransforms,
     ...(canvasDraft?.transform ? {[canvasDraft.id]: canvasDraft.transform} : {})};
   const canvasValues = {...parameters, ...(canvasDraft?.text ? {[canvasDraft.text.key]: canvasDraft.text.value} : {})};
@@ -614,13 +642,10 @@ export function Production({
     setNotice(next.view==='review'?'整片已合成，可以播放检查并下载。':'本段样片已就绪，播放后可确认。');
   },[data,selected,dirty,busy,scopedLoaded]);
   if (!data)
-    return <div className="loading">{error || "正在读取制作方案…"}</div>;
+    return <div className="loading">{error || syncError || "正在读取制作方案…"}</div>;
   const segmentReviews = segmentReviewsFor(data),
-    scopedReviews = Array.isArray(scopedCandidate?.segmentReviews)
-      ? scopedCandidate.segmentReviews
-      : null,
     selectedReview = scopedLoaded
-      ? (scopedReviews || segmentReviews).find(
+      ? segmentReviews.find(
           (review: any) => review.sceneId === selected,
         )
       : null,
@@ -993,6 +1018,7 @@ export function Production({
                       Math.max(0, entryFrame - input.from),
                     )}
                     onTime={setTime}
+                    onSlowPreview={()=>setSlowPreview(true)}
                     outgoing={outgoingInput&&outgoingModule?{module:outgoingModule,scene:previewScene(outgoingInput),frame:input.transitionOutgoingFrame}:undefined}
                     scene={{
                       ...previewScene(input),
@@ -1050,6 +1076,7 @@ export function Production({
             )}
           </ObjectPreview>
         </FittedCanvas>
+        {view==='scene'&&slowPreview&&<p className="hint" role="status">实时绘制有掉帧；{currentLatest?'可点“看本段样片”流畅播放，返回编辑画面仍可逐帧调整。':'可生成本段样片流畅播放；编辑画面保留精确定位与对象调整。'}</p>}
         {(scopedError || scopedProgramError) && (
           <p className="error">
             当前段落暂不可用：{scopedError || scopedProgramError}
@@ -1140,8 +1167,8 @@ export function Production({
         {(view === "previous" || view === "review") && data.job && !data.job.current && data.previousReview && (
           <p className="hint">旧审阅已保留，当前修改需要重新渲染。</p>
         )}
-        {(error || data.job?.status === "failed") && (
-          <p className="error">{error || data.job.error}</p>
+        {(error || syncError || data.job?.status === "failed") && (
+          <p className="error">{error || syncError || data.job.error}</p>
         )}
         <EditorDock>
           <TimelineEditor timeline={timelineModel} revision={data.plan.revision} frame={Math.round(time*30)} durationFrames={Math.round(duration*30)}

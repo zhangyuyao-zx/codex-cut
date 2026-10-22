@@ -47,7 +47,7 @@ import {
   validateLegacyOverrides,
   preserveSceneEdits,
 } from "./editable-objects";
-import { createEditorSelection } from "./editor-selection";
+import { createEditorSelection, editorSelectionInputSchema } from "./editor-selection";
 import { RenderLane } from "./render-lane";
 import {
   SegmentReviewStore,
@@ -69,6 +69,7 @@ import {planStyleApplication,resolveVisualCues,followSceneStyle} from './visual-
 import {creativeRuntimeAliases,creativeRenderOptions} from './creative-runtime-dependencies';
 import {createFilmReviewStore,filmReviewInputSchema,type FilmReviewScene} from './film-review';
 import {compositionComparisons} from './film-direction';
+import {createEditorEvents} from './editor-events';
 const exec = promisify(execFile);
 export async function productionRoutes(
   root: string,
@@ -81,10 +82,17 @@ export async function productionRoutes(
     store = await createProductionStore(dir),
     cutStore = await createRoughcutService(resolve(projectDir, "cut"));
   await mkdir(assets, { recursive: true });
+  let sourceInvalidator:((file:string)=>void)|undefined;
+  const events = createEditorEvents(file=>sourceInvalidator?.(file));
+  events.observe(resolve(dir, 'production.json'), 'production');
+  events.observe(resolve(projectDir, 'cut/roughcut.json'), 'cut');
+  for (const file of ['segment-reviews.json', 'approval.json', 'film-review.json']) events.observe(resolve(dir, file), 'production');
+  for (const file of [assets, resolve(dir, 'component-assets'), resolve(projectDir, 'visual-library/library.json')]) events.observe(file, 'assets');
+  events.observe(resolve(root, 'workbench-local/scenes'));
   const componentAssets = await createComponentAssets(
     resolve(dir, "component-assets"),
   );
-  const sceneModules = createSceneModules(root, visualLibrary?.sceneProvider);
+  const sceneModules = createSceneModules(root, visualLibrary?.sceneProvider, {onDependency: file => events.observe(file)});
   const animationTemplates = createAnimationTemplates(
     root,
     resolve(projectDir, "animation-templates"),
@@ -93,7 +101,8 @@ export async function productionRoutes(
   const selectionStore = await createEditorSelection(dir);
   const lane = new RenderLane();
   const filmReview=createFilmReviewStore({directory:dir,ffmpeg:runtimeCommand('ffmpeg')});
-  const contentDigest=createContentDigester();
+  const digestFile=createContentDigester();
+  const contentDigest=async(file:string)=>{events.observe(file, 'assets');return digestFile(file);};
   const segmentStore = new SegmentReviewStore(
     resolve(dir, "segment-reviews.json"),
   );
@@ -145,8 +154,9 @@ export async function productionRoutes(
     await persistState("last-sample.json", sampleJob);
     if (sampleJob?.sceneId && sampleJob.segmentReview)
       await segmentStore.save(sampleJob);
+    events.task(job, sampleJob);
   };
-  const persistJob = () => persistState("last-render.json", job);
+  const persistJob = async () => {await persistState("last-render.json", job); events.task(job, sampleJob);};
   // Recovery is durable, not merely an in-memory label.
   if (job) await persistJob();
   if (sampleJob) await persistSample();
@@ -201,7 +211,7 @@ export async function productionRoutes(
         "../modules/legacy/components/component-runtime-identity.generated.ts",
       ];
     const componentOnlyCode=new Set(['component-media.ts','AppLibraryComponent.jsx','../modules/legacy/components/component-runtime-identity.generated.ts']);
-    const code = await Promise.all(codeFiles.map((f) => readFile(resolve(root, "workbench-local", f), "utf8")));
+    const code = await Promise.all(codeFiles.map((f) => {const file=resolve(root, "workbench-local", f);events.observe(file);return readFile(file, "utf8");}));
     const componentGraphs=new Map<string,Promise<{sourceIdentity?:string;error?:string}>>();
     const componentSources = await Promise.all(
       originalPlan.scenes.flatMap((s) =>
@@ -480,6 +490,7 @@ export async function productionRoutes(
       capabilities:{sceneTransitions:true,filmDirection:true,objectCommands:true},
       editorHistory:editorState.history,
       editorSnapshot:{hasCommands:editorState.hasCommands,revision:originalPlan.revision,cutRevision:cut.revision,modules:moduleCatalog.filter(m=>originalPlan.scenes.some(s=>s.program?.moduleId===m.id)).map(m=>({moduleId:m.id,sourceHash:m.sourceHash}))},
+      editorEventsSequence:events.sequence,
       plan,
       stylePackInfo,
       cut,
@@ -714,6 +725,7 @@ export async function productionRoutes(
       comparisons:compositionComparisons(c.plan.scenes)};
   }
   const router = Router();
+  const stopStoreEvents=store.subscribe(()=>events.changed('production'));
   const editorEventResponses=new Map<Response,()=>void>();
   let editorEventsClosing=false;
   router.get('/storyboard',async(_req,res,next)=>{try{res.json(await filmOverview(await context()));}catch(error){next(error);}});
@@ -1004,10 +1016,11 @@ export async function productionRoutes(
     req.on('aborted',cleanup);res.on('close',cleanup);
     try{
       res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();
-      let lastRevision=-1;
-      const send=(event:{revision:number})=>{if(!closed&&!res.writableEnded&&!res.destroyed&&event.revision>lastRevision){lastRevision=event.revision;res.write('event: revision\ndata: '+JSON.stringify(event)+'\n\n');}};
-      // Subscribe before reading so a concurrent commit cannot be missed.
-      unsubscribe=store.subscribe(send);send({revision:(await store.get()).revision});
+      const send=(type:string,value:unknown)=>{if(!closed&&!res.writableEnded&&!res.destroyed)res.write('event: '+type+'\ndata: '+JSON.stringify(value)+'\n\n');};
+      // The event subscription exists before the client requests its snapshot.
+      // Progress is separate from content: it never rebuilds Player input.
+      unsubscribe=events.subscribe(event=>send(event.type,event));
+      send('snapshot',{version:1,sequence:events.sequence});
       if(closed)return;
       heartbeat=setInterval(()=>{if(!closed&&!res.writableEnded&&!res.destroyed)res.write(': keepalive\n\n');},15000);heartbeat.unref();
     }catch(error){if(res.headersSent)close();else{cleanup();next(error);}}
@@ -1020,23 +1033,28 @@ export async function productionRoutes(
   router.post('/editor/redo',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorRedo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
   router.post("/selection", async (req, res, next) => {
     try {
-      const c = await context();
-      const input = req.body;
-      if (
-        input.sceneId !== null &&
-        !c.plan.scenes.some((s) => s.id === input.sceneId)
-      )
-        throw Error("所选段落不存在");
-      if (
-        input.objectId !== null &&
-        !c.sceneEditors[input.sceneId]?.objects.some(
-          (o: any) => o.id === input.objectId,
-        )
-      )
-        throw Error("所选对象尚未声明可编辑");
-      if (input.timeSeconds > c.resolved.durationMs / 1000 + 0.05)
-        throw Error("播放位置超出视频范围");
-      res.json(await selectionStore.set(input));
+      const input = editorSelectionInputSchema.parse(req.body);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const [plan, cut] = await Promise.all([store.get(), cutStore.get()]);
+        const scene = plan.scenes.find(s => s.id === input.sceneId);
+        if (input.sceneId !== null && !scene) throw Error("所选段落不存在");
+        if (input.objectId !== null) {
+          const objects = scene?.program
+            ? (await sceneModules.detail(scene.program.moduleId)).objects ?? []
+            : legacyObjects;
+          if (!objects.some(object => object.id === input.objectId))
+            throw Error("所选对象尚未声明可编辑");
+        }
+        if (input.timeSeconds > resolveProduction(plan, cut).durationMs / 1000 + 0.05)
+          throw Error("播放位置超出视频范围");
+        // Match context()'s revision consistency safeguard without constructing
+        // renderer inputs, media identities, or the entire module catalog.
+        const [latestPlan, latestCut] = await Promise.all([store.get(), cutStore.get()]);
+        if (latestPlan.revision !== plan.revision || latestCut.revision !== cut.revision) continue;
+        res.json(await selectionStore.set(input));
+        return;
+      }
+      throw Error('工程在读取期间持续更新，请重新读取编辑快照');
     } catch (e) {
       next(e);
     }
@@ -1356,6 +1374,7 @@ export async function productionRoutes(
         throw Error("这个渲染任务已经结束，请刷新状态");
       lane.cancel(task.id);
       task.status = "cancelling";
+      events.task(job,sampleJob);
       // Final state is persisted by the task owner, avoiding competing writes.
       res.json(await context());
     } catch (e) {
@@ -1435,6 +1454,7 @@ export async function productionRoutes(
             signal: owned.signal,
             stage: (stage) => {
               task.stage = stage;
+              events.task(job,sampleJob);
             },
           });
           owned.check();
@@ -1759,6 +1779,7 @@ export async function productionRoutes(
     }
     ticket.check();
     task.stage = "编译画面";
+    events.task(job,sampleJob);
     const creativeAliases=await creativeRuntimeAliases(root);
     const serveUrl = await bundle({
       outDir: resolve(runDir, "bundle"),
@@ -1788,6 +1809,8 @@ export async function productionRoutes(
     });
     ticket.check();
     task.stage = "渲染画面";
+    events.task(job,sampleJob);
+    let lastProgressEvent=0;
     const { makeCancelSignal } = await import("@remotion/renderer");
     const cancellation = makeCancelSignal();
     const abortRender = () => cancellation.cancel();
@@ -1807,6 +1830,8 @@ export async function productionRoutes(
         frameRange: [task.from, task.end - 1],
         onProgress: (p) => {
           task.progress = p.progress;
+          const now=Date.now();
+          if(now-lastProgressEvent>=150){lastProgressEvent=now;events.task(job,sampleJob);}
         },
       });
     } finally {
@@ -1814,6 +1839,7 @@ export async function productionRoutes(
     }
     ticket.check();
     task.stage = "合成原声";
+    events.task(job,sampleJob);
     const audioArgs = task.sceneId
       ? [
           "-filter:a",
@@ -1845,10 +1871,11 @@ export async function productionRoutes(
       resolve(runDir, "review.mp4"),
     ]);
     ticket.check();
+    const pictureHash=await fileDigest(resolve(runDir, "picture.mp4"));
     await assertTaskCurrent(task);
     ticket.check();
     Object.assign(task, {
-      pictureHash: await fileDigest(resolve(runDir, "picture.mp4")),
+      pictureHash,
       status: "done",
       progress: 1,
       url: "/production-media/renders/" + basename(runDir) + "/review.mp4",
@@ -1860,8 +1887,11 @@ export async function productionRoutes(
     await persist();
   }
   return Object.assign(router, {
+    setSourceInvalidator: (invalidate:(file:string)=>void) => {sourceInvalidator=invalidate;},
+    observeBrowserSource: (file:string) => events.observe(file),
     shutdown: () => {
       editorEventsClosing=true;
+      stopStoreEvents(); events.close();
       for(const close of [...editorEventResponses.values()])close();
       return lane.stop();
     },

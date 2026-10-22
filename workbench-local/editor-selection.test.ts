@@ -1,4 +1,4 @@
-import {mkdtemp, readFile, readdir, rm, writeFile} from 'node:fs/promises';
+import {mkdtemp, readFile, readdir, rm, stat, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
@@ -32,6 +32,19 @@ afterEach(async () => {
 });
 
 describe('editor selection service', () => {
+  it('skips exact unchanged writes across service instances but persists draft, revision and playhead changes', async () => {
+    const directory = await makeTemporaryDirectory();
+    const service = await createEditorSelection(directory), other = await createEditorSelection(directory);
+    const first = await service.set(baseSelection);
+    const file = path.join(directory, 'editor-selection.json'), before = await stat(file, {bigint: true});
+    expect(await other.set(baseSelection)).toEqual(first);
+    expect((await stat(file, {bigint: true})).ino).toBe(before.ino);
+    for (const input of [
+      {...baseSelection, hasUnsavedChanges: false},
+      {...baseSelection, baseRevision: 8},
+      {...baseSelection, timeSeconds: 3},
+    ]) expect(await service.set(input)).toMatchObject(input);
+  });
   it('returns defaults when the file is missing and reads the latest state after restart', async () => {
     const directory = await makeTemporaryDirectory();
     const filePath = path.join(directory, 'editor-selection.json');

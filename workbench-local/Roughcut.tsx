@@ -10,6 +10,7 @@ import "./roughcut-interaction.css";
 import {TimelineEditor} from './TimelineEditor';
 import {cutEditorTimeline} from './cut-editor-model';
 import {resolveCutTimeline} from './cut-timeline';
+import {createRefreshQueue, subscribeEditorChanges, reuseJsonFields} from './editor-sync';
 
 type Word = { id: string; text: string; startMs: number; endMs: number };
 type Range = { startMs: number; endMs: number };
@@ -81,6 +82,7 @@ export function Roughcut({
   const [correction, setCorrection] = useState("");
   const [s, setS] = useState<any>(),
     [error, setError] = useState(""),
+    [syncError,setSyncError]=useState(''),
     [working, setWorking] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
     [selectionAnchor, setSelectionAnchor] = useState<string | null>(null),
@@ -95,9 +97,14 @@ export function Roughcut({
   const transcriptRef = useRef<HTMLDivElement>(null);
   const shiftClickPending = useRef(false);
   const restoredAsset = useRef<string | null>(null);
+  const apiRef=useRef(api);apiRef.current=api;
+  const refreshImplementation=useRef<()=>Promise<any>>(async()=>undefined);
+  const refreshQueue=useRef<ReturnType<typeof createRefreshQueue<any>> | null>(null);
+  if(!refreshQueue.current)refreshQueue.current=createRefreshQueue(()=>refreshImplementation.current());
+  const refresh=()=>refreshQueue.current!.request();
 
-  const refresh = () =>
-    api("cut").then((next: any) => {
+  refreshImplementation.current = () =>
+    apiRef.current("cut").then((next: any) => {
       if (next.asset?.url && restoredAsset.current !== next.asset.url) {
         restoredAsset.current = next.asset.url;
         setSelected([]);
@@ -120,7 +127,7 @@ export function Roughcut({
         } catch {}
         setMode(target);
       }
-      setS(next);
+      setS((previous:any)=>reuseJsonFields(previous,next));
     });
 
   function rememberTime(value: number) {
@@ -140,12 +147,9 @@ export function Roughcut({
   }
 
   useEffect(() => {
-    refresh().catch((e) => setError(e.message));
-    const t = setInterval(
-      () => refresh().catch((e) => setError(e.message)),
-      2000,
-    );
-    return () => clearInterval(t);
+    return subscribeEditorChanges({onChange:event=>{
+      if(event.domains.includes('cut'))return refresh().then(result=>{setSyncError('');return result;}).catch(e=>{setSyncError('工程同步暂未完成：'+e.message);throw e;});
+    }});
   }, []);
 
   useEffect(() => {
@@ -208,7 +212,7 @@ export function Roughcut({
   }
 
   const editorTimeline=useMemo(()=>s?cutEditorTimeline(s):null,[s?.timeline,s?.asset,s?.words,s?.ranges]);
-  if (!s) return <div className="loading">{error || "正在读取剪辑工程…"}</div>;
+  if (!s) return <div className="loading">{error || syncError || "正在读取剪辑工程…"}</div>;
 
   if (s.timeline && s.capabilities?.multiAsset === true && s.capabilities?.clipTransforms === true) {
     const sourceFrame=Math.round(time*30),hit=resolveCutTimeline(s.timeline).clips.find(c=>sourceFrame>=c.inFrame&&sourceFrame<c.outFrame);
@@ -576,8 +580,8 @@ export function Roughcut({
                 : "正在生成连续预览…")}
           </p>
         )}
-        {(error || s.error || s.transcriptionError) && (
-          <div className="error">{error || s.error || s.transcriptionError}</div>
+        {(error || syncError || s.error || s.transcriptionError) && (
+          <div className="error">{error || syncError || s.error || s.transcriptionError}</div>
         )}
         </section>
       </main>

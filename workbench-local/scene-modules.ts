@@ -7,6 +7,7 @@ import path from "node:path";
 import {visualControlSchema} from "./visual-library-contract";
 import {validateCreativeDependencies,resolveCreativeDependencies,assertNativeCreativeImports} from './creative-runtime-dependencies';
 import type {CreativeDependencies} from './creative-runtime-dependency-contract';
+import {observeNativeSceneFiles} from './native-scene-cache';
 
 /**
  * A scene module is authored as a normal TSX/JSX file, but its manifest is
@@ -776,15 +777,48 @@ export interface ExternalSceneModules {
   detail(id: string): Promise<SceneModuleDetail | undefined>;
 }
 
-export function createSceneModules(root: string, external?: ExternalSceneModules): SceneModules {
-  async function detail(id: string): Promise<SceneModuleDetail> {
-    if (!isSafeId(id)) throw notFound(id);
-    const provided = await external?.detail(id);
-    if (provided) return provided;
+export function createSceneModules(root: string, external?: ExternalSceneModules, options: {
+  onDependency?: (filePath: string) => void;
+} = {}): SceneModules {
+  type CacheEntry = {detail: SceneModuleDetail; files: ReturnType<typeof observeNativeSceneFiles>; runtimeIdentity: string};
+  const cache = new Map<string, CacheEntry>();
+  const inFlight = new Map<string, Promise<SceneModuleDetail>>();
+  const notify = (entry: CacheEntry) => {
+    for (const file of entry.files.paths()) options.onDependency?.(file);
+  };
+
+  async function nativeDetail(id: string): Promise<SceneModuleDetail> {
+    const previous = cache.get(id);
+    if (previous?.files.unchanged()) {
+      // Package identity checks remain fresh (including peers, manifest/module
+      // symlinks and exact installed versions); external entries never use this cache.
+      const runtime = await resolveCreativeDependencies(previous.detail.dependencies, root);
+      if (JSON.stringify([runtime.fingerprint, runtime.resolved.map(item => item.entry)]) === previous.runtimeIdentity && previous.files.unchanged()) {
+        notify(previous);
+        return previous.detail;
+      }
+    }
+    cache.delete(id);
+    const files = observeNativeSceneFiles();
+    const reported = new Set<string>();
+    const observe = (filePath: string) => {
+      const file = path.resolve(filePath);
+      files.observe(file);
+      // Publish candidates during inspection, so failed first loads also leave
+      // enough observations for an external watcher to notice their repair.
+      if (!reported.has(file)) {
+        reported.add(file);
+        options.onDependency?.(file);
+      }
+    };
+    observe(root);
+    observe(path.resolve(root, 'workbench-local', 'scenes'));
+    observe(path.resolve(root, 'workbench-local', 'scenes', `${id}.json`));
     const { manifest, manifestBytes, scenesDirectory } = await readManifest(
       root,
       id,
     );
+    observe(path.resolve(scenesDirectory.logicalPath, manifest.entry));
     const { modulePath, sourceBytes } = await readSource(
       id,
       manifest,
@@ -794,23 +828,52 @@ export function createSceneModules(root: string, external?: ExternalSceneModules
     assertNativeCreativeImports(sourceBytes.toString('utf8'),manifest.dependencies);
     const runtime=await resolveCreativeDependencies(manifest.dependencies,root);
     if(runtime.fingerprint)sourceDigest.update('\0dependencies\0'+runtime.fingerprint);
-    for (const dependency of await localSourceDependencies(root, modulePath)) {
+    for (const dependency of await localSourceDependencies(root, modulePath, observe)) {
       if(/\.[cm]?[jt]sx?$/iu.test(dependency.path))assertNativeCreativeImports(dependency.bytes?dependency.bytes.toString('utf8'):await readFile(dependency.filePath,'utf8'),manifest.dependencies);
       sourceDigest.update("\0" + dependency.path + "\0");
       if(dependency.bytes)sourceDigest.update(dependency.bytes);
       else for await(const chunk of createReadStream(dependency.filePath))sourceDigest.update(chunk);
     }
     const sourceHash = sourceDigest.digest("hex");
-    return {
+    const result = {
       ...manifest,
       modulePath,
       moduleUrl: `/@fs${modulePath}`,
       sourceHash,
     };
+    for (const dependency of runtime.resolved) {
+      const folder = path.join(root, 'node_modules', dependency.name);
+      observe(folder);
+      observe(path.join(folder, 'package.json'));
+      const installed = JSON.parse(await readFile(path.join(folder, 'package.json'), 'utf8'));
+      observe(path.resolve(folder, installed.module));
+      observe(dependency.entry);
+    }
+    const entry = {detail: result, files, runtimeIdentity: JSON.stringify([runtime.fingerprint, runtime.resolved.map(item => item.entry)])};
+    // Do not retain a graph captured across a concurrent edit. A following
+    // request rebuilds it, and failures never become successful cache entries.
+    if (files.unchanged()) {
+      cache.set(id, entry);
+      if (cache.size > 128) cache.delete(cache.keys().next().value!);
+    }
+    return result;
+  }
+
+  async function detail(id: string): Promise<SceneModuleDetail> {
+    if (!isSafeId(id)) throw notFound(id);
+    const provided = await external?.detail(id);
+    if (provided) return structuredClone(provided);
+    let pending = inFlight.get(id);
+    if (!pending) {
+      pending = nativeDetail(id);
+      inFlight.set(id, pending);
+    }
+    try { return structuredClone(await pending); }
+    finally { if (inFlight.get(id) === pending) inFlight.delete(id); }
   }
 
   async function list(): Promise<SceneModuleDetail[]> {
-    const provided = await external?.list() ?? [];
+    const provided = structuredClone(await external?.list() ?? []);
     const scenesDirectory = await resolveScenesDirectory(root);
     if (!scenesDirectory) return provided;
     let entries;

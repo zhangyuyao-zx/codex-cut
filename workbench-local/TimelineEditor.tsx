@@ -34,6 +34,7 @@ export function TimelineEditor({timeline,frame,revision,durationFrames,selectedC
   const [drag,setDrag]=useState<{kind:'seek'|'trim'|'event'|'duration';id?:string;edge?:'start'|'end';startX:number;base:number;next:number;revision?:number}|null>(null);
   const dragRef=useRef(drag);dragRef.current=drag;
   const suppressClick=useRef(false);
+  const keyboardSeek=useRef({frame,at:0});
   const scroll=useRef<HTMLDivElement>(null),track=useRef<HTMLDivElement>(null);
   const apiRef=useRef(api);apiRef.current=api;
   useEffect(()=>{const state=dragRef.current;if(state&&state.kind!=='seek'&&state.revision!==revision){
@@ -107,7 +108,15 @@ export function TimelineEditor({timeline,frame,revision,durationFrames,selectedC
     </div>
     <div className="timeline-scroll" ref={scroll}>
       <div className="timeline-content" style={{width:contentWidth+76}}>
-        <div className="timeline-ruler"><span className="timeline-row-label">时间</span><div ref={track} className="timeline-track" style={{width:contentWidth}} {...pointer} onPointerDown={e=>begin(e,'seek')}>
+        <div className="timeline-ruler"><span className="timeline-row-label">时间</span><div ref={track} className="timeline-track" style={{width:contentWidth}} {...pointer}
+          role="slider" tabIndex={0} aria-label="播放位置" aria-valuemin={0} aria-valuemax={total-1} aria-valuenow={Math.max(0,Math.min(total-1,Math.round(frame)))} aria-valuetext={label(frame)} aria-disabled={disabled}
+          onFocus={()=>{keyboardSeek.current.at=0;}}
+          onKeyDown={e=>{if(e.key==='Escape'){pointer.onKeyDown(e);return;}if(disabled||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+            e.preventDefault();e.stopPropagation();const step=e.shiftKey?30:1,now=performance.now();
+            const before=now-keyboardSeek.current.at<250?keyboardSeek.current.frame:frame;
+            const next=e.key==='Home'?0:e.key==='End'?total-1:Math.max(0,Math.min(total-1,before+(e.key==='ArrowRight'?step:-step)));
+            keyboardSeek.current={frame:next,at:now};onSeek(next);}}
+          onPointerDown={e=>{keyboardSeek.current.at=0;e.currentTarget.focus({preventScroll:true});begin(e,'seek');}}>
           {ticks.map(t=><span key={t} style={{left:t/total*100+'%'}}>{label(t)}</span>)}</div></div>
         <div className="timeline-row"><span className="timeline-row-label">视频</span><div className="timeline-track" style={{width:contentWidth}}>
           {cut?.clips.map((clip,index)=>{

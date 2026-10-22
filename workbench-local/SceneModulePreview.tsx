@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
 import { SceneTransitionSurface, type SceneTransitionOutgoing } from "./SceneTransitionSurface";
+import {loadPreviewModule} from './preview-modules';
+import {useCurrentFrame} from 'remotion';
+import {usePreviewDiagnostics} from './preview-diagnostics';
 class Boundary extends React.Component<
   {
     children: React.ReactNode;
@@ -42,8 +45,9 @@ type PreviewSurfaceProps = {
   onReady?: () => void;
 };
 function PreviewSurface({onReady,...props}: PreviewSurfaceProps) {
+  const frame=useCurrentFrame();
   useEffect(()=>{onReady?.();},[]);
-  return <SceneTransitionSurface {...props}/>;
+  return <><span hidden data-preview-frame={frame} data-preview-scene={props.scene.id}/><SceneTransitionSurface {...props}/></>;
 }
 function PreviewFailure({error,onError,fallbackUrl}:{error:Error;onError?:(message:string)=>void;fallbackUrl?:string}) {
   const callback=useRef(onError);callback.current=onError;
@@ -60,6 +64,7 @@ export function SceneModulePreview({
   initialFrame = 0,
   onReady,
   onError,
+  onSlowPreview,
   playerRef,
 }: {
   module: any;
@@ -71,6 +76,7 @@ export function SceneModulePreview({
   initialFrame?: number;
   onReady?: () => void;
   onError?: (message: string) => void;
+  onSlowPreview?:()=>void;
   playerRef?: React.RefObject<PlayerRef | null>;
 }) {
   const localPlayer = useRef<PlayerRef>(null);
@@ -87,6 +93,8 @@ export function SceneModulePreview({
   const readyCallback = useRef(onReady);
   readyCallback.current = onReady;
   const reportReady = useCallback(() => readyCallback.current?.(), []);
+  const slowCallback=useRef(onSlowPreview);slowCallback.current=onSlowPreview;
+  const lastPosition=useRef<{sceneId:string;frame:number;seekVersion:number;initialFrame:number}|null>(null);
   const moduleKey = module.moduleUrl + ":" + module.sourceHash;
   const outgoingKey = outgoing
     ? outgoing.module?.moduleUrl + ":" + outgoing.module?.sourceHash
@@ -101,25 +109,10 @@ export function SceneModulePreview({
     setRenderer(undefined);
     setOutgoingRenderer(undefined);
     setError("");
-    const load = async (candidate:any, label:string) => {
-      if (!candidate?.moduleUrl || !candidate?.exportName)
-        throw Error(`${label}缺少模块入口`);
-      let loaded:any;
-      try {
-        loaded = await import(
-          /* @vite-ignore */ `${candidate.moduleUrl}?version=${candidate.sourceHash}`
-        );
-      } catch (e) {
-        throw Error(`${label}加载失败：${e instanceof Error ? e.message : String(e)}`);
-      }
-      if (typeof loaded[candidate.exportName] !== "function")
-        throw Error(`${label}没有可渲染入口`);
-      return {component:loaded[candidate.exportName],key:candidate.moduleUrl + ":" + candidate.sourceHash};
-    };
     Promise.all([
-      load(module,"场景"),
-      outgoing ? load(outgoing.module,"转场退出场景") : Promise.resolve(undefined),
-      Promise.all([...(scene.componentLayers??[]),...(outgoing?.scene?.componentLayers??[])].filter(l=>l.visualAdapter).map(async l=>[l.moduleUrl+':'+l.sourceHash,(await load(l,'叠加资产')).component] as const)),
+      loadPreviewModule(module,"场景"),
+      outgoing ? loadPreviewModule(outgoing.module,"转场退出场景") : Promise.resolve(undefined),
+      Promise.all([...(scene.componentLayers??[]),...(outgoing?.scene?.componentLayers??[])].filter(l=>l.visualAdapter).map(async l=>[l.moduleUrl+':'+l.sourceHash,(await loadPreviewModule(l,'叠加资产')).component] as const)),
     ])
       .then(([nextRenderer,nextOutgoingRenderer,layers]) => {
         if (!active) return;
@@ -143,13 +136,24 @@ export function SceneModulePreview({
   useEffect(() => {
     const p = player.current;
     if (!p) return;
-    const changed = (e: any) => timeCallback.current((scene.from + e.detail.frame) / 30);
+    let playing=false,lastTick=0,lastFrame=0,stalls=0,reported=false;
+    const started=()=>{playing=true;lastTick=performance.now();lastFrame=p.getCurrentFrame();stalls=0;};
+    const paused=()=>{playing=false;};
+    const changed = (e: any) => {
+      const now=performance.now(),frame=e.detail.frame;
+      if(playing&&now-lastTick>150&&frame-lastFrame>4&&++stalls>=2&&!reported){reported=true;slowCallback.current?.();}
+      lastTick=now;lastFrame=frame;
+      lastPosition.current={sceneId:scene.id,frame,seekVersion,initialFrame};timeCallback.current((scene.from + frame) / 30);
+    };
     p.addEventListener("frameupdate", changed);
+    p.addEventListener('play',started);p.addEventListener('pause',paused);
     p.pause();
-    const frame = Math.min(playerDuration - 1, Math.max(0, initialFrame));
+    const previous=lastPosition.current;
+    const requested=previous&&previous.sceneId===scene.id&&previous.seekVersion===seekVersion&&previous.initialFrame===initialFrame?previous.frame:initialFrame;
+    const frame = Math.min(playerDuration - 1, Math.max(0, requested));
     p.seekTo(frame);
     timeCallback.current((scene.from + frame) / 30);
-    return () => p.removeEventListener("frameupdate", changed);
+    return () => {p.removeEventListener("frameupdate", changed);p.removeEventListener('play',started);p.removeEventListener('pause',paused);};
   }, [renderer, scene.id, scene.from, initialFrame, seekVersion, playerDuration]);
   const withLayers=(s:any)=>({...s,componentLayers:s.componentLayers?.map((l:any)=>({...l,...l.visualAdapter?{renderer:layerRenderers[l.moduleUrl+':'+l.sourceHash]}:{}}))});
   const outgoingInput = useMemo(() => outgoing && outgoingRenderer?.key === outgoingKey
@@ -162,7 +166,10 @@ export function SceneModulePreview({
     includeAudio: true,
     onReady: reportReady,
   }), [renderer, scene, outgoingInput, layerRenderers, reportReady]);
-  return renderer?.key === moduleKey && (!outgoing || outgoingInput) ? (
+  const host=useRef<HTMLDivElement>(null);
+  const ready=renderer?.key === moduleKey && (!outgoing || !!outgoingInput);
+  const diagnostics=usePreviewDiagnostics(host,player,moduleKey+':'+scene.id+':'+seekVersion+':'+sceneKey,module.objects??[],ready);
+  return <div ref={host} style={{width:'100%',position:'relative'}}>{ready ? (
     <Boundary
       key={module.sourceHash + scene.id + outgoingKey}
       fallbackUrl={fallbackUrl}
@@ -180,6 +187,7 @@ export function SceneModulePreview({
         durationInFrames={playerDuration}
         controls
         clickToPlay={false}
+        spaceKeyToPlayOrPause={false}
         style={{ width: "100%" }}
       />
     </Boundary>
@@ -190,5 +198,5 @@ export function SceneModulePreview({
         <video controls src={fallbackUrl} style={{ width: "100%" }} />
       )}
     </div>
-  );
+  )}{diagnostics.length>0&&<div role="status" style={{position:'absolute',left:8,right:8,bottom:46,padding:'8px 10px',borderRadius:8,background:'rgba(35,25,16,.92)',color:'#ffddaa',fontSize:12,lineHeight:1.5,pointerEvents:'none'}}>{diagnostics.join('；')}</div>}</div>;
 }
