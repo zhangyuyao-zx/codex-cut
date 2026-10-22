@@ -1,6 +1,8 @@
-# Codex Cut 插件 · 0.2.3
+# Codex Cut 插件 · 0.3.0
 
-工作台收敛为「剪辑」「制作与审阅」，资源作为辅助入口。设计、动作绑定和检查由 Codex 维护，用户直接看画面、改参数、留意见和逐段确认。样片完成后打开本次结果，明确确认后进入下一段，最后一段可接续合成；不会代替用户确认。「我的动画」合并到资源页，插件可读取、保存、预览并应用已有动画，旧存档继续兼容。
+已加入声明对象的画布拖动、缩放、旋转、就地改字与图层，真实片段/波形/口播动作时间线，以及代码与工程配对的命名备份。普通参数调整不调用模型，Codex 接续修改保留用户覆盖和锁。
+
+工作台保留为「剪辑」「制作与审阅」，资源作为辅助入口。设计、动作绑定和检查由 Codex 维护，用户直接看画面、改参数、留意见和逐段确认。样片完成后打开本次结果，明确确认后进入下一段，最后一段可接续合成；不会代替用户确认。「我的动画」合并到资源页，插件可读取、保存、预览并应用已有动画，旧存档继续兼容。
 
 可按当前内容直接编写原创场景，使用已声明的 SVG/Canvas/Three.js 能力；必要参数在工作台调节，认可后再按价值提炼资产。风格包读取包含创作指导和逐段覆盖范围，保留已有设置，不把选择模板作为制作前提。代码与功能检查不代替用户审美认可。
 
@@ -39,7 +41,7 @@
 
 制作工具保存时要求调用者提供刚读取的 revision；有草稿会拒绝覆盖。批准工具只记录用户明确认可，不替用户判断。后台渲染通过读取任务状态查询，插件不另建调度器。
 
-修订号分属 cut、production、visual-library 三个域。库操作读库 revision，独立于生产 revision，并保留现有本地草稿；production 操作继续检查未保存选择和用户参数锁。`read_project` 可读取 visual-library、visual-asset、style-pack、references 和 animations；旧 library 仅返回新库可用资源，component 明确为历史兼容。具体字段与允许的 update_project 操作见 Skill 的 `references/operations.md`。
+修订号分属 cut、production、visual-library 三个域。库操作读库 revision，独立于生产 revision，并保留现有本地草稿；production 操作继续检查未保存选择和用户参数锁。`read_project` 可读取 visual-library、visual-asset、style-pack、references、animations 和 checkpoints；旧 library 仅返回新库可用资源，component 明确为历史兼容。checkpoints/create 可命名备份，verify/restore 用已有备份 ID；恢复始终创建新目录，不切换或覆盖活动工程。备份操作使用制作 revision 并检查草稿及任务。具体字段与允许的 update_project 操作见 Skill 的 `references/operations.md`。
 
 默认桥接测试使用模拟服务检查协议、修订隔离及用户确认边界；在线时另运行实际项目只读/旧版本拒绝检查，服务离线时明确跳过该项，不自动启动或改动用户工程。
 

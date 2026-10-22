@@ -1,8 +1,8 @@
 import {Router} from 'express';
 import {randomUUID} from 'node:crypto';
-import {lstat,mkdir,readdir,readFile,realpath} from 'node:fs/promises';
+import {lstat,mkdir,readdir,realpath} from 'node:fs/promises';
 import path from 'node:path';
-import {createProjectCheckpoint,verifyProjectCheckpoint,restoreProjectCheckpoint} from './project-checkpoint';
+import {createProjectCheckpoint,verifyProjectCheckpoint,restoreProjectCheckpoint,readProjectCheckpointManifest,normalizeCheckpointLabel} from './project-checkpoint';
 
 const validId=(id:unknown):id is string=>typeof id==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id);
 /** Fixed local destinations. The browser cannot supply a filesystem path. */
@@ -30,11 +30,8 @@ export function checkpointRoutes(options:{repo:string;project:string;directory?:
     const items=[];
     for(const id of names.filter(validId)){
       try {
-        const file=await checkpoint(id),meta=path.join(file,'checkpoint.json');
-        if(!(await lstat(meta)).isFile() || (await lstat(meta)).isSymbolicLink())continue;
-        const m=JSON.parse(await readFile(meta,'utf8'));
-        if(m.schemaVersion!==1 || !Array.isArray(m.files) || typeof m.createdAt!=='string')continue;
-        items.push({id,createdAt:m.createdAt,files:m.files.length,bytes:m.files.reduce((n:number,e:any)=>n+(Number.isSafeInteger(e.bytes)?e.bytes:0),0),path:file});
+        const file=await checkpoint(id),m=await readProjectCheckpointManifest(file);
+        items.push({id,createdAt:m.createdAt,label:m.label,source:m.source,contentIdentity:m.contentIdentity,files:m.files.length,bytes:m.files.reduce((n,e)=>n+e.bytes,0),path:file});
       }catch{} // Incomplete or foreign folders are not advertised as usable backups.
     }
     return items.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
@@ -47,6 +44,7 @@ export function checkpointRoutes(options:{repo:string;project:string;directory?:
     try {
       const operation=req.params.operation;
       if(!['create','verify','restore'].includes(operation))throw Error('备份操作无效');
+      const label=operation==='create'?normalizeCheckpointLabel(req.body?.label):undefined;
       await options.assertIdle();
       await ensureDirectory();
       const id=operation==='create'?randomUUID():req.body.id;
@@ -55,8 +53,8 @@ export function checkpointRoutes(options:{repo:string;project:string;directory?:
       task={id:randomUUID(),operation,status:'running',startedAt:new Date().toISOString(),checkpointId:id};
       pending=(async()=>{
         try {
-          const result=operation==='create'?await createProjectCheckpoint({repo:options.repo,project:options.project,destination:destination!}):operation==='verify'?await verifyProjectCheckpoint(source!):await restoreProjectCheckpoint(source!,destination!);
-          task={...task,status:'done',files:result.files.length,path:destination||source,verified:true};
+          const result=operation==='create'?await createProjectCheckpoint({repo:options.repo,project:options.project,destination:destination!,label}):operation==='verify'?await verifyProjectCheckpoint(source!):await restoreProjectCheckpoint(source!,destination!);
+          task={...task,status:'done',files:result.files.length,path:destination||source,verified:true,label:result.label,source:result.source,contentIdentity:result.contentIdentity};
         }catch(e){task={...task,status:'failed',error:e instanceof Error?e.message:String(e)};}
         finally{reserved=false;}
       })();

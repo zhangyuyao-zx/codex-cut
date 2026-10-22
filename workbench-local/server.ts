@@ -237,7 +237,7 @@ const vite = await createServer({
   root: resolve(root, "workbench-local"),
   // Scene updates are versioned through the editor event stream. Vite's
   // whole-page HMR would discard drafts; a second directory watcher is redundant.
-  server: { middlewareMode: true, hmr: false, watch: null, fs: {allow:[root]} },
+  server: { middlewareMode: true, hmr: false, ws: false, watch: null, fs: {allow:[root]} },
   appType: "spa",
 });
 production.setSourceInvalidator(createPreviewInvalidator(vite,root));

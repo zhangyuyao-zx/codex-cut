@@ -102,6 +102,7 @@
 .checkpoint-panel p {line-height:1.6;font-size:14px;}
 .checkpoint-panel label {display:grid;gap:8px;}
 .checkpoint-panel select {width:100%;padding:10px;border-radius:8px;}
+.checkpoint-panel input {width:100%;box-sizing:border-box;padding:10px;margin-bottom:12px;border:1px solid #8497ad60;border-radius:8px;color:inherit;background:transparent;}
 .checkpoint-actions {display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;}
 .checkpoint-panel code {display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;user-select:text;}
 .checkpoint-warning {color:#975f13;}

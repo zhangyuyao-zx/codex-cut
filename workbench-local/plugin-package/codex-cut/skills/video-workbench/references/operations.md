@@ -21,6 +21,8 @@
 - `approve_segment {sceneId,key,renderId,userConfirmed:true}` 必须对应用户已看过并认可的版本。key 与 renderId 来自该段 latest/history，不使用全局最近 sample 推断。
 - `assemble_video {expectedRevision}` 要求 assemblyReady，复用确认画面，不再次调用模型或重制动画。
 
+`read_project {section:"checkpoints"}` 读取备份清单和任务。`update_project` 的 checkpoints/create、verify、restore 使用当前 plan.revision；create 的 data 可含 label（80 字内），verify/restore 的 data 为 `{id:备份ID}`。后台任务从 checkpoints.task 读取；done 才能说完成，verified 只是文件校验。恢复只创建配对的新 code/project 目录，不切换活动工程，不接受浏览器目标路径。
+
 ## 常用修改 data
 
 | operation | data |
@@ -55,7 +57,7 @@
 
 有 `capabilities.objectCommands` 时，summary/production 返回 `editorSnapshot`（制作与剪辑 revision、模块身份、hasCommands）和 `editorHistory`（用户操作摘要）。目标段落的 editor 返回对象参数与声明；`scene.editor.objectTransforms` 是按稳定对象 ID 保存的 x/y/scale/rotation 覆盖，`objectLocks` 保存对象锁。保留用户的 overrides、参数锁、对象覆盖和对象锁；不要通过改作者布局或硬编码绕开它们。
 
-`editor/command` 的 kind 支持 transform、parameter、objectLock、parameterLock。transform 的 key 为 x/y/scale/rotation，位移为视频逻辑像素，scale 为 0.05–8，旋转为度；parameter 的 key 属于该对象的参数；objectLock 的 key 为 locked，parameterLock 的 key 为参数名，锁值为布尔。before 必须对应已读取的有效值；after 为目标值。多字段同一操作共用 operationId。
+`editor/command` 的 kind 支持 transform、parameter、objectLock、parameterLock、visibility、layerOrder。transform 的 key 为 x/y/scale/rotation，位移为视频逻辑像素，scale 为 0.05–8，旋转为度；parameter 的 key 属于该对象的参数；objectLock 的 key 为 locked，parameterLock 的 key 为参数名，锁值为布尔。before 必须对应已读取的有效值；after 为目标值。多字段同一操作共用 operationId。
 
 一次新操作使用新 UUID；网络结果不明时原样重试同一 operationId 与请求，不更换 before 或 revision。桥接允许这三项命令把较旧制作 revision 交给后端，由字段比较、锁和幂等回执决定能否接续；未来 revision 拒绝，其他制作操作仍要求当前 revision。同字段冲突不能用盲目更新 before 值来覆盖。undo/redo 使用新 operationId 与原 targetOperationId，仅能重放自己的 Codex 操作；用户操作由用户在工作台撤销。
 
@@ -121,6 +123,11 @@ stylePackInfo.tokens 是固定包的共同样式值，`coverage.scenes[].values`
 存在共享模块时修改代码可能影响多段，先核对调用者与确认状态。确认记录 `projects/local-workbench/production/segment-reviews.json` 和关联 renders 是成果资产，不可当缓存删除。旧视频可查看不等于完整源码一键回滚。
 
 ## 保存与恢复边界
+
+命名工程备份捕获实际代码、依赖锁与配对工程：作者场景与静态依赖、overrides、参数/对象锁、变换/图层、口播事件、操作日志、素材与固定视觉库版本均在范围内。新备份清单给出来源工作台版本、粗剪/制作 revision 及代码/工程/配对 SHA-256；这些摘要取自已捕获文件。旧 schema 1 无摘要备份继续校验与恢复。单独回退 production.json 或打开旧视频，不是源码恢复。
+
+恢复必须从新副本的 code 启动，并把 WORKBENCH_PROJECT_DIR 指向同份副本的 project；先按锁文件安装运行依赖，另配 FFmpeg/浏览器/合成器。不要把恢复出的 project 直接交给当前最新代码，或将恢复插件中的 local-config.json 原路径当作新副本路径。完整指令见 RECOVERY.md。根 scripts/assets/docs 不在工程快照内，README 演示重建需用 Git 对应版本。
+
 
 新 SCENE 资产可通过现有保存动画链路捕获固定源码、解析后的样式、语义 cue 与真实素材；应用时重新绑定目标词并重映射素材。包含新库 OBJECT 的嵌套 `.cutanimation` 暂时拒绝保存/打包，不能输出缺实现的伪成功包。风格包当前也没有独立安装文件。
 

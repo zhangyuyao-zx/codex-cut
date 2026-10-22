@@ -51,8 +51,24 @@ export interface ProjectCheckpointEntry {
 export interface ProjectCheckpointManifest {
   schemaVersion: 1;
   createdAt: string;
+  label?: string;
+  source?: ProjectCheckpointSource;
+  contentIdentity?: ProjectCheckpointContentIdentity;
   files: ProjectCheckpointEntry[];
   dependencies: "install-from-lockfile";
+}
+
+export interface ProjectCheckpointSource {
+  workbenchVersion?: string;
+  cutRevision?: number;
+  productionRevision?: number;
+}
+
+export interface ProjectCheckpointContentIdentity {
+  algorithm: "sha256";
+  code: string;
+  project: string;
+  combined: string;
 }
 
 interface FileStat {
@@ -81,11 +97,48 @@ interface CheckpointOptions {
   readonly repo: string;
   readonly project: string;
   readonly destination: string;
+  readonly label?: string;
   /** Test-only synchronization point before the final source rescan. */
   readonly beforeFinalScan?: () => void | Promise<void>;
 }
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+
+/** Shared by the API and CLI: validate before trimming so controls cannot disappear. */
+export function normalizeCheckpointLabel(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || /\p{Cc}/u.test(value))
+    fail("备份名称必须是文本，不能包含控制字符");
+  const label = value.trim();
+  if (label.length > 80) fail("备份名称最多 80 个字符");
+  return label || undefined;
+}
+
+function contentIdentity(files: readonly ProjectCheckpointEntry[]): ProjectCheckpointContentIdentity {
+  const sorted = [...files].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  const digest = (entries: readonly ProjectCheckpointEntry[]) => createHash("sha256")
+    .update(JSON.stringify(entries.map(({path: filePath, bytes, sha256, mode}) => ({path: filePath, bytes, sha256, mode}))))
+    .digest("hex");
+  return {
+    algorithm: "sha256",
+    code: digest(sorted.filter((entry) => entry.path.startsWith("code/"))),
+    project: digest(sorted.filter((entry) => entry.path.startsWith("project/"))),
+    combined: digest(sorted),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validVersion(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 128 && VERSION_PATTERN.test(value);
+}
+
+function validRevision(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
 
 function fail(message: string): never {
   throw new Error(message);
@@ -507,15 +560,48 @@ function parseManifest(value: unknown): ProjectCheckpointManifest {
       mode: entry.mode as number,
     });
   }
+  const label = normalizeCheckpointLabel(record.label);
+  if (record.label !== undefined && record.label !== label) fail("快照备份名称无效");
+  let source: ProjectCheckpointSource | undefined;
+  if (record.source !== undefined) {
+    if (!isRecord(record.source) || Object.keys(record.source).some((key) => !["workbenchVersion", "cutRevision", "productionRevision"].includes(key)))
+      fail("快照来源元数据无效");
+    source = {};
+    if (record.source.workbenchVersion !== undefined) {
+      if (!validVersion(record.source.workbenchVersion)) fail("快照代码版本无效");
+      source.workbenchVersion = record.source.workbenchVersion;
+    }
+    for (const key of ["cutRevision", "productionRevision"] as const) {
+      if (record.source[key] !== undefined) {
+        if (!validRevision(record.source[key])) fail("快照工程修订无效");
+        source[key] = record.source[key];
+      }
+    }
+  }
+  let identity: ProjectCheckpointContentIdentity | undefined;
+  if (record.contentIdentity !== undefined) {
+    const raw = record.contentIdentity;
+    if (!isRecord(raw) || raw.algorithm !== "sha256" || Object.keys(raw).some((key) => !["algorithm", "code", "project", "combined"].includes(key)))
+      fail("快照内容标识无效");
+    identity = contentIdentity(files);
+    for (const key of ["code", "project", "combined"] as const) {
+      if (typeof raw[key] !== "string" || !SHA256_PATTERN.test(raw[key])) fail("快照内容标识无效");
+      if (raw[key] !== identity[key]) fail("快照内容标识校验失败：与文件清单不匹配");
+    }
+  }
   return {
     schemaVersion: 1,
     createdAt: record.createdAt,
+    ...(label === undefined ? {} : {label}),
+    ...(source === undefined ? {} : {source}),
+    ...(identity === undefined ? {} : {contentIdentity: identity}),
     files,
     dependencies: "install-from-lockfile",
   };
 }
 
-async function readManifest(directory: string): Promise<ProjectCheckpointManifest> {
+/** Read and validate the manifest only; this does not certify the stored file bytes. */
+export async function readProjectCheckpointManifest(directory: string): Promise<ProjectCheckpointManifest> {
   const checkpoint = path.resolve(directory);
   await requireDirectory(checkpoint, "快照目录");
   await assertNoSymlinkParents(checkpoint, "checkpoint.json", "快照清单路径");
@@ -535,8 +621,42 @@ async function readManifest(directory: string): Promise<ProjectCheckpointManifes
   return parseManifest(parsed);
 }
 
+/** Read metadata only from files represented by (and matching) the captured manifest. */
+async function capturedSource(directory: string, files: readonly ProjectCheckpointEntry[]): Promise<ProjectCheckpointSource> {
+  async function json(relative: string): Promise<Record<string, unknown> | undefined> {
+    const entry = files.find((item) => item.path === relative);
+    if (!entry) return undefined;
+    await assertNoSymlinkParents(directory, relative, "快照来源路径");
+    const file = path.join(directory, ...relative.split("/"));
+    const before = await regularFileStat(file, "快照来源文件");
+    const bytes = await readFile(file);
+    const after = await regularFileStat(file, "快照来源文件");
+    if (!sameStat(before, after) || bytes.length !== entry.bytes || modeOf(after) !== entry.mode || createHash("sha256").update(bytes).digest("hex") !== entry.sha256)
+      fail(`快照来源文件校验失败：${relative}`);
+    try {
+      const value: unknown = JSON.parse(bytes.toString("utf8"));
+      return isRecord(value) ? value : undefined;
+    } catch (error) {
+      if (error instanceof SyntaxError) return undefined;
+      throw error;
+    }
+  }
+  const source: ProjectCheckpointSource = {};
+  const pkg = await json("code/package.json");
+  if (validVersion(pkg?.version)) source.workbenchVersion = pkg.version;
+  for (const [relative, key] of [
+    ["project/cut/roughcut.json", "cutRevision"],
+    ["project/production/production.json", "productionRevision"],
+  ] as const) {
+    const value = await json(relative);
+    if (isRecord(value?.state) && validRevision(value.state.revision)) source[key] = value.state.revision;
+  }
+  return source;
+}
+
 /** Create an immutable, checksummed source+project pair. Never restore over a live project. */
 export async function createProjectCheckpoint(options: CheckpointOptions): Promise<ProjectCheckpointManifest> {
+  const label = normalizeCheckpointLabel(options.label);
   const repo = path.resolve(options.repo);
   const project = path.resolve(options.project);
   const destination = path.resolve(options.destination);
@@ -585,6 +705,9 @@ export async function createProjectCheckpoint(options: CheckpointOptions): Promi
     const manifest: ProjectCheckpointManifest = {
       schemaVersion: 1,
       createdAt: new Date().toISOString(),
+      ...(label === undefined ? {} : {label}),
+      source: await capturedSource(stage, entries),
+      contentIdentity: contentIdentity(entries),
       files: entries,
       dependencies: "install-from-lockfile",
     };
@@ -606,7 +729,7 @@ export async function createProjectCheckpoint(options: CheckpointOptions): Promi
 
 export async function verifyProjectCheckpoint(directory: string): Promise<ProjectCheckpointManifest> {
   const checkpoint = path.resolve(directory);
-  const manifest = await readManifest(checkpoint);
+  const manifest = await readProjectCheckpointManifest(checkpoint);
   for (const entry of manifest.files) {
     await assertNoSymlinkParents(checkpoint, entry.path, `快照文件 ${entry.path}`);
     const file = path.join(checkpoint, ...entry.path.split("/"));
@@ -616,6 +739,12 @@ export async function verifyProjectCheckpoint(directory: string): Promise<Projec
       actual.sha256 !== entry.sha256 ||
       actual.mode !== entry.mode
     ) fail(`快照校验失败：${entry.path}`);
+  }
+  if (manifest.source) {
+    const actual = await capturedSource(checkpoint, manifest.files);
+    for (const key of ["workbenchVersion", "cutRevision", "productionRevision"] as const) {
+      if (actual[key] !== manifest.source[key]) fail("快照来源元数据校验失败：与已保存文件不匹配");
+    }
   }
   return manifest;
 }

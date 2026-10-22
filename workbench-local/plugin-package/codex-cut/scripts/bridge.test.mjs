@@ -208,3 +208,15 @@ test('update_project cannot select ready versions or forge accepted reviews',asy
  for(const operation of ['visual-library/asset-review','visual-library/pack-preview'])await invoke('update_project',{operation,expectedRevision:40,data:{member:{id:'asset',version:'1.0.0'},...(operation.endsWith('asset-review')?{review:{kind:'reuse',previewId:'actual-preview',note:'observed'}}:{})}});
  assert.equal(calls.filter(call=>call.method==='POST').length,2);
 });
+
+test('paired checkpoints are readable and mutations retain revision and draft guards',async t=>{
+ const {calls}=mockService(t,{productionRevision:7});
+ await invoke('read_project',{section:'checkpoints'});
+ assert(calls.some(call=>call.path==='/api/checkpoints'&&call.method!=='POST'));
+ await invoke('update_project',{operation:'checkpoints/create',expectedRevision:7,data:{label:'锁定的标题版本'}});
+ const saved=calls.find(call=>call.method==='POST'&&call.path==='/api/checkpoints/create');
+ assert.equal(saved.body.label,'锁定的标题版本');assert.equal(saved.body.expectedRevision,7);
+ await invoke('update_project',{operation:'checkpoints/restore',expectedRevision:7,data:{id:'backup-id'}});
+ assert(calls.some(call=>call.method==='POST'&&call.path==='/api/checkpoints/restore'&&call.body.id==='backup-id'));
+ await assert.rejects(invoke('update_project',{operation:'checkpoints/create',expectedRevision:8,data:{}}),/版本已变化/);
+});

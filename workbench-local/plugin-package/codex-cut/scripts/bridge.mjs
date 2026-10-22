@@ -11,8 +11,9 @@ const base='http://127.0.0.1:4340';
 const root=await realpath(process.env.CODEX_CUT_ROOT || config.workbenchRoot);
 const productionOps=['scenes','parameters','rebase','request','feedback','resolve-feedback','undo','cancel-render','visual-asset','style-pack','follow-style','storyboard','visual-review','animation-templates/save','animation-templates/preview','animation-templates/apply','editor/command','editor/undo','editor/redo','event-edit'];
 const cutOps=['import','ranges','clips','split','transcript','transcribe','render','undo'];
+const checkpointOps=['create','verify','restore'];
 const libraryOps=['reference','reference-prepare','reference-analysis','asset','asset-preview','asset-review','pack','pack-preview','favorite','cancel'];
-const operations=[...productionOps.map(x=>'production/'+x),...cutOps.map(x=>'cut/'+x),...libraryOps.map(x=>'visual-library/'+x)];
+const operations=[...productionOps.map(x=>'production/'+x),...cutOps.map(x=>'cut/'+x),...libraryOps.map(x=>'visual-library/'+x),...checkpointOps.map(x=>'checkpoints/'+x)];
 const obj=(properties,required=[])=>({type:'object',properties,required,additionalProperties:false});
 const str={type:'string',minLength:1}; const rev={type:'integer',minimum:0};
 const memberId={type:'string',pattern:'^[a-z0-9][a-z0-9_-]{0,63}$'};
@@ -21,8 +22,8 @@ const member=obj({id:memberId,version:memberVersion},['id','version']);
 export const tools=[
  {name:'workbench_status',description:'Check this machine’s configured Codex Cut workbench and running service. Does not start it or modify a project.',inputSchema:obj({}),annotations:{readOnlyHint:true}},
  {name:'open_workbench',description:'Start/reuse the existing local workbench and return its URL. Open that URL in the Codex browser panel. Never imports or resets a project.',inputSchema:obj({}),annotations:{readOnlyHint:false,destructiveHint:false}},
- {name:'read_project',description:'Read project state, storyboard, visual resources, saved animations or references. animations reads the existing saved-animation catalog with cue definitions. visual-asset/style-pack require member:{id,version} (or id and version). library contains new ready assets/packs; component is historical compatibility. Read summary before edits.',inputSchema:obj({section:{type:'string',enum:['summary','cut','production','library','component','visual-library','visual-asset','style-pack','references','storyboard','animations']},sceneId:str,query:{type:'string'},componentId:str,member,id:memberId,version:memberVersion}),annotations:{readOnlyHint:true}},
- {name:'update_project',description:'Apply an allowlisted revision-checked change. Read expectedRevision from the same domain: cut, production, or visual-library. Production edits preserve user drafts/locks; library writes do not replace local drafts. Asset visual/reuse checks are receipts, not user acceptance; ready status is selected only by the user in the workbench. No arbitrary HTTP/shell commands.',inputSchema:obj({operation:{type:'string',enum:operations},expectedRevision:rev,data:{type:'object'}},['operation','expectedRevision','data']),annotations:{readOnlyHint:false,destructiveHint:true}},
+ {name:'read_project',description:'Read project state, storyboard, visual resources, saved animations or references. animations reads the existing saved-animation catalog with cue definitions. visual-asset/style-pack require member:{id,version} (or id and version). library contains new ready assets/packs; component is historical compatibility. checkpoints reads paired code/project backups and task status. Read summary before edits.',inputSchema:obj({section:{type:'string',enum:['summary','cut','production','library','component','visual-library','visual-asset','style-pack','references','storyboard','animations','checkpoints']},sceneId:str,query:{type:'string'},componentId:str,member,id:memberId,version:memberVersion}),annotations:{readOnlyHint:true}},
+ {name:'update_project',description:'Apply an allowlisted revision-checked change. Read expectedRevision from the same domain: cut, production, or visual-library. Production edits preserve user drafts/locks; library writes do not replace local drafts. Asset visual/reuse checks are receipts, not user acceptance; ready status is selected only by the user in the workbench. checkpoints/create names a paired saved version; verify/restore use its id, and restore always creates a new copy. Checkpoint operations use production revision. No arbitrary HTTP/shell commands.',inputSchema:obj({operation:{type:'string',enum:operations},expectedRevision:rev,data:{type:'object'}},['operation','expectedRevision','data']),annotations:{readOnlyHint:false,destructiveHint:true}},
  {name:'render_segment',description:'Render one authored visual paragraph with narration. Returns a background task; poll read_project for completion. Does not approve it.',inputSchema:obj({sceneId:str,expectedRevision:rev},['sceneId','expectedRevision']),annotations:{readOnlyHint:false,destructiveHint:false}},
  {name:'approve_segment',description:'Record the USER’s explicit acceptance of this exact rendered version. Never use for self-review, inferred approval, tests on the real project, or approval of a plan instead of its movie.',inputSchema:obj({sceneId:str,key:str,renderId:str,userConfirmed:{type:'boolean',const:true}},['sceneId','key','renderId','userConfirmed']),annotations:{readOnlyHint:false,destructiveHint:false}},
  {name:'assemble_video',description:'Assemble all currently approved paragraphs without regenerating their pictures, with one continuous cut audio track. Requires all paragraphs current and approved. Final film still needs user review.',inputSchema:obj({expectedRevision:rev},['expectedRevision']),annotations:{readOnlyHint:false,destructiveHint:false}},
@@ -93,6 +94,7 @@ export async function invoke(name,args={}){
  }
  await healthy();
  if(name==='read_project'){
+  if(args.section==='checkpoints')return json('/api/checkpoints');
   if(args.section==='animations')return json('/api/production/animation-templates');
   if(args.section==='storyboard'){await healthy();return json('/api/production/storyboard');}
   if(args.section==='cut')return json('/api/cut');
@@ -126,7 +128,7 @@ async function respond(request){
  if(request.id===undefined)return;
  try{
   let result;
-  if(request.method==='initialize')result={protocolVersion:request.params?.protocolVersion||'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'codex-cut',version:'0.2.3'}};
+  if(request.method==='initialize')result={protocolVersion:request.params?.protocolVersion||'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'codex-cut',version:'0.3.0'}};
   else if(request.method==='ping')result={};
   else if(request.method==='tools/list')result={tools};
   else if(request.method==='tools/call'){

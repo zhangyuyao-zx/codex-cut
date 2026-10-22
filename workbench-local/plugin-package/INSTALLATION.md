@@ -1,5 +1,14 @@
 # Codex Cut 插件安装记录
 
+## 0.3.0 · 2026-10-22
+
+- 源码 manifest/桥接/Skill/operations 与个人源同步，通过官方 `codex plugin add codex-cut@personal --json` 安装为 0.3.0。九份发布文件与安装缓存字节一致，已有 local-config.json 原字节保留。
+- 实际安装脚本读回新版 summary（制作 r27、objectCommands=true）与 checkpoints；常用 4340/4341 均已正常更新。
+- 七个工具的新增合同包含对象命令、剪辑 split/clips、动作调节、动画存档及命名备份的读取/创建/校验/恢复。恢复只建新副本。
+- 官方 CLI 清理旧版本缓存；v0.2.3 的 Git 标签、源码 tar 与升级前工程状态留存，未手动改写插件缓存或 marketplace/config.toml。
+- 当前聊天没有被宣称自动热加载新 schema；新聊天重新加载与用户实际作品验收是独立步骤。
+
+
 ## 0.2.2 · 2026-10-21
 
 - 源码：仓库 `workbench-local/plugin-package/codex-cut`；个人源 `~/plugins/codex-cut`。

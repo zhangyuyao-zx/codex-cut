@@ -22,3 +22,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 The npm dependencies and their license metadata are recorded by `package-lock.json`; their own license files are installed with those packages by `npm ci`.
+
+## Editor upgrade (0.3.0)
+
+The editor upgrade studies OpenFilm’s interaction and architecture as a reference. It does not vendor OpenFilm source, video assets, or a new rendering engine. Rendering continues to use the existing pinned Remotion stack. No additional npm runtime dependency is introduced by this upgrade.
