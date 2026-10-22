@@ -11,6 +11,10 @@ import {productionContextIdentityMatches, scenePreviewReadiness} from "./preview
 import {FilmStoryboard} from './FilmStoryboard';
 import {StyleCoverage} from './StyleCoverage';
 import {sceneEntry,completedReview,type ReviewRequest} from './review-navigation';
+import type {PlayerRef} from '@remotion/player';
+import {applyEditorCommand, objectTransformFor, type CanvasTransform, type EditorChange, type EditorCommand, type EditorReplayRequest} from './editor-commands';
+import {transformChanges} from './canvas-geometry';
+import {CanvasTransformProperties} from './CanvasTransformProperties';
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -64,7 +68,7 @@ export function Production({
     [overrides, setOverrides] = useState<Record<string, unknown>>({}),
     [locks, setLocks] = useState<string[]>([]),
     [selectedObject, setSelectedObject] = useState(""),
-    [dirty, setDirty] = useState(false),
+    [parameterDirty, setDirty] = useState(false),
     [feedback, setFeedback] = useState(""),
     [requestText, setRequestText] = useState(""),
     [requestReason, setRequestReason] = useState(""),
@@ -80,6 +84,17 @@ export function Production({
     [view, setView] = useState<
       "cut" | "review" | "scene" | "sample" | "previous"
     >("cut");
+  const [canvasDraft, setCanvasDraft] = useState<{id: string; transform?: CanvasTransform; text?: {key: string; value: string}} | null>(null);
+  const [canvasActive, setCanvasActive] = useState(false);
+  const [canvasSaving, setCanvasSaving] = useState(false);
+  const scenePlayer = useRef<PlayerRef>(null);
+  const canvasInFlight = useRef(false);
+  const canvasInteracting = useRef(false);
+  const canvasCommand = useRef<EditorCommand | null>(null);
+  const canvasReplay = useRef<{direction: 'undo' | 'redo'; request: EditorReplayRequest; sceneId: string} | null>(null);
+  const canvasPending = !!canvasCommand.current || !!canvasReplay.current;
+  const dirty = parameterDirty || canvasActive || canvasSaving || !!canvasDraft || canvasPending;
+  const draftEditorBase = useRef<{values: Record<string, unknown>; overrides: Record<string, unknown>; locks: string[]} | null>(null);
   const [scopedState, setScopedState] = useState<{
     sceneId: string;
     context: any;
@@ -125,6 +140,7 @@ export function Production({
           "production/context?sceneId=" + encodeURIComponent(sceneId),
         );
         if (
+          canvasInFlight.current || canvasInteracting.current ||
           disposed ||
           sequence !== scopedSequence.current ||
           !mounted.current ||
@@ -150,7 +166,8 @@ export function Production({
         inFlight = false;
       }
     };
-    setScopedState({sceneId, context: null, loading: true, error: ""});
+    setScopedState(previous => previous.sceneId === sceneId && productionContextIdentityMatches(data, previous.context)
+      ? previous : {sceneId, context: null, loading: true, error: ""});
     void requestContext();
     const timer = setInterval(() => void requestContext(), 2000);
     return () => {
@@ -219,7 +236,9 @@ export function Production({
     return true;
   };
   const refresh = async () => {
+    if (canvasInFlight.current || canvasInteracting.current) return null;
     const d = await api("production");
+    if (canvasInFlight.current || canvasInteracting.current) return null;
     if (!commitGlobalContext(d)) return null;
     if (!restoredSelection.current) {
       const saved = d.selection;
@@ -269,6 +288,20 @@ export function Production({
     );
     return () => clearInterval(t);
   }, []);
+  useEffect(() => {
+    const events = new EventSource('/api/production/editor/events');
+    const changed = (event: MessageEvent) => {
+      try {
+        const next = JSON.parse(event.data);
+        if (typeof next.revision === 'number' && next.revision > (latestDataRevision.current ?? -1))
+          void refresh().catch(error => setError(error.message));
+      } catch { /* Polling remains the fallback for unsupported or interrupted streams. */ }
+    };
+    events.addEventListener('revision', changed as EventListener);
+    events.onmessage = changed;
+    events.onopen = () => {void refresh().catch(error => setError(error.message));};
+    return () => events.close();
+  }, []);
   const scene = data?.plan.scenes.find((s: any) => s.id === selected),
     scopedCandidate =
       scopedState.sceneId === selected &&
@@ -289,6 +322,11 @@ export function Production({
     ),
     sceneEditor =
       scopedCandidate?.sceneEditors?.[selected] || data?.sceneEditors?.[selected];
+  const canvasAvailable = sceneEditor?.objects?.some((object: any) => object.canvas);
+  const canvasTransforms = {...scene?.editor?.objectTransforms,
+    ...(canvasDraft?.transform ? {[canvasDraft.id]: canvasDraft.transform} : {})};
+  const canvasValues = {...parameters, ...(canvasDraft?.text ? {[canvasDraft.text.key]: canvasDraft.text.value} : {})};
+  const selectedCanvasObject = sceneEditor?.objects?.find((object: any) => object.id === selectedObject && object.canvas);
   useEffect(() => {
     if (!dirty) {
       setTitle(scene?.title || "");
@@ -336,7 +374,104 @@ export function Production({
       setBusy(false);
     }
   }
+  const commitEditorResult = async (saved: any, sceneId: string) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const scoped = await api('production/context?sceneId=' + encodeURIComponent(sceneId));
+      if (!mounted.current) return;
+      // Adopt a coherent pair together. Polls started before the gesture are
+      // superseded, so they cannot replace this Player with a stale snapshot.
+      if (productionContextIdentityMatches(saved, scoped)) {
+        scopedSequence.current += 1;
+        if (scopedSelection.current === sceneId) setScopedState({sceneId, context: scoped, loading: false, error: ''});
+        if (!commitGlobalContext(saved)) throw Error('编辑响应版本较旧，请重新读取工程');
+        return;
+      }
+      saved = await api('production');
+    }
+    throw Error('工程持续变化，暂时无法读取一致画面；调整已保留，可重试读取');
+  };
+  const persistCanvasCommand = async (command: EditorCommand) => {
+    if (canvasInFlight.current) return;
+    canvasCommand.current = command;
+    canvasInFlight.current = true; setCanvasSaving(true); setBusy(true); setError('');
+    try {
+      const saved = await api('production/editor/command', command);
+      await commitEditorResult(saved, command.sceneId);
+      if (!mounted.current) return;
+      canvasCommand.current = null; setCanvasDraft(null);
+      setNotice('画面调整已保存；审阅样片需重新生成。');
+      return saved;
+    } catch (error: any) {
+      if (mounted.current) setError('保存结果尚未确认：' + error.message + '。可以重试，或放弃本地调整并重新读取已保存结果。');
+      return null;
+    } finally {
+      canvasInFlight.current = false;
+      if (mounted.current) {setCanvasSaving(false); setBusy(false);}
+    }
+  };
+  const editCanvas = (objectId: string, changes: EditorChange[]) => {
+    if (!changes.length) {setCanvasDraft(null); return;}
+    const command: EditorCommand = {operationId: crypto.randomUUID(), expectedRevision: data.plan.revision,
+      sceneId: selected, objectId, actor: 'user', changes};
+    try {
+      applyEditorCommand(scene.editor, {objects: sceneEditor.objects, controls: sceneEditor.controls,
+        resolvedParameters: sceneEditor.parameters}, command);
+      void persistCanvasCommand(command);
+    } catch (error: any) {setCanvasDraft(null); setError('无法应用画面调整：' + error.message);}
+  };
+  const replayCanvas = async (direction: 'undo' | 'redo') => {
+    if (canvasInFlight.current) return;
+    const target = data.editorHistory?.[direction]?.[0];
+    if (!canvasReplay.current) {
+      if (!target) return;
+      canvasReplay.current = {direction, sceneId: selected, request: {operationId: crypto.randomUUID(),
+        targetOperationId: target.operationId, expectedRevision: data.plan.revision, actor: 'user'}};
+    }
+    const pending = canvasReplay.current;
+    canvasInFlight.current = true; setCanvasSaving(true); setBusy(true); setError('');
+    try {
+      const saved = await api('production/editor/' + pending.direction, pending.request);
+      await commitEditorResult(saved, pending.sceneId);
+      canvasReplay.current = null;
+      setNotice(pending.direction === 'undo' ? '已撤销这次画面调整，其他修改保留。' : '已重做这次画面调整。');
+    } catch (error: any) {setError('操作结果尚未确认：' + error.message + '。请重试同一次操作，或重新读取已保存结果。');}
+    finally {canvasInFlight.current = false; if (mounted.current) {setCanvasSaving(false); setBusy(false);}}
+  };
   const save = async () => {
+    if (canvasReplay.current) {await replayCanvas(canvasReplay.current.direction); return;}
+    if (canvasCommand.current) {if (!await persistCanvasCommand(canvasCommand.current) || !parameterDirty) return;}
+    if (canvasActive || canvasSaving || canvasDraft) return;
+    if (canvasAvailable && data.capabilities?.objectCommands && draftEditorBase.current) {
+      const base = draftEditorBase.current;
+      let latest = await api('production');
+      const assigned = new Set<string>();
+      for (const object of sceneEditor.objects) {
+        const changes: EditorChange[] = [];
+        for (const key of object.parameters) {
+          if (assigned.has(key)) continue;
+          assigned.add(key);
+          const before = base.values[key], after = parameters[key], wasLocked = base.locks.includes(key), isLocked = locks.includes(key);
+          const currentValues = latest.sceneEditors?.[selected]?.parameters || {};
+          if ((JSON.stringify(before) !== JSON.stringify(after) || (isLocked && !wasLocked && !Object.hasOwn(base.overrides, key))) &&
+            (JSON.stringify(currentValues[key]) !== JSON.stringify(after) || !Object.hasOwn(latest.plan.scenes.find((item: any) => item.id === selected)?.editor?.overrides || {}, key)))
+            changes.push({kind: 'parameter', key, before, after});
+          if (wasLocked !== isLocked && !!latest.plan.scenes.find((item: any) => item.id === selected)?.editor?.locks.includes(key) !== isLocked)
+            changes.push({kind: 'parameterLock', key, before: wasLocked, after: isLocked});
+        }
+        if (changes.length) {
+          const command: EditorCommand = {operationId: crypto.randomUUID(), expectedRevision: latest.plan.revision,
+            sceneId: selected, objectId: object.id, actor: 'user', changes};
+          const currentEditor = latest.sceneEditors[selected];
+          applyEditorCommand(latest.plan.scenes.find((item: any) => item.id === selected).editor,
+            {objects: currentEditor.objects, controls: currentEditor.controls, resolvedParameters: currentEditor.parameters}, command);
+          const saved = await persistCanvasCommand(command);
+          if (!saved) return;
+          latest = saved;
+        }
+      }
+      draftEditorBase.current = null; draftRevision.current = null; setDirty(false);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -638,9 +773,14 @@ export function Production({
             <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("cut");}}>查看粗剪</button>
             {data.previousReview && <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("previous");}}>查看上次成片</button>}
             {currentReview && <button disabled={dirty} onClick={() => {pendingReview.current=null;setView("review");}}>查看最新整片</button>}
-            <button disabled={busy || dirty} onClick={() => run(() => api("production/undo", {expectedRevision: data.plan.revision}))}>撤销上次方案修改</button>
+            {!data.editorSnapshot?.hasCommands && <button disabled={busy || dirty} onClick={() => run(() => api("production/undo", {expectedRevision: data.plan.revision}))}>撤销上次方案修改</button>}
           </div></details>
         </div>
+        {canvasAvailable && editingView && <div className="canvas-edit-toolbar">
+          <button disabled={busy || dirty || !data.editorHistory?.undo?.length} onClick={() => void replayCanvas('undo')} title={data.editorHistory?.undo?.[0]?.label}>撤销画面调整</button>
+          <button disabled={busy || dirty || !data.editorHistory?.redo?.length} onClick={() => void replayCanvas('redo')}>重做</button>
+          <span className="hint">{canvasSaving ? '正在保存画面调整…' : canvasPending ? '操作结果待确认，可重试' : '拖动位置 · 角点缩放 · 圆点旋转 · 双击改字'}</span>
+        </div>}
         {view === "previous" && (
           <p className="notice">
             正在播放上一次成功导出的版本，尚未包含当前修改。
@@ -720,6 +860,16 @@ export function Production({
             objects={editingView ? sceneEditor?.objects || [] : []}
             selected={selectedObject}
             onSelect={setSelectedObject}
+            canvas={canvasAvailable && editingView ? {
+              transforms: canvasTransforms, locks: scene?.editor?.objectLocks || [], values: canvasValues,
+              disabled: busy || parameterDirty || (canvasPending && !canvasSaving),
+              onInteractionStart: () => {pendingReview.current = null; scenePlayer.current?.pause();},
+              onActiveChange: active => {canvasInteracting.current = active; setCanvasActive(active);},
+              onTransformPreview: (id, transform) => setCanvasDraft(transform ? {id, transform} : null),
+              onTransformCommit: (id, before, after) => editCanvas(id, transformChanges(before, after)),
+              onTextPreview: (id, key, value) => setCanvasDraft(value === null ? null : {id, text: {key, value}}),
+              onTextCommit: (id, key, before, after) => editCanvas(id, [{kind: 'parameter', key, before, after}]),
+            } : undefined}
           >
             {(view === "scene" || view === "sample") && !scopedLoaded ? (
               <div className="empty">
@@ -761,6 +911,7 @@ export function Production({
                 const outgoingModule=outgoingInput && data.sceneModules.find((m:any)=>m.id===outgoingInput.moduleId);
                 return module && input ? (
                   <SceneModulePreview
+                    playerRef={scenePlayer}
                     seekVersion={seekVersion}
                     module={module}
                     fallbackUrl={data.previousReview?.url}
@@ -773,7 +924,8 @@ export function Production({
                     scene={{
                       ...previewScene(input),
                       title,
-                      parameters: { ...input.parameters, ...parameters },
+                      parameters: { ...input.parameters, ...canvasValues },
+                      objectTransforms: canvasTransforms,
 
                     }}
                   />
@@ -856,7 +1008,7 @@ export function Production({
         <div className="segment-command-bar" aria-label="当前段落操作">
           <div><strong>{statusHint}</strong><small>第 {sceneIndex + 1} / {data.resolved.scenes.length} 段 · {Math.max(0, time - (resolved?.startMs || 0) / 1000).toFixed(1)} 秒</small></div>
           <div className="segment-command-buttons">
-            {dirty ? <><button onClick={() => {draftRevision.current = null; setDirty(false); setNotice("");}} disabled={busy}>放弃修改</button><button className="primary" disabled={busy} onClick={save}>保存修改</button></> :
+            {dirty ? <><button onClick={() => {draftRevision.current = null; draftEditorBase.current = null; canvasCommand.current = null; canvasReplay.current = null; setCanvasDraft(null); setDirty(false); setNotice(""); setError(''); void refresh().catch(error => setError(error.message));}} disabled={busy || canvasActive}>{canvasPending ? '重新读取已保存结果' : '放弃修改'}</button><button className="primary" disabled={busy || canvasActive} onClick={() => void save().catch(error => setError(error.message))}>{canvasPending ? '重试这次操作' : '保存修改'}</button></> :
              !scopedLoaded ? <button className="primary" disabled>读取当前段落…</button> :
              scopedError || scopedProgramError ? <button className="primary" disabled>当前段落不可用</button> :
              selectedRendering ? <span role="status">{Math.round((selectedLatest.progress || 0) * 100)}%</span> :
@@ -988,6 +1140,20 @@ export function Production({
           <>
             <h2>画面属性</h2>
             <p className="hint">选中对象可直接调整。构图或动作的修改交给 Codex。</p>
+            {selectedCanvasObject?.canvas.transform && <CanvasTransformProperties
+              value={objectTransformFor({objectTransforms: canvasTransforms}, selectedObject)}
+              locked={scene?.editor?.objectLocks?.includes(selectedObject) || false}
+              disabled={busy || parameterDirty || canvasSaving || !!canvasDraft || canvasPending}
+              onActiveChange={active => {canvasInteracting.current = active; setCanvasActive(active);}}
+              onLock={() => editCanvas(selectedObject, [{kind: 'objectLock', key: 'locked', before: !!scene?.editor?.objectLocks?.includes(selectedObject), after: !scene?.editor?.objectLocks?.includes(selectedObject)}])}
+              onChange={(key, value) => {
+                pendingReview.current = null;
+                if (view !== 'scene') {setEntryFrame(Math.round(time * 30)); setView('scene');}
+                scenePlayer.current?.pause();
+                const before = objectTransformFor(scene.editor, selectedObject), after = {...before, [key]: value};
+                setCanvasDraft({id: selectedObject, transform: after});
+                editCanvas(selectedObject, transformChanges(before, after));
+              }}/>}
             {scene.program && data.capabilities?.sceneTransitions && <details className="scene-notes"><summary>段落衔接</summary>
               <label className="field">进入方式<select aria-label="段落进入方式" disabled={busy||dirty||data.plan.scenes[0]?.id===selected}
                 value={scene.entryTransition?.type||'cut'} onChange={(e)=>run(()=>api('production/scene-edit',{expectedRevision:data.plan.revision,sceneId:selected,
@@ -1003,6 +1169,7 @@ export function Production({
               <p className="hint">{data.plan.scenes[0]?.id===selected?'首段直接开始。':dirty?'先保存画面调整，再修改衔接。':'衔接在本段样片中审阅，不改变口播时间。'}</p>
             </details>}
             <ObjectProperties
+              disabled={canvasActive || canvasSaving || !!canvasDraft || busy || canvasPending}
               editor={sceneEditor}
               selected={selectedObject}
               values={parameters}
@@ -1013,6 +1180,8 @@ export function Production({
                 setView("scene");
               }}
               onChange={(key, value) => {
+                if (canvasActive || canvasSaving || canvasDraft || busy || canvasPending) return;
+                if (!parameterDirty) draftEditorBase.current = {values: {...parameters}, overrides: {...overrides}, locks: [...locks]};
                 if (view !== "scene") {setEntryFrame(Math.round(time * 30)); setView("scene");}
                 setParameters((p) => ({ ...p, [key]: value }));
                 setOverrides((p) => ({ ...p, [key]: value }));
@@ -1020,6 +1189,8 @@ export function Production({
                 setDirty(true);
               }}
               onLock={(key) => {
+                if (canvasActive || canvasSaving || canvasDraft || busy || canvasPending) return;
+                if (!parameterDirty) draftEditorBase.current = {values: {...parameters}, overrides: {...overrides}, locks: [...locks]};
                 setLocks((l) =>
                   l.includes(key) ? l.filter((k) => k !== key) : [...l, key],
                 );

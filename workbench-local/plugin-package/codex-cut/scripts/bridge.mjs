@@ -9,7 +9,7 @@ const pluginRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const config=JSON.parse(await readFile(resolve(pluginRoot,'local-config.json'),'utf8'));
 const base='http://127.0.0.1:4340';
 const root=await realpath(process.env.CODEX_CUT_ROOT || config.workbenchRoot);
-const productionOps=['scenes','parameters','rebase','request','feedback','resolve-feedback','undo','cancel-render','visual-asset','style-pack','follow-style','storyboard','visual-review','animation-templates/save','animation-templates/preview','animation-templates/apply'];
+const productionOps=['scenes','parameters','rebase','request','feedback','resolve-feedback','undo','cancel-render','visual-asset','style-pack','follow-style','storyboard','visual-review','animation-templates/save','animation-templates/preview','animation-templates/apply','editor/command','editor/undo','editor/redo'];
 const cutOps=['import','ranges','transcript','transcribe','render','undo'];
 const libraryOps=['reference','reference-prepare','reference-analysis','asset','asset-preview','asset-review','pack','pack-preview','favorite','cancel'];
 const operations=[...productionOps.map(x=>'production/'+x),...cutOps.map(x=>'cut/'+x),...libraryOps.map(x=>'visual-library/'+x)];
@@ -38,7 +38,7 @@ async function healthy(){
  if(h.appId!=='codex-local-video-workbench' || !h.ready || await realpath(h.root)!==root) throw Error('4340 端口不是配置的就绪工作台；不会操作其他项目');
  return h;
 }
-function summary(c){return {workbenchRoot:root,url:base,revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,assemblyReady:c.assemblyReady,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
+function summary(c){return {workbenchRoot:root,url:base,revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,capabilities:c.capabilities,editorSnapshot:c.editorSnapshot,editorHistory:c.editorHistory,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,assemblyReady:c.assemblyReady,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
 async function context(){return json('/api/production');}
 async function mutate(path,data,{domain='production'}={}){
  await healthy();
@@ -46,7 +46,8 @@ async function mutate(path,data,{domain='production'}={}){
  if(domain!=='library'&&c.selection?.hasUnsavedChanges) throw Error('工作台有未保存修改；请先让用户保存或放弃草稿，再继续');
  if(domain==='library'){const library=await json('/api/visual-library');if(data.expectedRevision!==library.revision)throw Error('资产库版本已变化，请重新读取 visual-library');}
  else if(domain==='cut'){const cutState=await json('/api/cut');if(data.expectedRevision!==cutState.revision)throw Error('粗剪版本已变化，请重新读取');}
- else if(data.expectedRevision!==undefined && data.expectedRevision!==c.plan.revision) throw Error('制作版本已变化，请重新读取');
+ else if(data.expectedRevision!==undefined && data.expectedRevision!==c.plan.revision &&
+   !(['production/editor/command','production/editor/undo','production/editor/redo'].includes(path) && data.expectedRevision<c.plan.revision)) throw Error('制作版本已变化，请重新读取');
  const {token}=await json('/api/bootstrap');
  const output=await json('/api/'+path,{method:'POST',headers:{'content-type':'application/json','x-workbench-token':token},body:JSON.stringify(data)});
  return output.plan?summary(output):domain==='library'?{...output,projectSelection:c.selection}:output;

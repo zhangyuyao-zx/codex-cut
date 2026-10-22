@@ -79,6 +79,7 @@ export async function bindScenePrograms(
         duration: Math.max(1, end - from),
         title: s.title,
         parameters: module.resolvedParameters,
+        ...(s.editor?.objectTransforms ? {objectTransforms: s.editor.objectTransforms} : {}),
         mediaSrc: "source.mp4",
         words: resolved.words
           .filter((w) => w.startMs >= range.startMs! && w.endMs <= range.endMs!)

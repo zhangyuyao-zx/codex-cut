@@ -78,9 +78,9 @@ export function preserveSceneEdits(
   next: any[],
   actor: "user" | "codex" = "codex",
 ) {
-  if (actor === "user") return next;
   for (const old of previous) {
-    const parameterEdits=old.editor && (Object.keys(old.editor.overrides).length || old.editor.locks.length);
+    const objectEdits=old.editor && (Object.keys(old.editor.objectTransforms??{}).length || old.editor.objectLocks?.length);
+    const parameterEdits=old.editor && (Object.keys(old.editor.overrides).length || old.editor.locks.length || objectEdits);
     if(parameterEdits || old.editor?.entryTransition!==undefined) {
       const candidate=next.find(s=>s.id===old.id);
       if(!candidate)throw Error('段落含用户调整，不能直接删除：'+old.title);
@@ -88,6 +88,7 @@ export function preserveSceneEdits(
         throw Error('段落含用户调整，更换动画需先迁移参数：'+old.title);
     }
   }
+  if(actor === "user") return next;
   return next.map((s) => {
     const old = previous.find((p) => p.id === s.id);
     return { ...s, ...(old?.editor ? { editor: old.editor } : {}),

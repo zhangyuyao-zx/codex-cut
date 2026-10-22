@@ -89,6 +89,9 @@ if (command === "get") {
     const allow = [
       "production/scenes",
       "production/parameters",
+      "production/editor/command",
+      "production/editor/undo",
+      "production/editor/redo",
       "production/rebase",
       "production/request",
       "production/feedback",
@@ -112,6 +115,7 @@ if (command === "get") {
       body: JSON.stringify({
         expectedRevision: current.plan.revision,
         ...args,
+        ...(command.startsWith('production/editor/') ? {actor: 'codex'} : {}),
       }),
     });
     const result = await r.json();

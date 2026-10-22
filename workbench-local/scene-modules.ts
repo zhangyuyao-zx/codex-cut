@@ -85,6 +85,7 @@ export interface SceneModuleManifest {
     id: string;
     label: string;
     parameters: string[];
+    canvas?: {transform?: boolean; text?: string};
   }[];
   /** Modules without this field do not consume production material requests. */
   readonly acceptsMaterials?: boolean;
@@ -500,7 +501,7 @@ function parseManifest(
   ) {
     throw invalidManifest(expectedId, "acceptsMaterials must be boolean");
   }
-  const objects: { id: string; label: string; parameters: string[] }[] = [];
+  const objects: NonNullable<SceneModuleManifest['objects']>[number][] = [];
   if (value.objects !== undefined) {
     if (!Array.isArray(value.objects) || value.objects.length > 100)
       throw invalidManifest(
@@ -523,12 +524,25 @@ function parseManifest(
           expectedId,
           "invalid editable object or unknown parameter",
         );
-      assertExactKeys(o, ["id", "label", "parameters"], "object");
+      assertExactKeys(o, ["id", "label", "parameters", "canvas"], "object");
+      let canvas: {transform?: boolean; text?: string} | undefined;
+      if (o.canvas !== undefined) {
+        if (!isRecord(o.canvas)) throw invalidManifest(expectedId, 'canvas must describe declared editing capabilities');
+        assertExactKeys(o.canvas, ['transform', 'text'], 'object.canvas');
+        if (o.canvas.transform !== undefined && typeof o.canvas.transform !== 'boolean')
+          throw invalidManifest(expectedId, 'canvas.transform must be boolean');
+        const textKey = o.canvas.text;
+        if (textKey !== undefined && (typeof textKey !== 'string' || !o.parameters.includes(textKey) ||
+          !controls.some(c => c.key === textKey && c.type === 'text')))
+          throw invalidManifest(expectedId, 'canvas.text must refer to a text control of this object');
+        canvas = o.canvas as {transform?: boolean; text?: string};
+      }
       ids.add(o.id);
       objects.push({
         id: o.id,
         label: o.label,
         parameters: o.parameters as string[],
+        ...(canvas ? {canvas} : {}),
       });
     }
   }

@@ -3,6 +3,8 @@ import { AbsoluteFill, Audio, OffthreadVideo, staticFile, Sequence } from "remot
 import { ComponentSurface } from "./ComponentSurface";
 import { AppLibraryComponent } from "./AppLibraryComponent";
 import type { SceneEntryTransition } from "./scene-transition";
+import {CanvasEditsProvider} from './EditableCanvasObject';
+import type {CanvasTransform} from './editor-commands';
 export type SceneModuleInput = {
   id: string;
   from: number;
@@ -19,6 +21,7 @@ export type SceneModuleInput = {
   transitionFromSceneId?: string;
   transitionOutgoingFrame?: number;
   ownsBackground?:boolean;
+  objectTransforms?: Record<string, Partial<CanvasTransform>>;
 };
 export function SceneModuleSurface({
   renderer: Renderer,
@@ -33,14 +36,14 @@ export function SceneModuleSurface({
     ? scene.mediaSrc
     : staticFile(scene.mediaSrc);
   return (
-    <AbsoluteFill style={{background: "#000"}}>
+    <AbsoluteFill data-canvas-scene={scene.id} style={{background: "#000"}}>
       {!scene.ownsBackground&&<OffthreadVideo
         src={source}
         trimBefore={scene.from}
         muted
         style={{width: "100%", height: "100%", objectFit: "contain"}}
       />}
-      <Renderer {...scene} />
+      <CanvasEditsProvider transforms={scene.objectTransforms}><Renderer {...scene} /></CanvasEditsProvider>
       {scene.componentLayers?.map((l) => (
         <Sequence
           key={l.id}

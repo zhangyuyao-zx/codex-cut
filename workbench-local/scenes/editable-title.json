@@ -1,0 +1,17 @@
+{
+  "id": "editable-title",
+  "label": "可直接编辑的标题",
+  "entry": "EditableTitle.tsx",
+  "exportName": "EditableTitle",
+  "controls": [
+    {"key": "caption", "label": "标题", "type": "text", "default": "把想法，\n直接放进画面。"},
+    {"key": "fontSize", "label": "标题字号", "type": "number", "default": 112, "min": 36, "max": 160},
+    {"key": "note", "label": "补充说明", "type": "text", "default": "拖动位置，双击修改文字"},
+    {"key": "accent", "label": "强调色", "type": "color", "default": "#2a6955"},
+    {"key": "motionFrames", "label": "出现时长", "type": "number", "default": 18, "min": 1, "max": 60}
+  ],
+  "objects": [
+    {"id": "headline", "label": "标题", "parameters": ["caption", "fontSize"], "canvas": {"transform": true, "text": "caption"}},
+    {"id": "note", "label": "补充说明", "parameters": ["note", "accent", "motionFrames"], "canvas": {"transform": true, "text": "note"}}
+  ]
+}

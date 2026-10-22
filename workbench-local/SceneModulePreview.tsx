@@ -60,6 +60,7 @@ export function SceneModulePreview({
   initialFrame = 0,
   onReady,
   onError,
+  playerRef,
 }: {
   module: any;
   scene: any;
@@ -70,8 +71,10 @@ export function SceneModulePreview({
   initialFrame?: number;
   onReady?: () => void;
   onError?: (message: string) => void;
+  playerRef?: React.RefObject<PlayerRef | null>;
 }) {
-  const player = useRef<PlayerRef>(null);
+  const localPlayer = useRef<PlayerRef>(null);
+  const player = playerRef ?? localPlayer;
   // These are JSON scene snapshots. The parent also rerenders on frameupdate
   // and polling, so object identity alone must not change Player inputProps:
   // Remotion restarts its playback clock when its composition config changes.

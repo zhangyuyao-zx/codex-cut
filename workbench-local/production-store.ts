@@ -11,6 +11,7 @@ import {
 } from "./creative-design";
 
 import { preserveSceneEdits } from "./editable-objects";
+import { applyEditorCommand, replayEditorChanges, readEditorField, validateOperationId, validateEditorRevision, editorHistoryFor, editorTargetsFor, assertEditorTargetsCompatible, type EditorTarget, type EditorCommand, type EditorReplayRequest, type EditorDescriptor, type EditorJournal, type EditorHistory, EditorCommandError } from './editor-commands';
 import {sceneEntryTransitionSchema} from "./scene-transition";
 import {assertTransitionPredecessors} from "./transition-dependencies";
 import {visualMemberSchema,visualValuesSchema} from './visual-library-contract';
@@ -76,6 +77,8 @@ export const sceneSchema = z
         ),
         locks: z.array(z.string().min(1).max(128)).max(100),
         entryTransition: sceneEntryTransitionSchema.nullable().optional(),
+        objectTransforms: z.record(idSchema,z.object({x:z.number().finite().min(-20000).max(20000).optional(),y:z.number().finite().min(-20000).max(20000).optional(),scale:z.number().finite().min(0.05).max(8).optional(),rotation:z.number().finite().min(-3600).max(3600).optional()}).strict()).optional(),
+        objectLocks: z.array(idSchema).max(1000).optional(),
       })
       .strict()
       .optional(),
@@ -138,11 +141,17 @@ export const productionStateSchema = z
   })
   .strict();
 
+const journalFieldSchema=z.object({present:z.boolean(),value:z.json().optional()}).strict();
+const journalSchema=z.object({
+  entries:z.array(z.object({operationId:z.string().uuid(),fingerprint:z.string(),sceneId:idSchema,objectId:idSchema,actor:z.enum(['user','codex']),label:z.string(),moduleId:idSchema.optional(),status:z.enum(['applied','undone']),actionRevision:revisionSchema,changes:z.array(z.object({kind:z.enum(['transform','parameter','objectLock','parameterLock']),key:z.string(),before:journalFieldSchema,after:journalFieldSchema}).strict())}).strict()),
+  receipts:z.record(z.string().uuid(),z.string()),
+}).strict();
 export const productionEnvelopeSchema = z
   .object({
     schemaVersion: z.literal(SCHEMA_VERSION),
     state: productionStateSchema,
     history: z.array(productionStateSchema),
+    editorJournal: journalSchema.optional(),
   })
   .strict();
 
@@ -167,7 +176,14 @@ export class ProductionStoreError extends Error {
   }
 }
 
+export type EditorDescriptorResolver = (scene:Scene,state:ProductionState)=>Promise<EditorDescriptor>;
 export interface ProductionStore {
+  editorCommand(command:EditorCommand,resolve:EditorDescriptorResolver):Promise<ProductionState>;
+  editorUndo(request:EditorReplayRequest,resolve:EditorDescriptorResolver):Promise<ProductionState>;
+  editorRedo(request:EditorReplayRequest,resolve:EditorDescriptorResolver):Promise<ProductionState>;
+  editorHistory():Promise<EditorHistory>;
+  getEditorSnapshot():Promise<{state:ProductionState;history:EditorHistory;targets:EditorTarget[];hasCommands:boolean}>;
+  subscribe(listener:(event:{revision:number})=>void):()=>void;
   get(): Promise<ProductionState>;
   setScenes(
     expectedRevision: number,
@@ -200,9 +216,16 @@ interface StoredEnvelope {
   schemaVersion: typeof SCHEMA_VERSION;
   state: ProductionState;
   history: ProductionState[];
+  editorJournal?: EditorJournal;
 }
 
 const writeQueues = new Map<string, Promise<void>>();
+const revisionListeners=new Map<string,Set<(event:{revision:number})=>void>>();
+function emitRevision(filePath:string,revision:number){for(const listener of revisionListeners.get(filePath)??[])try{listener({revision});}catch{/* Observers cannot roll back a committed write. */}}
+function commandFingerprint(value:unknown):string {
+  const canonical=(input:any):any=>Array.isArray(input)?input.map(canonical):input&&typeof input==='object'?Object.fromEntries(Object.keys(input).sort().map(k=>[k,canonical(input[k])])):input;
+  return JSON.stringify(canonical(value));
+}
 
 function runSerialized<T>(
   key: string,
@@ -477,6 +500,7 @@ class ProductionStoreImpl implements ProductionStore {
           "NOT_FOUND",
           `Scene does not exist: ${String(scene?.id ?? "")}`,
         );
+      preserveSceneEdits([existing],[scene],'codex');
       const parsedRequests = parseWithSchema(
         z.array(materialRequestSchema).max(10_000),
         requests,
@@ -614,6 +638,8 @@ class ProductionStoreImpl implements ProductionStore {
     return this.serialized(async () => {
       const envelope = await this.loadEnvelopeLocked();
       assertExpectedRevision(envelope.state, expectedRevision);
+      if (envelope.editorJournal?.entries.length)
+        throw invalidState('工程含对象编辑命令，请使用对象操作撤销，避免整份回退覆盖后续修改');
       if (envelope.history.length === 0)
         throw new ProductionStoreError(
           "NO_UNDO",
@@ -628,10 +654,72 @@ class ProductionStoreImpl implements ProductionStore {
         schemaVersion: SCHEMA_VERSION,
         state: nextState,
         history: envelope.history.slice(0, -1).map(clone),
+        ...(envelope.editorJournal?{editorJournal:envelope.editorJournal}:{}),
       };
       await writeJsonAtomic(this.filePath, nextEnvelope);
+      emitRevision(this.filePath,nextState.revision);
       return clone(nextState);
     });
+  }
+
+  public subscribe(listener:(event:{revision:number})=>void):()=>void {
+    const listeners=revisionListeners.get(this.filePath)??new Set();listeners.add(listener);revisionListeners.set(this.filePath,listeners);
+    return ()=>{listeners.delete(listener);if(!listeners.size)revisionListeners.delete(this.filePath);};
+  }
+  public async getEditorSnapshot():Promise<{state:ProductionState;history:EditorHistory;targets:EditorTarget[];hasCommands:boolean}>{return this.serialized(async()=>{const envelope=await this.loadEnvelopeLocked();return {state:clone(envelope.state),history:editorHistoryFor(envelope.editorJournal),targets:editorTargetsFor(envelope.editorJournal),hasCommands:!!envelope.editorJournal?.entries.length};});}
+  public async editorHistory():Promise<EditorHistory>{return this.serialized(async()=>editorHistoryFor((await this.loadEnvelopeLocked()).editorJournal));}
+  public editorCommand(command:EditorCommand,resolve:EditorDescriptorResolver):Promise<ProductionState>{
+    return this.serialized(async()=>{
+      validateOperationId(command?.operationId);
+      const envelope=await this.loadEnvelopeLocked(),fingerprint=commandFingerprint({kind:'command',command});
+      if(this.checkReceipt(envelope,command.operationId,fingerprint))return clone(envelope.state);
+      validateEditorRevision(command.expectedRevision,envelope.state.revision);
+      const scene=envelope.state.scenes.find(s=>s.id===command.sceneId);
+      if(!scene)throw new EditorCommandError('NOT_FOUND','编辑段落已删除');
+      const descriptor=await resolve(clone(scene),clone(envelope.state));
+      assertEditorTargetsCompatible(editorTargetsFor(envelope.editorJournal),scene.id,descriptor);
+      const reduced=applyEditorCommand(scene.editor,descriptor,command);
+      const nextState=parseState({...envelope.state,revision:nextRevision(envelope.state.revision),scenes:envelope.state.scenes.map(s=>s.id===scene.id?{...s,editor:{...s.editor,...reduced.editor,objectTransforms:reduced.editor.objectTransforms,objectLocks:reduced.editor.objectLocks}}:s)},'Invalid editor command state');
+      const journal:EditorJournal=clone(envelope.editorJournal??{entries:[],receipts:{}});
+      journal.entries.push({operationId:command.operationId,fingerprint,sceneId:scene.id,objectId:command.objectId,actor:command.actor,moduleId:scene.program?.moduleId,label:command.changes.every(c=>c.kind==='transform')?'调整对象':command.changes.some(c=>c.kind==='objectLock'||c.kind==='parameterLock')?'对象锁定':'修改对象参数',changes:reduced.changes,status:'applied',actionRevision:nextState.revision});
+      journal.receipts[command.operationId]=fingerprint;
+      return this.commit({...envelope,editorJournal:journal},nextState,{recordHistory:false});
+    });
+  }
+  public editorUndo(request:EditorReplayRequest,resolve:EditorDescriptorResolver){return this.replayEditor(request,resolve,'undo');}
+  public editorRedo(request:EditorReplayRequest,resolve:EditorDescriptorResolver){return this.replayEditor(request,resolve,'redo');}
+  private replayEditor(request:EditorReplayRequest,resolve:EditorDescriptorResolver,direction:'undo'|'redo'):Promise<ProductionState>{
+    return this.serialized(async()=>{
+      validateOperationId(request?.operationId);validateOperationId(request.targetOperationId);
+      if(request.actor!=='user'&&request.actor!=='codex')throw new EditorCommandError('INVALID_COMMAND','编辑 actor 无效');
+      const envelope=await this.loadEnvelopeLocked(),fingerprint=commandFingerprint({kind:direction,request});
+      if(this.checkReceipt(envelope,request.operationId,fingerprint))return clone(envelope.state);
+      validateEditorRevision(request.expectedRevision,envelope.state.revision);
+      const journal:EditorJournal=clone(envelope.editorJournal??{entries:[],receipts:{}}),entry=journal.entries.find(e=>e.operationId===request.targetOperationId);
+      if(!entry||entry.actor!==request.actor)throw new EditorCommandError('NOT_FOUND','只能撤销或重做当前操作者自己的编辑');
+      if(entry.status!==(direction==='undo'?'applied':'undone'))throw new EditorCommandError('EDITOR_CONFLICT','操作已'+(direction==='undo'?'撤销':'重做'));
+      const scene=envelope.state.scenes.find(s=>s.id===entry.sceneId);
+      if(!scene)throw new EditorCommandError('NOT_FOUND','编辑段落已删除');
+      if(scene.program?.moduleId!==entry.moduleId)throw new EditorCommandError('EDITOR_CONFLICT','段落动画实现已更换，不能重放旧对象操作');
+      const descriptor=await resolve(clone(scene),clone(envelope.state));
+      const editor=replayEditorChanges(scene.editor,descriptor,entry,direction,request.actor);
+      const nextState=parseState({...envelope.state,revision:nextRevision(envelope.state.revision),scenes:envelope.state.scenes.map(s=>s.id===scene.id?{...s,editor:{...s.editor,...editor,objectTransforms:editor.objectTransforms,objectLocks:editor.objectLocks}}:s)},'Invalid editor replay state');
+      if(direction==='undo'){
+        // Removing an override inherits today's author value, which may have
+        // changed while the override was active. Capture that replay baseline.
+        const restoredScene=nextState.scenes.find(s=>s.id===scene.id)!;
+        const restoredDescriptor=await resolve(clone(restoredScene),clone(nextState));
+        for(const change of entry.changes)if(!change.before.present)change.before=readEditorField(editor,entry.objectId,restoredDescriptor,change.kind,change.key);
+      }
+      entry.status=direction==='undo'?'undone':'applied';entry.actionRevision=nextState.revision;journal.receipts[request.operationId]=fingerprint;
+      return this.commit({...envelope,editorJournal:journal},nextState,{recordHistory:false});
+    });
+  }
+  private checkReceipt(envelope:StoredEnvelope,operationId:string,fingerprint:string):boolean{
+    const receipt=envelope.editorJournal?.receipts[operationId];
+    if(receipt===undefined)return false;
+    if(receipt!==fingerprint)throw new EditorCommandError('EDITOR_CONFLICT','操作 ID 已用于不同的编辑请求');
+    return true;
   }
 
   private serialized<T>(operation: () => Promise<T>): Promise<T> {
@@ -641,13 +729,17 @@ class ProductionStoreImpl implements ProductionStore {
   private async commit(
     envelope: StoredEnvelope,
     nextState: ProductionState,
+    options: {recordHistory?:boolean} = {},
   ): Promise<ProductionState> {
     const nextEnvelope: StoredEnvelope = {
       schemaVersion: SCHEMA_VERSION,
       state: nextState,
-      history: [...envelope.history, clone(envelope.state)],
+      // Object commands already have exact field inverses in editorJournal.
+      history: options.recordHistory===false?envelope.history:[...envelope.history, clone(envelope.state)],
+      ...(envelope.editorJournal?{editorJournal:envelope.editorJournal}:{}),
     };
     await writeJsonAtomic(this.filePath, nextEnvelope);
+    emitRevision(this.filePath,nextState.revision);
     return clone(nextState);
   }
 

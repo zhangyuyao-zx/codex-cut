@@ -1,0 +1,20 @@
+.canvas-editable [data-canvas-object] { touch-action: none; user-select: none; cursor: move; }
+.canvas-selection-frame { position: absolute; z-index: 20; border: 1px solid #0a84ff; pointer-events: none; box-sizing: border-box; }
+.canvas-selection-label { position: absolute; left: -1px; top: -24px; padding: 3px 7px; border-radius: 5px 5px 0 0; background: #0a84ff; color: white; white-space: nowrap; font: 11px/17px -apple-system, sans-serif; }
+.canvas-selection-frame.is-locked { border-color: #9aa3af; }
+.canvas-selection-frame.is-locked .canvas-selection-label { background: #687480; }
+.object-preview .canvas-scale-handle { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; padding: 0; min-width: 0; border: 2px solid #0a84ff; border-radius: 3px; background: white; pointer-events: auto; cursor: nwse-resize; }
+.object-preview .canvas-rotate-handle { position: absolute; left: calc(50% - 12px); top: -44px; width: 24px; height: 24px; padding: 0; min-width: 0; border: 1px solid #0a84ff; border-radius: 50%; background: #fff; color: #096dd7; pointer-events: auto; cursor: grab; font: 18px/20px sans-serif; }
+.canvas-inline-editor { position: absolute; z-index: 30; left: 50%; bottom: 48px; transform: translateX(-50%); width: min(440px, 88%); padding: 10px; border: 1px solid #d1d9e3; border-radius: 12px; background: #f8fafc; box-shadow: 0 12px 40px #0005; }
+.canvas-inline-editor textarea { display: block; box-sizing: border-box; resize: vertical; width: 100%; min-height: 70px; max-height: 170px; padding: 10px; border: 1px solid #c1cfdf; border-radius: 7px; background: white; color: #162435; font: 16px/1.5 -apple-system, sans-serif; }
+.canvas-inline-editor > div { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.canvas-inline-editor small { flex: 1; color: #617186; font-size: 11px; }
+.canvas-inline-editor button { padding: 5px 10px; border: 1px solid #ccd6e2; border-radius: 6px; background: white; color: #26384e; font: 12px/18px -apple-system, sans-serif; cursor: pointer; }
+.canvas-inline-editor button[type=submit] { background: #087ded; border-color: #087ded; color: white; }
+.canvas-edit-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; font-size: 12px; }
+.canvas-edit-toolbar .hint { margin: 0; flex: 1; font-size: 11px; }
+.canvas-transform-properties { margin: 12px 0; padding: 12px 0; border-block: 1px solid #d8e0e8; }
+.canvas-transform-properties h4 { margin: 0 0 10px; font-size: 12px; }
+.canvas-transform-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.canvas-transform-grid label { font-size: 11px; color: #5c6b7e; }
+.canvas-transform-grid input { display: block; width: 100%; margin-top: 3px; box-sizing: border-box; }

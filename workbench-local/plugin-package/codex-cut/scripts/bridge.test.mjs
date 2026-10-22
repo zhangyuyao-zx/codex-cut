@@ -158,6 +158,26 @@ test('saved animation writes reject unsaved project drafts before fetching a tok
  assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
 });
 
+test('canvas commands share production guards and cannot impersonate the user',async t=>{
+ const {calls}=mockService(t);
+ for(const operation of ['production/editor/command','production/editor/undo','production/editor/redo']){
+  calls.length=0;
+  await assert.rejects(invoke('update_project',{operation,expectedRevision:40,data:{sceneId:'existing-scene'}}),/制作版本/);
+  assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+  await invoke('update_project',{operation,expectedRevision:7,data:{operationId:'test-id',sceneId:'existing-scene',actor:'user',changes:[]}});
+  const write=calls.find(call=>call.method==='POST');assert.equal(write.path,'/api/'+operation);assert.equal(write.body.actor,'codex');
+  calls.length=0;
+  await invoke('update_project',{operation,expectedRevision:6,data:{operationId:'same-operation',sceneId:'existing-scene',actor:'user',changes:[]}});
+  const rebased=calls.find(call=>call.method==='POST');assert.equal(rebased.body.expectedRevision,6);assert.equal(rebased.body.operationId,'same-operation');assert.equal(rebased.body.actor,'codex');
+ }
+});
+
+test('canvas writes leave unsaved browser drafts intact',async t=>{
+ const {calls}=mockService(t,{dirty:true});
+ await assert.rejects(invoke('update_project',{operation:'production/editor/command',expectedRevision:7,data:{sceneId:'existing-scene'}}),/未保存/);
+ assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+});
+
 test('cut writes still use cut revision independently from production and library',async t=>{
  const {calls}=mockService(t);
  for(const expectedRevision of [7,40])await assert.rejects(invoke('update_project',{operation:'cut/ranges',expectedRevision,data:{ranges:[]}}),/粗剪版本/);

@@ -2,7 +2,7 @@ import {activeMaterialRequests} from './active-material-requests';
 import {rendererSourceIdentity} from "./renderer-source-identity";
 import {remotionRuntime, runtimeCommand} from "./runtime-paths";
 import type { createComponentLibrary } from "./component-library";
-import { Router } from "express";
+import { Router, type Response } from "express";
 import {
   mkdir,
   readFile,
@@ -23,7 +23,8 @@ import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createProductionStore } from "./production-store";
+import { createProductionStore, type Scene, type ProductionState } from "./production-store";
+import {assertObjectEditsCompatible,assertEditorTargetsCompatible,editorValueEqual,objectTransformFor,type EditorDescriptor} from './editor-commands';
 import { createRoughcutService, findCutWord } from "./roughcut-service";
 import {
   resolveProduction,
@@ -148,11 +149,12 @@ export async function productionRoutes(
   // Recovery is durable, not merely an in-memory label.
   if (job) await persistJob();
   if (sampleJob) await persistSample();
-  async function context(sceneId?: string) {
-    const [originalPlan, cut] = await Promise.all([
-      store.get(),
+  async function contextOnce(sceneId?: string) {
+    const [editorState, cut] = await Promise.all([
+      store.getEditorSnapshot(),
       cutStore.get(),
     ]);
+    const originalPlan=editorState.state;
     if (sceneId && !originalPlan.scenes.some((s) => s.id === sceneId))
       throw Error("段落不存在");
     let moduleCatalog: any[] = [],
@@ -419,8 +421,13 @@ export async function productionRoutes(
         end: Math.round((s.endMs! * 30) / 1000),
         overrides: s.editor?.overrides || {},
       }));
-      for (const s of plan.scenes)
+      for (const s of plan.scenes){
         if (!s.program) validateLegacyOverrides(s.editor?.overrides);
+        const module=s.program?moduleCatalog.find(module=>module.id===s.program!.moduleId):null;
+        const descriptor={objects:s.program?module?.objects??[]:legacyObjects,controls:s.program?module?.controls??[]:legacyControls,resolvedParameters:{}};
+        assertObjectEditsCompatible(s.editor,descriptor);
+        assertEditorTargetsCompatible(editorState.targets,s.id,descriptor);
+      }
       props.componentLayers = await componentLayers(
         plan,
         resolved,
@@ -468,7 +475,9 @@ export async function productionRoutes(
         previousReview = null;
     }
     const result={
-      capabilities:{sceneTransitions:true,filmDirection:true},
+      capabilities:{sceneTransitions:true,filmDirection:true,objectCommands:true},
+      editorHistory:editorState.history,
+      editorSnapshot:{hasCommands:editorState.hasCommands,revision:originalPlan.revision,cutRevision:cut.revision,modules:moduleCatalog.filter(m=>originalPlan.scenes.some(s=>s.program?.moduleId===m.id)).map(m=>({moduleId:m.id,sourceHash:m.sourceHash}))},
       plan,
       stylePackInfo,
       cut,
@@ -500,6 +509,8 @@ export async function productionRoutes(
                 ...s.editor?.overrides,
               },
               locks: s.editor?.locks || [],
+              objectLocks:s.editor?.objectLocks||[],
+              objectTransforms:s.editor?.objectTransforms||{},
             },
           ];
         }),
@@ -523,6 +534,14 @@ export async function productionRoutes(
       approval: approval?.key === key ? approval : null,
     };
     return Object.defineProperties(result,{renderInputs:{value:externalInputs},runtimeIdentity:{value:runtimeHash}}) as typeof result&{renderInputs:typeof externalInputs;runtimeIdentity:string|null};
+  }
+  async function context(sceneId?:string){
+    for(let attempt=0;attempt<3;attempt++){
+      const snapshot=await contextOnce(sceneId);
+      const [latestPlan,latestCut]=await Promise.all([store.get(),cutStore.get()]);
+      if(latestPlan.revision===snapshot.editorSnapshot.revision&&latestCut.revision===snapshot.editorSnapshot.cutRevision)return snapshot;
+    }
+    throw Error('工程在读取期间持续更新，请重新读取编辑快照');
   }
   async function assertTaskCurrent(task:any){
     const latest=await context(task.sceneId);
@@ -599,8 +618,21 @@ export async function productionRoutes(
     const application=planStyleApplication(plan,pack,assets,await sceneModules.list());
     return {...plan,scenes:application.scenes};
   }
-  async function validateEdits(scenes: any[]) {
-    const currentPlan=await store.get();
+  async function editorDescriptor(scene:Scene,latest:ProductionState):Promise<EditorDescriptor>{
+    const inherited=await inheritStyle(latest),effective=inherited.scenes.find(s=>s.id===scene.id)??scene;
+    if(effective.program){
+      const descriptor=await sceneModules.validate({...effective.program,parameters:{...effective.program.styleDefaults,...effective.program.parameters,...effective.editor?.overrides}});
+      const result={objects:descriptor.objects??[],controls:descriptor.controls,resolvedParameters:descriptor.resolvedParameters};
+      assertObjectEditsCompatible(effective.editor,result);
+      return result;
+    }
+    const controls=legacyControls.map(control=>control.key==='headline'?{...control,default:scene.title}:control);
+    validateLegacyOverrides(scene.editor?.overrides);
+    const result={objects:legacyObjects,controls,resolvedParameters:{...Object.fromEntries(controls.map(control=>[control.key,control.default])),...scene.editor?.overrides}};
+    assertObjectEditsCompatible(scene.editor,result);return result;
+  }
+  async function validateEdits(scenes: any[],actor:"user"|"codex"="codex") {
+    const snapshot=await store.getEditorSnapshot(),currentPlan=snapshot.state;
     if(currentPlan.stylePack&&visualLibrary){
       const pack=await visualLibrary.store.getPack(currentPlan.stylePack);
       const assets=(await visualLibrary.store.get()).assets;
@@ -613,11 +645,28 @@ export async function productionRoutes(
     assertTransitionPredecessors({scenes});
     for (const s of scenes) {
       if(s.entryTransition&&!s.program)throw Error("完整场景转场需要明确的动画实现");
+      if(actor==='codex'){
+        const previous=currentPlan.scenes.find(scene=>scene.id===s.id);
+        if(previous?.editor&&(previous.editor.locks.length||previous.editor.objectLocks?.length)){
+          const before=await editorDescriptor(previous,currentPlan),after=await editorDescriptor(s,{...currentPlan,scenes:currentPlan.scenes.map(scene=>scene.id===s.id?s:scene)});
+          const lockedParameters=new Set(previous.editor.locks);
+          for(const objectId of previous.editor.objectLocks??[]){
+            if(!s.editor?.objectLocks?.includes(objectId)||!editorValueEqual(objectTransformFor(previous.editor,objectId),objectTransformFor(s.editor,objectId)))throw Error('对象已锁定，请由用户解锁后修改：'+objectId);
+            for(const key of before.objects.find(object=>object.id===objectId)?.parameters??[])lockedParameters.add(key);
+          }
+          for(const key of previous.editor.locks)if(!s.editor?.locks?.includes(key))throw Error('参数已锁定，请由用户解锁后修改：'+key);
+          for(const key of lockedParameters)if(!editorValueEqual(before.resolvedParameters[key],after.resolvedParameters[key]))throw Error('参数已锁定，请由用户解锁后修改：'+key);
+        }
+      }
+
       if (s.program) {
         const d = await sceneModules.validate({
           ...s.program,
           parameters: { ...s.program.styleDefaults, ...s.program.parameters, ...s.editor?.overrides },
         });
+        const descriptor={objects:d.objects??[],controls:d.controls,resolvedParameters:d.resolvedParameters};
+        assertObjectEditsCompatible(s.editor,descriptor);
+        assertEditorTargetsCompatible(snapshot.targets,s.id,descriptor);
         if (
           s.editor?.locks.some(
             (k: string) => !d.controls.some((c) => c.key === k),
@@ -626,6 +675,9 @@ export async function productionRoutes(
           throw Error("锁定参数已被删除，请先迁移");
       } else {
         validateLegacyOverrides(s.editor?.overrides);
+        const descriptor={objects:legacyObjects,controls:legacyControls,resolvedParameters:{}};
+        assertObjectEditsCompatible(s.editor,descriptor);
+        assertEditorTargetsCompatible(snapshot.targets,s.id,descriptor);
         if (
           s.editor?.locks.some(
             (k: string) => !legacyControls.some((c) => c.key === k),
@@ -652,6 +704,8 @@ export async function productionRoutes(
       comparisons:compositionComparisons(c.plan.scenes)};
   }
   const router = Router();
+  const editorEventResponses=new Map<Response,()=>void>();
+  let editorEventsClosing=false;
   router.get('/storyboard',async(_req,res,next)=>{try{res.json(await filmOverview(await context()));}catch(error){next(error);}});
   router.get('/storyboard/frame/:id',async(req,res,next)=>{try{
     const file=await filmReview.resolveFrame(String(req.params.id));
@@ -687,7 +741,7 @@ export async function productionRoutes(
     const assets=(await visualLibrary.store.get()).assets;
     const scene=followSceneStyle(original,pack,assets,await sceneModules.list(),actor);
     const scenes=plan.scenes.map(s=>s.id===scene.id?scene:s);
-    await validateEdits(scenes);
+    await validateEdits(scenes,actor);
     await store.setScenes(plan.revision,plan.source,scenes,actor);
     res.json(await context());
   }catch(error){next(error);}});
@@ -719,7 +773,7 @@ export async function productionRoutes(
       if(asset.mediaSlots.length)throw Error('带素材的叠加对象需要 Codex 提供明确的 mediaBindings 后提交段落');
       scene={...previous,components:[...previous.components??[],{id:randomUUID(),componentId:visualComponentId(member),props:values,styleDefaults:defaults,cueBindings:Object.fromEntries(cues.map(b=>[b.label,b.wordId])),startWordId:previous.startWordId,endWordId:previous.endWordId,x:0,y:0,scale:1,opacity:1}]};
     }
-    await validateEdits([scene]);
+    await validateEdits([scene],req.body.actor==='user'?'user':'codex');
     await store.setSceneWithRequests(req.body.expectedRevision,scene,requests);
     res.json(await context());
   }catch(error){next(error);}});
@@ -732,7 +786,7 @@ export async function productionRoutes(
     if(req.body.mode==='preview'){res.json(change);return;}
     if(req.body.mode!=='apply')throw Error('请选择预览影响或应用风格');
     if(change.conflicts.length)throw Error(change.conflicts.join('\n'));
-    await validateEdits(change.scenes);
+    await validateEdits(change.scenes,req.body.actor==='user'?'user':'codex');
     await store.setStylePack(req.body.expectedRevision,{id:pack.id,version:pack.version},change.scenes);
     res.json(await context());
   }catch(error){next(error);}});
@@ -861,7 +915,7 @@ export async function productionRoutes(
         throw Error("出现点必须按口播顺序选择，且全部位于目标段落内");
       previous = index;
     }
-    await validateEdits([candidate]);
+    await validateEdits([candidate],input.actor==='user'?'user':'codex');
     const [bound] = await bindScenePrograms(draft, resolved, sceneModules);
     const layers = await componentLayers(
       draft,
@@ -924,6 +978,32 @@ export async function productionRoutes(
       res.json(await context(sceneId));
     } catch(error) { next(error); }
   });
+  router.get('/editor/events',async(req,res,next)=>{
+    if(editorEventsClosing){res.status(503).end();return;}
+    let unsubscribe:(()=>void)|undefined,heartbeat:ReturnType<typeof setInterval>|undefined,closed=false;
+    const cleanup=()=>{
+      if(closed)return;
+      closed=true;unsubscribe?.();unsubscribe=undefined;
+      if(heartbeat)clearInterval(heartbeat);heartbeat=undefined;
+      req.off('aborted',cleanup);res.off('close',cleanup);
+      editorEventResponses.delete(res);
+    };
+    const close=()=>{cleanup();if(!res.writableEnded&&!res.destroyed)res.end();};
+    editorEventResponses.set(res,close);
+    req.on('aborted',cleanup);res.on('close',cleanup);
+    try{
+      res.setHeader('Content-Type','text/event-stream');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders();
+      let lastRevision=-1;
+      const send=(event:{revision:number})=>{if(!closed&&!res.writableEnded&&!res.destroyed&&event.revision>lastRevision){lastRevision=event.revision;res.write('event: revision\ndata: '+JSON.stringify(event)+'\n\n');}};
+      // Subscribe before reading so a concurrent commit cannot be missed.
+      unsubscribe=store.subscribe(send);send({revision:(await store.get()).revision});
+      if(closed)return;
+      heartbeat=setInterval(()=>{if(!closed&&!res.writableEnded&&!res.destroyed)res.write(': keepalive\n\n');},15000);heartbeat.unref();
+    }catch(error){if(res.headersSent)close();else{cleanup();next(error);}}
+  });
+  router.post('/editor/command',async(req,res,next)=>{try{await store.editorCommand(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
+  router.post('/editor/undo',async(req,res,next)=>{try{await store.editorUndo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
+  router.post('/editor/redo',async(req,res,next)=>{try{await store.editorRedo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
   router.post("/selection", async (req, res, next) => {
     try {
       const c = await context();
@@ -957,18 +1037,20 @@ export async function productionRoutes(
         throw Error("参数修改必须为对象");
       if (
         req.body.actor !== "user" &&
-        Object.keys(patch).some((k) => s.editor?.locks.includes(k))
+        (Object.keys(patch).some((k) => s.editor?.locks.includes(k)) ||
+          (await editorDescriptor(s,plan)).objects.some(object=>s.editor?.objectLocks?.includes(object.id)&&object.parameters.some(key=>Object.prototype.hasOwnProperty.call(patch,key))))
       )
         throw Error("参数已锁定，请由用户解锁后修改");
       const next = {
         ...s,
         editor: {
+          ...s.editor,
           overrides: { ...s.editor?.overrides, ...patch },
           locks: s.editor?.locks || [],
         },
       };
       const scenes = plan.scenes.map((x) => (x.id === s.id ? next : x));
-      await validateEdits([next]);
+      await validateEdits([next],req.body.actor==='user'?'user':'codex');
       await store.setScenes(
         req.body.expectedRevision,
         plan.source,
@@ -997,7 +1079,7 @@ export async function productionRoutes(
       }
       assertTransitionPredecessors({scenes:plan.scenes.map(s=>s.id===scene.id?edited:s)});
       const scoped=await inheritStyle({...plan,scenes:[edited],requests:plan.requests.filter(r=>r.sceneId===scene.id)});
-      await validateEdits([edited]);
+      await validateEdits([edited],req.body.actor==='user'?'user':'codex');
       const check=resolveProduction(scoped,cut);
       if(check.issues.length||check.stale)throw Error(check.issues.join("\n")||"请先同步剪辑时间");
       await componentLayers(scoped,check,Math.round(check.durationMs*30/1000));
@@ -1018,7 +1100,7 @@ export async function productionRoutes(
         source: req.body.source,
         scenes: preserveSceneEdits(current.scenes, req.body.scenes, actor),
       });
-      await validateEdits(candidate.scenes);
+      await validateEdits(candidate.scenes,actor);
       const check = resolveProduction(candidate, cut);
       if (check.issues.length || check.stale)
         throw Error(check.issues.join("\n") || "请重新读取当前剪辑再提交方案");
@@ -1731,7 +1813,11 @@ export async function productionRoutes(
     await persist();
   }
   return Object.assign(router, {
-    shutdown: () => lane.stop(),
+    shutdown: () => {
+      editorEventsClosing=true;
+      for(const close of [...editorEventResponses.values()])close();
+      return lane.stop();
+    },
     assertCheckpointReady: async () => {
       if (lane.isBusy()) throw Error('包装正在生成，请完成后再备份');
       if ((await selectionStore.get()).hasUnsavedChanges) throw Error('当前画面还有未保存修改，请先保存');

@@ -30,16 +30,17 @@ function groupFor(c: any) {
   return c.type === 'text' || c.type === 'list' ? '内容' : '外观';
 }
 
-export function ObjectProperties({editor, selected, values, locks, onSelect, onChange, onLock}: {
+export function ObjectProperties({editor, selected, values, locks, onSelect, onChange, onLock, disabled}: {
   editor: any; selected: string; values: Record<string, unknown>; locks: string[];
   onSelect: (id: string) => void; onChange: (key: string, value: unknown) => void; onLock?: (key: string) => void;
+  disabled?: boolean;
 }) {
   const object = editor?.objects.find((o: any) => o.id === selected);
   const controls = (editor?.controls || []).filter((c: any) => object ? object.parameters.includes(c.key) : !editor.objects?.length);
   const updateNumber = (c: any, v: number) => {
     if (Number.isFinite(v) && (c.min === undefined || v >= c.min) && (c.max === undefined || v <= c.max)) onChange(c.key, v);
   };
-  return <section className="object-properties">
+  return <section className="object-properties"><fieldset disabled={disabled} style={{border: 0, padding: 0, margin: 0, minWidth: 0}}>
     <h3>画面对象</h3>
     <div className="object-chips">{editor?.objects.map((o: any) => <button key={o.id} className={o.id === selected ? 'selected' : ''} aria-pressed={o.id === selected} onClick={() => onSelect(o.id)}>{o.label}</button>)}</div>
     {!editor?.objects?.length && <p className="hint">此段尚未声明画面对象；下方显示已公开参数。</p>}
@@ -79,5 +80,5 @@ export function ObjectProperties({editor, selected, values, locks, onSelect, onC
       })}</section> : null;
     })}
     {locks.length > 0 && <p className="hint">锁定的属性仍可手动调整，Codex 会保留它们。</p>}
-  </section>;
+  </fieldset></section>;
 }

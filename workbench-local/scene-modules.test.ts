@@ -34,6 +34,22 @@ afterEach(async () => {
 });
 
 describe("scene modules", () => {
+  it('accepts explicit canvas capabilities and rejects text editing mapped to another object or non-text control', async () => {
+    const root = await makeRoot();
+    const base = {id: 'canvas-scene', label: 'Canvas', entry: 'Canvas.tsx', exportName: 'Demo',
+      controls: [{key: 'caption', label: 'Caption', type: 'text', default: 'Text'}, {key: 'size', label: 'Size', type: 'number', default: 80}]};
+    await writeModule(root, {...base, objects: [{id: 'headline', label: 'Title', parameters: ['caption', 'size'], canvas: {transform: true, text: 'caption'}}]});
+    expect((await createSceneModules(root).detail(base.id)).objects?.[0].canvas).toEqual({transform: true, text: 'caption'});
+    for (const object of [
+      {parameters: ['size'], canvas: {text: 'caption'}},
+      {parameters: ['caption', 'size'], canvas: {text: 'size'}},
+      {parameters: ['caption'], canvas: {transform: 'yes'}},
+      {parameters: ['caption'], canvas: {unsupported: true}},
+    ]) {
+      await writeModule(root, {...base, objects: [{id: 'headline', label: 'Title', ...object}]});
+      await expect(createSceneModules(root).detail(base.id)).rejects.toThrow();
+    }
+  });
   it("validates select and typed list defaults, bounds, element types and unknown keys without coercion", async () => {
     const root=await makeRoot();
     await writeModule(root,{id:'structured',label:'Structured',entry:'Structured.tsx',exportName:'Demo',controls:[

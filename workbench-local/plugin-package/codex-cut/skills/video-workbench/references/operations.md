@@ -26,12 +26,14 @@
 | operation | data |
 |---|---|
 | production/parameters | `{sceneId,patch:{参数名:值}}` |
+| production/editor/command | `{operationId:UUID,sceneId,objectId,changes:[{kind,key,before,after}]}`；共享画布编辑协议，见下方说明 |
+| production/editor/undo、production/editor/redo | `{operationId:新的UUID,targetOperationId:原操作UUID}`；只能重放自己身份的操作，不能撤销用户调整 |
 | production/scenes | `{source:当前plan.source,scenes:完整场景数组}`，先读取完整方案再只改目标段 |
 | production/request | `{request:{id,sceneId,description,reason,status:"missing"}}` |
 | production/feedback | `{feedback:{sceneId,timeMs,text}}`，timeMs 是全片毫秒 |
 | production/resolve-feedback | `{id}`，仅已实际处理的反馈 |
 | production/rebase | `{}`，粗剪变化后重新绑定前先检查文稿与失效引用 |
-| production/undo | `{}`，撤销上一方案修订，不等于还原代码 |
+| production/undo | `{}`，仅无新对象命令日志的旧工程可用；不等于还原代码 |
 | production/cancel-render | `{id:正在运行的任务ID}` |
 | production/visual-asset | `{member:{id,version},sceneId,values,cueBindings:{cueId:真实wordId},trial:true}`；候选必须明确 trial，可用资产可省略。应用 SCENE 或可支持的 OBJECT 资产，TRANSITION 需先编排相邻画面 |
 | production/style-pack | `{member:{id,version},mode:"preview"}` 返回 affected/conflicts/coverage/brief/selection/scenes；审阅覆盖与保留设置后，以相同方案 revision 提交 `mode:"apply"`。可先选择创作方向，再适配尚未映射的原创场景；不强行覆盖用户设置 |
@@ -45,6 +47,16 @@
 | cut/ranges | `{ranges:[{startMs,endMs}]}`，是保留的原素材区间，不是要删除的区间 |
 | cut/transcript | `{words:[{id,text,startMs,endMs}]}`，源词 ID 要稳定 |
 | cut/transcribe、cut/render、cut/undo | `{}`；转写和渲染可能为耗时任务，应查看状态而非连续重复提交 |
+
+## 直接对象编辑
+
+有 `capabilities.objectCommands` 时，summary/production 返回 `editorSnapshot`（制作与剪辑 revision、模块身份、hasCommands）和 `editorHistory`（用户操作摘要）。目标段落的 editor 返回对象参数与声明；`scene.editor.objectTransforms` 是按稳定对象 ID 保存的 x/y/scale/rotation 覆盖，`objectLocks` 保存对象锁。保留用户的 overrides、参数锁、对象覆盖和对象锁；不要通过改作者布局或硬编码绕开它们。
+
+`editor/command` 的 kind 支持 transform、parameter、objectLock、parameterLock。transform 的 key 为 x/y/scale/rotation，位移为视频逻辑像素，scale 为 0.05–8，旋转为度；parameter 的 key 属于该对象的参数；objectLock 的 key 为 locked，parameterLock 的 key 为参数名，锁值为布尔。before 必须对应已读取的有效值；after 为目标值。多字段同一操作共用 operationId。
+
+一次新操作使用新 UUID；网络结果不明时原样重试同一 operationId 与请求，不更换 before 或 revision。桥接允许这三项命令把较旧制作 revision 交给后端，由字段比较、锁和幂等回执决定能否接续；未来 revision 拒绝，其他制作操作仍要求当前 revision。同字段冲突不能用盲目更新 before 值来覆盖。undo/redo 使用新 operationId 与原 targetOperationId，仅能重放自己的 Codex 操作；用户操作由用户在工作台撤销。
+
+原生场景的对象可声明 `canvas:{transform:true,text:"文字控件key"}`，并用 `EditableCanvasObject` 包住布局，把作者帧动画留在内部。不是任意 HTML/Canvas 像素自动可编辑；准确边界和示例见工作台 `docs/implementation/2026-10-22-direct-object-editing.md`。新工具架构仍需对应插件产物/宿主会话加载，不能声称当前会话自动热更新。
 
 ## 参考与视觉库修改 data
 

@@ -10,6 +10,13 @@ const modules={validate:async(p:any)=>({modulePath:'/local/custom.tsx',exportNam
 const materialModules={validate:async(p:any)=>({modulePath:'/local/custom.tsx',exportName:'Scene',sourceHash:'sha',resolvedParameters:p.parameters,acceptsMaterials:true})};
 vi.mock('remotion', async(importOriginal) => ({...await importOriginal<typeof import('remotion')>(), useCurrentFrame: () => 0}));
 describe('custom scene binding',()=>{
+ it('carries user geometry and parameter overrides into the shared render input without changing word timing', async () => {
+   const edited:ProductionState={...plan,scenes:[{...plan.scenes[0],editor:{overrides:{accent:'#abcdef'},locks:['accent'],objectTransforms:{headline:{x:120,y:-24,scale:1.25,rotation:18}}}}]};
+   const [bound]=await bindScenePrograms(edited,resolveProduction(edited,cut),modules);
+   expect(bound.parameters).toEqual({accent:'#abcdef'});
+   expect(bound.objectTransforms).toEqual({headline:{x:120,y:-24,scale:1.25,rotation:18}});
+   expect(bound.beats[0].frame).toBe(30);
+ });
  it('binds arbitrary ids and text to local frames after roughcut',async()=>{const [s]=await bindScenePrograms(plan,resolveProduction(plan,cut),modules);expect(s.from).toBe(15);expect(s.duration).toBe(75);expect(s.beats[0].frame).toBe(30);expect(s.words.map(w=>w.text)).toEqual(['另一篇','完全不同','文稿']);expect(s.parameters).toEqual({accent:'#123456'});});
  it('rejects unimplemented scenes, stale cuts and deleted beats',async()=>{await expect(bindScenePrograms({...plan,scenes:[{...plan.scenes[0],program:undefined}]},resolveProduction(plan,cut),modules)).rejects.toThrow('动画实现');await expect(bindScenePrograms(plan,resolveProduction(plan,{...cut,revision:3}),modules)).rejects.toThrow('同步');const changed={...plan,scenes:[{...plan.scenes[0],beats:[{wordId:'missing',label:'不存在'}]}]};await expect(bindScenePrograms(changed,resolveProduction(changed,cut),modules)).rejects.toThrow('引用词已删除');});
  it('does not silently discard supplied materials',async()=>{const p={...plan,requests:[{id:'asset',sceneId:'arbitrary-id',description:'画面',reason:'解释',status:'provided' as const,fileName:'test.png'}]};await expect(bindScenePrograms(p,resolveProduction(p,cut),modules)).rejects.toThrow('补充素材');});
