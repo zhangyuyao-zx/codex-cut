@@ -81,10 +81,10 @@ export function preserveSceneEdits(
   for (const old of previous) {
     const objectEdits=old.editor && (Object.keys(old.editor.objectTransforms??{}).length || old.editor.objectLocks?.length || Object.keys(old.editor.objectVisibility??{}).length || Object.keys(old.editor.objectOrder??{}).length);
     const parameterEdits=old.editor && (Object.keys(old.editor.overrides).length || old.editor.locks.length || objectEdits);
-    if(parameterEdits || old.editor?.entryTransition!==undefined) {
+    if(parameterEdits || old.editor?.entryTransition!==undefined || Object.keys(old.editor?.eventTimings??{}).length) {
       const candidate=next.find(s=>s.id===old.id);
       if(!candidate)throw Error('段落含用户调整，不能直接删除：'+old.title);
-      if(parameterEdits && candidate.program?.moduleId!==old.program?.moduleId)
+      if((parameterEdits || Object.keys(old.editor?.eventTimings??{}).length) && candidate.program?.moduleId!==old.program?.moduleId)
         throw Error('段落含用户调整，更换动画需先迁移参数：'+old.title);
     }
   }

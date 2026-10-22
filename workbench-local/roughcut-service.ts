@@ -6,6 +6,7 @@ import {execFile as nodeExecFile} from 'node:child_process';
 import path from 'node:path';
 import {clipTransformSchema, cutTimelineSchema, resolveCutTimeline, type CutTimeline, type TimelineClip} from './cut-timeline';
 import {buildCutRenderPlan} from './cut-render-plan';
+import {splitTimelineClip} from './cut-editor-model';
 import {buildCutInputIdentity, createContentDigester, verifyCutPreviewIdentity} from './cut-media-identity';
 
 const DEFAULT_FFMPEG_PATH = runtimeCommand("ffmpeg");
@@ -99,6 +100,7 @@ export interface RoughcutService {
   verifyPreview(expectedRevision: number): Promise<void>;
   importFile(filePath: string, displayName?: string, appendAtRevision?: number): Promise<RoughcutState>;
   setClips(expectedRevision: number, clips: readonly TimelineClip[]): Promise<RoughcutState>;
+  splitClip(expectedRevision:number, clipId:string, sourceFrame:number):Promise<RoughcutState>;
   setAssetTranscript(expectedRevision: number, assetId: string, words: readonly TranscriptWord[]): Promise<RoughcutState>;
   setTranscript(expectedRevision: number, words: readonly TranscriptWord[]): Promise<RoughcutState>;
   cut(expectedRevision: number, ranges: readonly TimeRange[]): Promise<RoughcutState>;
@@ -825,11 +827,24 @@ class RoughcutServiceImpl implements RoughcutService {
       // Migration aliases cannot be assigned to newly inserted duplicate clips.
       const legacyIds = new Set(timeline.clips.filter(c => c.legacyWordIds).map(c => c.id));
       const nextTimeline = cutTimelineSchema.parse({...timeline, clips: clips.map(c => ({...c,
+        // New occurrences cannot claim an existing occurrence's word identities.
+        wordIdentity: timeline.clips.find(old=>old.id===c.id && old.assetId===c.assetId)?.wordIdentity,
         legacyWordIds: legacyIds.has(c.id) && timeline.clips.find(old => old.id === c.id)?.assetId === c.assetId,
       }))});
       const state = clearError({...envelope.state, timeline: nextTimeline, revision: nextRevision(envelope.state.revision)});
       await this.persist({...envelope, state, history: [...envelope.history, historyEntry(envelope.state)]});
       return clone(state);
+    });
+  }
+
+  public async splitClip(expectedRevision:number, clipId:string, sourceFrame:number):Promise<RoughcutState> {
+    return runSerialized(this.directory,async()=>{
+      const envelope=await this.loadEnvelopeLocked();
+      this.assertExpectedRevision(envelope.state,expectedRevision);this.assertNotBusy(envelope.state);
+      const timeline=await this.registeredTimeline(envelope);
+      const next=splitTimelineClip(timeline,clipId,sourceFrame,randomUUID());
+      const state=clearError({...envelope.state,timeline:next,revision:nextRevision(envelope.state.revision)});
+      await this.persist({...envelope,state,history:[...envelope.history,historyEntry(envelope.state)]});return clone(state);
     });
   }
 

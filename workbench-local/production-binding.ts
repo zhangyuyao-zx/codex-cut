@@ -1,6 +1,7 @@
 import type { Scene, ProductionState } from "./production-store";
 import { findCutWord, projectCutWords, type RoughcutState } from "./roughcut-service";
 import {resolveCutTimeline} from './cut-timeline';
+import {sceneEvents} from './scene-event-timing';
 export function resolveProduction(plan: ProductionState, cut: RoughcutState) {
   const issues: string[] = [];
   const words = projectCutWords(cut);
@@ -39,7 +40,11 @@ export function resolveProduction(plan: ProductionState, cut: RoughcutState) {
       priorBeat = w?.startMs ?? priorBeat;
       return { ...b, wordId: w?.sourceId ?? b.wordId, timeMs: w?.startMs ?? null };
     });
-    return { ...s, startMs: startMs ?? null, endMs: endMs ?? null, beats };
+    // Semantic cue edits are resolved against the module descriptor in bindScenePrograms.
+    const timed=sceneEvents({...s,editor:{...s.editor,eventTimings:Object.fromEntries(Object.entries(s.editor?.eventTimings??{}).filter(([key])=>key.startsWith('beat:')))}},words,startMs??null,endMs??null);
+    issues.push(...timed.issues.map(issue=>'「'+s.title+'」'+issue));
+    return { ...s, startMs: startMs ?? null, endMs: endMs ?? null,
+      beats:beats.map((b,index)=>({...b,...timed.events[index],wordId:b.wordId})) };
   });
   return {
     scenes,

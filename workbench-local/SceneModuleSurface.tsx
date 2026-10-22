@@ -12,7 +12,7 @@ export type SceneModuleInput = {
   title: string;
   parameters: Record<string, unknown>;
   words: { id: string; text: string; start: number; end: number }[];
-  beats: { wordId: string; label: string; frame: number }[];
+  beats: { wordId: string; label: string; frame: number; durationFrames?:number }[];
   mediaSrc: string;
   componentLayers?: any[];
   materials: { id: string; src: string; kind: "image" | "video" }[];

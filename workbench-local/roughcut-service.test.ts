@@ -16,6 +16,21 @@ import {
 const temporaryDirectories: string[] = [];
 
 describe('render provenance and publication protection', () => {
+  it('persists split identities, rejects mid-word cuts and strips forged identities on inserts',async()=>{
+    const dir=await makeTemporaryDirectory(),input=path.join(dir,'input.mp4');await writeFile(input,'source');
+    const options=fakeMediaOptions(3000),service=await createRoughcutService(dir,options);
+    await service.importFile(input);await service.setTranscript(1,[{id:'a',text:'前句',startMs:0,endMs:900},{id:'b',text:'后句',startMs:2000,endMs:2900}]);
+    await expect(service.splitClip(2,'legacy-0',12)).rejects.toThrow('词内部');expect((await service.get()).revision).toBe(2);
+    const split=await service.splitClip(2,'legacy-0',30);
+    expect(projectCutWords(split).map(w=>w.legacySourceId)).toEqual(['a','b']);
+    const reloaded=await createRoughcutService(dir,options);expect((await reloaded.get()).timeline).toEqual(split.timeline);
+    const forged={...split.timeline!.clips[1],id:'new-insert'};
+    const added=await service.setClips(3,[...split.timeline!.clips,forged]);
+    expect(added.timeline!.clips.at(-1)?.wordIdentity).toBeUndefined();expect(added.timeline!.clips.at(-1)?.legacyWordIds).toBe(false);
+    expect(new Set(projectCutWords(added).map(w=>w.sourceId)).size).toBe(3);
+    await expect(service.splitClip(2,'legacy-0',20)).rejects.toMatchObject({code:'STALE_REVISION'});
+    await service.undo(4);const undone=await service.undo(5);expect(undone.timeline).toBeUndefined();
+  });
   it('retains both previous artifacts and removes the new internal source if preview encoding fails',async()=>{
     const directory=await makeTemporaryDirectory(),input=path.join(directory,'input.mp4');
     await writeFile(input,'source');

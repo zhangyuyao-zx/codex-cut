@@ -9,7 +9,8 @@ import {runtimeCommand} from '../workbench-local/runtime-paths';
 
 // Reproducible technical project. It contains no real speech or user media.
 const directory = resolve(process.argv[2] || 'projects/editor-stage-a-demo');
-const stageB = process.argv.includes('--stage-b');
+const stageC = process.argv.includes('--stage-c');
+const stageB = process.argv.includes('--stage-b')||stageC;
 const seconds = stageB ? 12 : 4;
 for (const file of ['production/production.json', 'cut/roughcut.json']) {
   try {await access(resolve(directory, file)); throw Error('演示目录已存在工程，拒绝覆盖：' + directory);}
@@ -19,10 +20,11 @@ await mkdir(directory, {recursive: true});
 const source = resolve(directory, 'synthetic-source.mp4');
 await promisify(execFile)(runtimeCommand('ffmpeg'), ['-v', 'error', '-n',
   '-f', 'lavfi', '-i', `color=c=0xf1f3ec:s=1920x1080:r=30:d=${seconds}`,
-  '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-t', String(seconds),
+  '-f', 'lavfi', '-i', stageC?`sine=frequency=440:sample_rate=48000:duration=${seconds}`:'anullsrc=r=48000:cl=stereo', '-t', String(seconds),
+  ...(stageC?['-af',"volume='if(lt(mod(t,1),0.18),0.55,0.04)':eval=frame"]:[]),
   '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', source]);
 const cut = await createRoughcutService(resolve(directory, 'cut'));
-let state = await cut.importFile(source, '独立编辑演示 · 合成静音素材');
+let state = await cut.importFile(source,stageC?'独立时间线演示 · 合成提示音':'独立编辑演示 · 合成静音素材');
 const words = (stageB ? ['标题','编辑','演示','结束','数字','强调','演示','结束','流程','编排','演示','结束'] : ['独立', '编辑', '演示', '结束']).map((text, index) => ({id: 'demo-' + index, text, startMs: index * 1000, endMs: (index + 1) * 1000}));
 state = state.timeline
   ? await cut.setAssetTranscript(state.revision, state.timeline.assets[0].id, words)
@@ -37,7 +39,7 @@ const scenes = stageB ? [
   {id:'editor-number-demo',title:'数字 · 把重点放大',moduleId:'editor-number'},
   {id:'editor-flow-demo',title:'流程 · 让信息递进',moduleId:'editor-flow'},
 ].map((item,index)=>({id:item.id,title:item.title,intent:'独立界面演示；静音素材与词锚点均为合成数据。',startWordId:timelineWords[index*4].sourceId,endWordId:timelineWords[index*4+3].sourceId,
-  beats:[{wordId:timelineWords[index*4].sourceId,label:'开始'}],program:{moduleId:item.moduleId,parameters:{}}})) : [{
+  beats:stageC&&index===2?[0,1,2].map((n)=>({wordId:timelineWords[8+n].sourceId,label:['理解内容','编排重点','实现动画'][n],durationFrames:12})):[{wordId:timelineWords[index*4].sourceId,label:'开始'}],program:{moduleId:item.moduleId,parameters:{}}})) : [{
   id: 'editable-title-demo', title: '独立编辑演示', intent: '验证直接编辑和作者接续修改；时间锚点为合成数据，不是语音转写。',
   startWordId: timelineWords[0].sourceId, endWordId: timelineWords.at(-1)!.sourceId,
   beats: [{wordId: timelineWords[0].sourceId, label: '标题出现'}],
@@ -47,4 +49,4 @@ const production = await store.setScenes(initial.revision, {assetUrl: state.asse
 const selection = await createEditorSelection(resolve(directory, 'production'));
 await selection.set({sceneId: production.scenes[0].id, objectId: 'headline', timeSeconds: 1, view: 'scene', baseRevision: production.revision, hasUnsavedChanges: false});
 console.log(JSON.stringify({directory, productionRevision: production.revision, cutRevision: state.revision,
-  note: '独立静音技术工程，不包含用户素材，不代表用户影片认可。'}, null, 2));
+  note: stageC?'独立合成提示音技术工程，不包含用户素材，不代表用户影片认可。':'独立静音技术工程，不包含用户素材，不代表用户影片认可。'}, null, 2));

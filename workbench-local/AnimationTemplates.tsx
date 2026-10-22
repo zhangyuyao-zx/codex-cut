@@ -25,9 +25,9 @@ export function SaveAnimation({
     <details className="save-animation">
       <summary>保存为我的动画</summary>
       <p className="hint">
-        保留这版动画、组件、已补充的素材和可编辑参数。用于新段落时由 Codex 适配内容与时机。
+        保存整段画面和已补充素材。文字、样式、图层和动作节奏仍可编辑。
       </p>
-      {(Object.keys(scene.editor?.objectTransforms || {}).length > 0 || Object.keys(scene.editor?.objectVisibility || {}).length > 0 || Object.keys(scene.editor?.objectOrder || {}).length > 0 || scene.editor?.objectLocks?.length > 0) && <p className="hint">图层调整和图层锁目前保存在当前工程中，暂不随动画存档带走；需要完整保留时，请使用工程备份。</p>}
+      <p className="hint">用于另一段时重新选择口播出现点。已有调整会保留，无法合并时会提示。</p>
       <label>
         动画名称
         <input

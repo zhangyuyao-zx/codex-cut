@@ -1,4 +1,5 @@
 import {activeMaterialRequests} from './active-material-requests';
+import {sceneEvents,eventTimingSchema} from './scene-event-timing';
 import {rendererSourceIdentity} from "./renderer-source-identity";
 import {remotionRuntime, runtimeCommand} from "./runtime-paths";
 import type { createComponentLibrary } from "./component-library";
@@ -194,6 +195,7 @@ export async function productionRoutes(
         "SceneTransitionSurface.tsx",
         "scene-transition.ts",
         "scene-program-binding.ts",
+        "scene-event-timing.ts",
         "component-media.ts",
         "AppLibraryComponent.jsx",
         "../modules/legacy/components/component-runtime-identity.generated.ts",
@@ -518,6 +520,12 @@ export async function productionRoutes(
         }),
       ),
       resolved,
+      timelineEvents:plan.scenes.flatMap(s=>{
+        const range=resolved.scenes.find(r=>r.id===s.id)!;
+        const semantic=moduleCatalog.find(m=>m.id===s.program?.moduleId)?.visualAsset;
+        return sceneEvents(s,resolved.words,range.startMs,range.endMs,semantic?.cues).events.map(event=>({...event,sceneId:s.id,
+          sceneFrom:Math.round((range.startMs??0)*.03),sceneEnd:Math.round((range.endMs??0)*.03)}));
+      }),
       key,
       props,
       programError,
@@ -849,6 +857,7 @@ export async function productionRoutes(
       const labels = reviewActions(undefined, range.beats, range.startMs, range.endMs, spoken.words);
       const canonicalWord = (id: string) => findCutWord(spoken.words, id)?.sourceId ?? id;
       const savedScene = {...scene,
+        ...(scene.editor?.eventTimings?{editor:{...scene.editor,eventTimings:Object.fromEntries(Object.entries(scene.editor.eventTimings).map(([key,value])=>[key.startsWith('beat:')?'beat:'+canonicalWord(key.slice(5)):key,value]))}}:{}),
         program:scene.program?{...scene.program,cueBindings:scene.program.cueBindings?Object.fromEntries(Object.entries(scene.program.cueBindings).map(([id,word])=>[id,canonicalWord(word)])):undefined}:undefined,
         startWordId:canonicalWord(scene.startWordId), endWordId:canonicalWord(scene.endWordId),
         design:scene.design ? {...scene.design,actions:scene.design.actions.map(a=>({...a,wordId:canonicalWord(a.wordId)}))} : undefined,
@@ -964,7 +973,7 @@ export async function productionRoutes(
         throw Error("当前画面还有未保存修改，请先保存或放弃");
       const draft = await prepareAnimation(req.body, true);
       await store.setSceneWithRequests(
-        req.body.expectedRevision, draft.candidate, draft.requests,
+        req.body.expectedRevision, draft.candidate, draft.requests,{restoreCapturedEditor:true},
       );
       res.json(await context());
     } catch (e) {
@@ -1066,6 +1075,39 @@ export async function productionRoutes(
     } catch (e) {
       next(e);
     }
+  });
+  router.post('/event-edit',async(req,res,next)=>{
+    try{
+      if(!req.body||typeof req.body.eventId!=='string'||Object.keys(req.body).some(k=>!['actor','expectedRevision','sceneId','eventId','offsetFrames','durationFrames','wordId','reset'].includes(k)))throw Error('无效的动作调整');
+      await protectEditorDraft(req.body);
+      const [plan,cut]=await Promise.all([store.get(),cutStore.get()]);
+      const scene=plan.scenes.find(s=>s.id===req.body.sceneId);if(!scene)throw Error('段落不存在');
+      const check=resolveProduction({...plan,scenes:[scene],requests:plan.requests.filter(r=>r.sceneId===scene.id)},cut);
+      const range=check.scenes[0];
+      const descriptor=scene.program?await sceneModules.detail(scene.program.moduleId):null;
+      const current=sceneEvents(scene,check.words,range.startMs,range.endMs,descriptor?.visualAsset?.cues).events.find(e=>e.id===req.body.eventId);
+      if(!current)throw Error('动作不存在，请重新读取当前段落');
+      const edited=structuredClone(scene);edited.editor={overrides:{},locks:[],...edited.editor};
+      const timings={...edited.editor.eventTimings};let key=current.id;
+      if(req.body.wordId!==undefined){
+        const word=findCutWord(check.words,req.body.wordId);
+        if(!word||range.startMs===null||range.endMs===null||word.startMs<range.startMs||word.startMs>=range.endMs)throw Error('请选择本段内仍然保留的口播词');
+        if(key.startsWith('cue:'))edited.program!.cueBindings={...edited.program!.cueBindings,[key.slice(4)]:word.sourceId};
+        else {const beat=edited.beats.find(b=>'beat:'+b.wordId===key)!;
+          const previous=timings[key];delete timings[key];beat.wordId=word.sourceId;key='beat:'+word.sourceId;if(previous)timings[key]=previous;}
+      }
+      if(req.body.reset===true)delete timings[key];
+      else if(req.body.offsetFrames!==undefined||req.body.durationFrames!==undefined)timings[key]=eventTimingSchema.parse({
+        offsetFrames:req.body.offsetFrames??current.offsetFrames,...(req.body.durationFrames===undefined?(current.durationFrames===undefined?{}:{durationFrames:current.durationFrames}):{durationFrames:req.body.durationFrames})});
+      edited.editor.eventTimings=timings;
+      const candidate=await inheritStyle({...plan,scenes:[edited],requests:plan.requests.filter(r=>r.sceneId===scene.id)});
+      const resolved=resolveProduction(candidate,cut);
+      if(resolved.issues.length||resolved.stale)throw Error(resolved.issues.join('\n')||'请先同步剪辑时间');
+      await validateEdits([edited],req.body.actor==='user'?'user':'codex');
+      if(edited.program)await bindScenePrograms(candidate,resolved,sceneModules);
+      await store.setScenes(req.body.expectedRevision,plan.source,plan.scenes.map(s=>s.id===scene.id?edited:s),'user');
+      res.json(await context());
+    }catch(error){next(error);}
   });
   router.post("/scene-edit", async (req, res, next) => {
     try {

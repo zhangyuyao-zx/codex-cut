@@ -60,6 +60,17 @@ function feedback(sceneId: string, id = `${sceneId}-feedback`): Feedback {
 }
 
 describe('production store', () => {
+  it('applies a captured editor atomically without losing target overrides or locks',async()=>{
+    const directory=await makeTemporaryDirectory(),store=await createProductionStore(directory);
+    const initial={...scene('new'),editor:{overrides:{},locks:[],eventTimings:{}}};
+    const first=await store.setScenes(0,null,[initial]);
+    const incoming={...initial,program:{moduleId:'saved-demo',parameters:{}},beats:[{wordId:'new-beat',label:'出现',durationFrames:12}],
+      editor:{overrides:{untrusted:'ignored'},locks:['untrusted'],objectTransforms:{title:{x:80}},objectVisibility:{title:false},objectOrder:{root:['title']},objectLocks:['title'],eventTimings:{'beat:new-beat':{offsetFrames:3,durationFrames:18}}}};
+    const applied=await store.setSceneWithRequests(first.revision,incoming,[],{restoreCapturedEditor:true});
+    expect(applied.scenes[0].editor).toMatchObject({overrides:{},locks:[],objectTransforms:{title:{x:80}},objectVisibility:{title:false},objectLocks:['title'],eventTimings:{'beat:new-beat':{offsetFrames:3,durationFrames:18}}});
+    expect((await (await createProductionStore(directory)).get()).scenes[0]).toEqual(applied.scenes[0]);
+    expect((await store.undo(applied.revision)).scenes).toEqual([initial]);
+  });
   it('round-trips list values and preserves locked array overrides across creative updates, reopen and undo',async()=>{
     const directory=await makeTemporaryDirectory();
     const store=await createProductionStore(directory);

@@ -26,6 +26,7 @@
 | operation | data |
 |---|---|
 | production/parameters | `{sceneId,patch:{参数名:值}}` |
+| production/event-edit | `{sceneId,eventId,offsetFrames?,durationFrames?,wordId?,reset?}`；eventId 来自 summary/production.timelineEvents；调整相对词的偏移或重绑，显式声明的动作才可改时长。保留其他字段，expectedRevision 为当前制作修订 |
 | production/editor/command | `{operationId:UUID,sceneId,objectId,changes:[{kind,key,before,after}]}`；共享画布编辑协议，见下方说明 |
 | production/editor/undo、production/editor/redo | `{operationId:新的UUID,targetOperationId:原操作UUID}`；只能重放自己身份的操作，不能撤销用户调整 |
 | production/scenes | `{source:当前plan.source,scenes:完整场景数组}`，先读取完整方案再只改目标段 |
@@ -45,6 +46,8 @@
 | production/animation-templates/apply | 同 preview，写入目标段落。先预览并检查真实目标内容，保留当前用户参数与锁；保存文件不等于已应用 |
 | cut/import | `{path:"用户指定的本地绝对路径"}`；保护当前项目，再导入，不能当作新建工程 |
 | cut/ranges | `{ranges:[{startMs,endMs}]}`，是保留的原素材区间，不是要删除的区间 |
+| cut/clips | `{clips:完整片段数组}`；从当前 cut.timeline 读取，只改目标片段的范围/属性/顺序，保留稳定 ID。新插入使用新 ID，不伪造 wordIdentity |
+| cut/split | `{clipId,sourceFrame}`；sourceFrame 是该素材 30fps 帧位置，必须处于片段内部的词间；服务器生成新片段 ID 并保留词身份 |
 | cut/transcript | `{words:[{id,text,startMs,endMs}]}`，源词 ID 要稳定 |
 | cut/transcribe、cut/render、cut/undo | `{}`；转写和渲染可能为耗时任务，应查看状态而非连续重复提交 |
 

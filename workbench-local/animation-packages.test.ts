@@ -157,7 +157,7 @@ function rewritePackageManifest(
   ]);
 }
 
-async function makeExportedPackage(): Promise<{
+async function makeExportedPackage(withLayers = false): Promise<{
   readonly root: string;
   readonly service: ReturnType<typeof createAnimationTemplates>;
   readonly template: AnimationTemplate;
@@ -165,12 +165,24 @@ async function makeExportedPackage(): Promise<{
 }> {
   const root = await makeRoot();
   await writeSourceModule(root);
+  const assetId = "f543988b-d9d3-4130-a7fc-37491b0f685d";
+  const scene = sourceSceneWithComponent(assetId);
+  if (withLayers) {
+    const canvas = {transform: true, visibility: true, reorder: true};
+    await writeFile(path.join(root, 'workbench-local/scenes/source-animation.json'), JSON.stringify({...sourceManifest,
+      objects: [{id: 'group', label: 'Group', parameters: [], kind: 'group', canvas},
+        {...sourceManifest.objects[0], parentId: 'group', kind: 'text', canvas: {...canvas, text: 'caption'}},
+        {id: 'badge', label: 'Badge', parameters: [], parentId: 'group', kind: 'shape', canvas}]}));
+    scene.editor = {...scene.editor!, objectTransforms: {headline: {x: 20, scale: 1.2}},
+      objectVisibility: {headline: false}, objectOrder: {'group:group': ['badge', 'headline']}, objectLocks: ['group'],
+      eventTimings: {'beat:source-word-a': {offsetFrames: 4, durationFrames: 18}}};
+    scene.beats[0].durationFrames = 12;
+  }
   const originalMedia = path.join(root, "original.png");
   const materialDirectory = path.join(root, "materials");
   await mkdir(materialDirectory, {recursive: true});
   await writeFile(originalMedia, Buffer.from("component media bytes"));
   await writeFile(path.join(materialDirectory, "proof.png"), Buffer.from("supplementary media bytes"));
-  const assetId = "f543988b-d9d3-4130-a7fc-37491b0f685d";
   const service = await makeService(root, path.join(root, "project-a", "templates"), {
     materialDirectory,
     resolveComponentAsset: async () => ({
@@ -188,7 +200,7 @@ async function makeExportedPackage(): Promise<{
   });
   const template = await service.save({
     name: "Portable animation",
-    scene: sourceSceneWithComponent(assetId),
+    scene,
     wordOrder: ["source-word-a", "component-start", "source-word-b", "component-end"],
     requests: [{
       id: "proof",
@@ -211,6 +223,43 @@ afterEach(async () => {
 });
 
 describe("animation packages", () => {
+  it('exports and imports captured layer state and rejects invalid layer references before publication', async () => {
+    const fixture = await makeExportedPackage(true);
+    const root = await makeRoot(), directory = path.join(root, 'templates');
+    const service = await makeService(root, directory, {componentAssetDirectory: path.join(root, 'component-assets')});
+    const imported = await service.importPackage(fixture.packageFile);
+    expect(imported.template.layerState).toEqual(fixture.template.layerState);
+    expect(imported.template.objects).toEqual(fixture.template.objects);
+    expect(imported.template.cueTimings).toEqual([{cueIndex:0,declaredDurationFrames:12,timing:{offsetFrames:4,durationFrames:18}}]);
+    const applied = await service.instantiate({id: imported.template.id, target: targetScene(),
+      bindings: ['new-a', 'new-component-start', 'new-b', 'new-component-end']});
+    expect(applied.editor).toEqual({...targetScene().editor, ...fixture.template.layerState,
+      eventTimings:{'beat:new-a':{offsetFrames:4,durationFrames:18}}});
+    expect(applied.beats[0].durationFrames).toBe(12);
+    expect(applied.program?.parameters).toEqual({caption: 'captured caption', count: 7});
+
+    const invalidRoot = await makeRoot(), invalidService = await makeService(invalidRoot, path.join(invalidRoot, 'templates'));
+    const invalidPackage = path.join(fixture.root, 'invalid-layers.cutanimation');
+    await writeFile(invalidPackage, rewritePackageManifest(await readFile(fixture.packageFile), manifest => {
+      (manifest.template as any).layerState.objectLocks = ['missing-object'];
+    }));
+    await expect(invalidService.importPackage(invalidPackage)).rejects.toThrow('missing-object');
+    expect(await invalidService.list()).toEqual([]);
+    expect(await readdir(path.join(invalidRoot, 'workbench-local/scenes'))).toEqual([]);
+  });
+
+  it('keeps schema v1 archives without layer state compatible and preserves the target editor exactly', async () => {
+    const fixture = await makeExportedPackage();
+    expect(fixture.template).not.toHaveProperty('layerState');
+    const root = await makeRoot(), service = await makeService(root, path.join(root, 'templates'),
+      {componentAssetDirectory: path.join(root, 'component-assets')});
+    await service.importPackage(fixture.packageFile);
+    const target = targetScene();
+    const applied = await service.instantiate({id: fixture.template.id, target,
+      bindings: ['a', 'component-a', 'b', 'component-b']});
+    expect(applied.editor).toEqual(target.editor);
+  });
+
   it("exports a bounded streaming package and imports it into an isolated project", async () => {
     const fixture = await makeExportedPackage();
     const bytes = await readFile(fixture.packageFile);

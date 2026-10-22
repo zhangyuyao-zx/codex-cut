@@ -186,6 +186,18 @@ test('cut writes still use cut revision independently from production and librar
  const write=calls.find(call=>call.method==='POST');assert.equal(write.path,'/api/cut/ranges');assert.equal(write.body.expectedRevision,13);
 });
 
+test('timeline writes enforce domain revisions and Codex identity',async t=>{
+ const {calls}=mockService(t);
+ for(const operation of ['cut/clips','cut/split','production/event-edit']){
+  calls.length=0;const expectedRevision=operation.startsWith('cut/')?13:7;
+  await assert.rejects(invoke('update_project',{operation,expectedRevision:40,data:{}}),/版本/);
+  assert(!calls.some(call=>call.method==='POST'||call.path==='/api/bootstrap'));
+  await invoke('update_project',{operation,expectedRevision,data:{actor:'user',clipId:'clip',sourceFrame:30,sceneId:'existing-scene',eventId:'beat:word',offsetFrames:2}});
+  const write=calls.find(call=>call.method==='POST');assert.equal(write.path,'/api/'+operation);assert.equal(write.body.expectedRevision,expectedRevision);
+  if(operation.startsWith('production/'))assert.equal(write.body.actor,'codex');
+ }
+});
+
 test('update_project cannot select ready versions or forge accepted reviews',async t=>{
  const {calls}=mockService(t);
  for(const operation of ['visual-library/asset-status','visual-library/pack-status'])

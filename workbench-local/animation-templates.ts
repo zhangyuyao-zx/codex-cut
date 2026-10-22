@@ -19,6 +19,9 @@ import {fileDigest} from './segment-reviews';
 import {resolveStaticAsset, staticAssetCalls} from './scene-static-assets';
 import {validateCreativeDependencies,resolveCreativeDependencies} from './creative-runtime-dependencies';
 import type {CreativeDependencies} from './creative-runtime-dependency-contract';
+import {z} from 'zod';
+import {assertObjectEditsCompatible, type ObjectEditor} from './editor-commands';
+import {eventTimingSchema, eventTimingsSchema, type EventTiming} from './scene-event-timing';
 
 import {
   createSceneModules,
@@ -51,6 +54,15 @@ export interface AnimationTemplateCue {
   readonly label: string;
 }
 
+export type AnimationTemplateLayerState = Pick<ObjectEditor,
+  'objectTransforms' | 'objectVisibility' | 'objectOrder' | 'objectLocks'>;
+
+export interface AnimationTemplateCueTiming {
+  readonly cueIndex: number;
+  readonly declaredDurationFrames?: number;
+  readonly timing?: EventTiming;
+}
+
 export interface AnimationTemplate {
   readonly dependencies?: CreativeDependencies;
   readonly styleBindings?: Readonly<Record<string,string>>;
@@ -64,13 +76,12 @@ export interface AnimationTemplate {
   readonly sourceHash: string;
   readonly parameters: Readonly<Record<string, SceneModuleParameterValue>>;
   readonly locks: readonly string[];
+  /** Optional in schema v1 so existing archives retain their original semantics. */
+  readonly layerState?: AnimationTemplateLayerState;
   readonly cues: readonly AnimationTemplateCue[];
+  readonly cueTimings?: readonly AnimationTemplateCueTiming[];
   readonly controls: readonly SceneModuleControl[];
-  readonly objects: readonly {
-    readonly id: string;
-    readonly label: string;
-    readonly parameters: readonly string[];
-  }[];
+  readonly objects: NonNullable<SceneModuleDetail['objects']>;
   readonly acceptsMaterials: boolean;
   readonly contents?: AnimationContents;
 }
@@ -322,6 +333,124 @@ function assertEditorKeys(
     );
 }
 
+const objectIdSchema = z.string().regex(/^[a-z0-9](?:[a-z0-9_-]{0,127})$/u);
+const layerStateSchema = z.object({
+  objectTransforms: z.record(objectIdSchema, z.object({
+    x: z.number().finite().min(-20000).max(20000).optional(),
+    y: z.number().finite().min(-20000).max(20000).optional(),
+    scale: z.number().finite().min(0.05).max(8).optional(),
+    rotation: z.number().finite().min(-3600).max(3600).optional(),
+  }).strict()).optional(),
+  objectVisibility: z.record(objectIdSchema, z.boolean()).optional(),
+  objectOrder: z.record(z.string().regex(/^(root|group:[A-Za-z0-9][A-Za-z0-9_-]*)$/u),
+    z.array(objectIdSchema).max(1000)).optional(),
+  objectLocks: z.array(objectIdSchema).max(1000).refine(ids => new Set(ids).size === ids.length,
+    'Object locks must not contain duplicate IDs').optional(),
+}).strict();
+const templateObjectSchema = z.object({
+  id: objectIdSchema,
+  label: z.string().refine(label => label.trim().length > 0),
+  parameters: z.array(z.string()).refine(keys => new Set(keys).size === keys.length),
+  parentId: objectIdSchema.optional(),
+  kind: z.enum(['text', 'image', 'video', 'shape', 'group']).optional(),
+  canvas: z.object({
+    transform: z.boolean().optional(), text: z.string().optional(),
+    visibility: z.boolean().optional(), reorder: z.boolean().optional(),
+  }).strict().optional(),
+}).strict();
+const cueTimingSchema = z.object({
+  cueIndex: z.number().int().nonnegative(),
+  declaredDurationFrames: z.number().int().min(1).max(30000).optional(),
+  timing: eventTimingSchema.optional(),
+}).strict().refine(value => value.declaredDurationFrames !== undefined || value.timing !== undefined,
+  'Cue timing must contain a duration declaration or edit')
+  .refine(value => value.timing?.durationFrames === undefined || value.declaredDurationFrames !== undefined,
+    'Duration edits require an explicit duration declaration');
+
+function assertCueTimings(value: unknown, cueCount: number, context: string): AnimationTemplateCueTiming[] {
+  const parsed = z.array(cueTimingSchema).safeParse(value);
+  if (!parsed.success)
+    fail('STORAGE_FAILED', `${context}: invalid cue timing metadata; duration edits require declared durations`);
+  const indices = parsed.data.map(item => item.cueIndex);
+  if (new Set(indices).size !== indices.length || indices.some(index => index >= cueCount))
+    fail('STORAGE_FAILED', `${context}: duplicate or unknown cue index`);
+  return clone(parsed.data);
+}
+
+function captureCueTimings(scene: Scene, detail: SceneModuleDetail, cues: readonly {wordId: string}[]): AnimationTemplateCueTiming[] {
+  const parsed = eventTimingsSchema.safeParse(scene.editor?.eventTimings ?? {});
+  if (!parsed.success) fail('INVALID_INPUT', '动画事件时间调整格式无效，请检查帧偏移与时长');
+  const edits = parsed.data;
+  const definitions = detail.visualAsset ? Object.entries(scene.program?.cueBindings ?? {}).map(([id, wordId]) => {
+    if (!detail.visualAsset!.cues.some(cue => cue.id === id))
+      fail('INVALID_INPUT', '动画事件未在源模块声明：cue:' + id);
+    return {id: 'cue:' + id, wordId, durationFrames: undefined as number | undefined};
+  }) : scene.beats.map(beat => ({...beat, id: 'beat:' + beat.wordId}));
+  const unknown = Object.keys(edits).find(id => !definitions.some(event => event.id === id));
+  if (unknown) fail('INVALID_INPUT', '动画事件时间调整失去绑定，请先移除或重新绑定：' + unknown);
+  const byWord = new Map<string, AnimationTemplateCueTiming>();
+  for (const event of definitions) {
+    const timing = edits[event.id], declaredDurationFrames = event.durationFrames;
+    if (timing?.durationFrames !== undefined && declaredDurationFrames === undefined)
+      fail('INVALID_INPUT', '此动作未声明可编辑时长，不能保存时长调整：' + event.id);
+    const entry = {cueIndex: cues.findIndex(cue => cue.wordId === event.wordId),
+      ...(declaredDurationFrames === undefined ? {} : {declaredDurationFrames}),
+      ...(timing === undefined ? {} : {timing: clone(timing)})};
+    const effective = (item: AnimationTemplateCueTiming) => ({offsetFrames: item.timing?.offsetFrames ?? 0,
+      durationFrames: item.timing?.durationFrames ?? item.declaredDurationFrames,
+      declaredDurationFrames: item.declaredDurationFrames});
+    const previous = byWord.get(event.wordId);
+    if (previous && !packageJsonEqual(effective(previous), effective(entry)))
+      fail('INVALID_INPUT', `同词事件的偏移或时长不同，当前动画存档无法无歧义保存：${event.wordId}；请拆分事件绑定后重试`);
+    byWord.set(event.wordId, {...entry, ...(previous?.timing === undefined ? {} : {timing: previous.timing})});
+  }
+  const captured = [...byWord.values()].filter(item => item.timing !== undefined || item.declaredDurationFrames !== undefined);
+  try { return assertCueTimings(captured, cues.length, 'Scene cue timings'); }
+  catch (error) { fail('INVALID_INPUT', error instanceof Error ? error.message : 'Invalid scene cue timings'); }
+}
+
+function assertLayerState(
+  value: unknown,
+  descriptor: Pick<AnimationTemplate, 'objects' | 'controls' | 'parameters'>,
+  context: string,
+  code: AnimationTemplateErrorCode = 'INVALID_INPUT',
+): AnimationTemplateLayerState {
+  try {
+    const state = layerStateSchema.parse(value);
+    assertObjectEditsCompatible({overrides: {}, locks: [], ...state}, {
+      objects: descriptor.objects, controls: descriptor.controls, resolvedParameters: descriptor.parameters,
+    });
+    return clone(state);
+  } catch (error) {
+    fail(code, `${context}: ${error instanceof Error ? error.message : 'Invalid layer state'}; 检查存档对象 ID、父级和编辑能力后重试`);
+  }
+}
+
+function sceneLayerState(scene: Scene): AnimationTemplateLayerState {
+  const editor = scene.editor;
+  return {
+    ...(editor?.objectTransforms === undefined ? {} : {objectTransforms: editor.objectTransforms}),
+    ...(editor?.objectVisibility === undefined ? {} : {objectVisibility: editor.objectVisibility}),
+    ...(editor?.objectOrder === undefined ? {} : {objectOrder: editor.objectOrder}),
+    ...(editor?.objectLocks === undefined ? {} : {objectLocks: editor.objectLocks}),
+  };
+}
+
+function mergeLayerState(saved: AnimationTemplateLayerState, target: AnimationTemplateLayerState): AnimationTemplateLayerState {
+  const merged: AnimationTemplateLayerState = {...clone(saved), ...clone(target)};
+  for (const key of ['objectTransforms', 'objectVisibility', 'objectOrder'] as const) {
+    if (saved[key] !== undefined || target[key] !== undefined)
+      (merged as Record<string, unknown>)[key] = {...clone(saved[key] ?? {}), ...clone(target[key] ?? {})};
+  }
+  if (merged.objectTransforms) {
+    for (const [id, transform] of Object.entries(target.objectTransforms ?? {}))
+      merged.objectTransforms[id] = {...saved.objectTransforms?.[id], ...transform};
+  }
+  if (saved.objectLocks !== undefined || target.objectLocks !== undefined)
+    merged.objectLocks = [...new Set([...(saved.objectLocks ?? []), ...(target.objectLocks ?? [])])];
+  return merged;
+}
+
 function assertTemplateShape(value: unknown, index: number): AnimationTemplate {
   const context = `Template ${index}`;
   const record = assertRecord(value, context);
@@ -375,26 +504,18 @@ function assertTemplateShape(value: unknown, index: number): AnimationTemplate {
   }
   try { resolveSceneModuleParameters(controls, record.parameters); }
   catch (error) { fail("STORAGE_FAILED", `${context}.parameters: ${error instanceof Error ? error.message : "invalid"}`); }
-  const objects: {
-    id: string;
-    label: string;
-    parameters: string[];
-  }[] = [];
+  const objects: NonNullable<SceneModuleDetail['objects']>[number][] = [];
   for (const [objectIndex, object] of record.objects.entries()) {
-    if (
-      !isRecord(object) ||
-      typeof object.id !== "string" ||
-      typeof object.label !== "string" ||
-      !Array.isArray(object.parameters) ||
-      object.parameters.some((key) => typeof key !== "string")
-    )
-      fail("STORAGE_FAILED", `${context}.objects[${objectIndex}] is invalid`);
-    objects.push({
-      id: object.id,
-      label: object.label,
-      parameters: [...(object.parameters as string[])],
-    });
+    const parsed = templateObjectSchema.safeParse(object);
+    if (!parsed.success || parsed.data.parameters.some(key => !controls.some(c => c.key === key)) ||
+      (parsed.data.canvas?.text !== undefined && (!parsed.data.parameters.includes(parsed.data.canvas.text) ||
+        !controls.some(c => c.key === parsed.data.canvas?.text && c.type === 'text'))))
+      fail('STORAGE_FAILED', `${context}.objects[${objectIndex}] has invalid object metadata or unknown parameters`);
+    objects.push(parsed.data);
   }
+  const descriptor = {objects, controls, parameters: record.parameters as Record<string, SceneModuleParameterValue>};
+  // Validate hierarchy even for archives without captured editor state.
+  assertLayerState({}, descriptor, `${context}.objects`, 'STORAGE_FAILED');
   return {
     id,
     name,
@@ -405,7 +526,9 @@ function assertTemplateShape(value: unknown, index: number): AnimationTemplate {
     sourceHash,
     parameters: clone(record.parameters) as Record<string, SceneModuleParameterValue>,
     locks,
+    ...(record.layerState === undefined ? {} : {layerState: assertLayerState(record.layerState, descriptor, `${context}.layerState`, 'STORAGE_FAILED')}),
     cues,
+    ...(record.cueTimings === undefined ? {} : {cueTimings: assertCueTimings(record.cueTimings, cues.length, `${context}.cueTimings`)}),
     controls,
     objects,
     acceptsMaterials: record.acceptsMaterials,
@@ -860,6 +983,9 @@ function sourceTemplateRecord(
     detail.controls,
     "Scene editor",
   );
+  const layerState = assertLayerState(sceneLayerState(scene), {
+    objects: detail.objects ?? [], controls: detail.controls, parameters,
+  }, 'Scene editor layer state');
   return {
     id: moduleId.slice("saved-".length),
     name: assertTemplateName(input.name),
@@ -870,6 +996,7 @@ function sourceTemplateRecord(
     sourceHash: detail.sourceHash,
     parameters: clone(parameters),
     locks,
+    ...(Object.keys(layerState).length === 0 ? {} : {layerState}),
     cues: sourceCueLabels(scene),
     controls: clone(detail.controls),
     objects: clone(detail.objects ?? []),
@@ -912,6 +1039,9 @@ export function createAnimationTemplates(
     assertScene(input.scene, { requireProgram: true, rejectComponents: false });
     const program = assertProgram(input.scene);
     const sourceBefore = await sceneModules.detail(program.moduleId);
+    assertLayerState(sceneLayerState(input.scene), {
+      objects: sourceBefore.objects ?? [], controls: sourceBefore.controls, parameters: {},
+    }, 'Scene editor layer state');
     const sourceTemplate = (await list()).find((candidate) => candidate.moduleId === program.moduleId);
     if (sourceTemplate?.contents?.materials.length && sourceTemplate.contents.materialSlotsVersion !== 1)
       fail(
@@ -963,6 +1093,7 @@ export function createAnimationTemplates(
       semanticCues=Object.entries(program.cueBindings??{}).map(([label,wordId])=>({label,sourceCueIndex:sourceCueWordIds.indexOf(wordId)}));
     }
     const cues = animationCues(input.scene,input.wordOrder);
+    const cueTimings = captureCueTimings(input.scene, sourceBefore, cues);
     const sourceTemplateId = SOURCE_MODULE_ID_PATTERN.test(program.moduleId)
       ? program.moduleId.slice("saved-".length)
       : undefined;
@@ -993,7 +1124,8 @@ export function createAnimationTemplates(
       moduleId,
       sourceBefore,
       resolved.resolvedParameters,
-    ), cues:cues.map(c=>({label:c.label})),contents:captured.contents};
+    ), cues:cues.map(c=>({label:c.label})),contents:captured.contents,
+      ...(cueTimings.length === 0 ? {} : {cueTimings})};
     const manifest = templateModuleManifest(template);
     let createdSource = false;
     let createdManifest = false;
@@ -1068,6 +1200,8 @@ export function createAnimationTemplates(
     assertScene(input.target, { requireProgram: false, rejectComponents: false });
     const templates = await list();
     const template = findTemplate(templates, input.id);
+    if (Object.keys(input.target.editor?.eventTimings ?? {}).length)
+      fail('INVALID_INPUT', '目标段落已有事件时间调整，复用动画可能改变事件结构；请先清除或迁移目标事件调整后重试');
     if (!Array.isArray(input.bindings))
       fail("INVALID_INPUT", "Animation template bindings must be an array");
     if (input.bindings.length !== template.cues.length)
@@ -1090,14 +1224,21 @@ export function createAnimationTemplates(
       template.controls,
       "Target editor",
     );
+    const targetLayers = assertLayerState(sceneLayerState(input.target), template, 'Target editor layer state');
+    const layerState = template.layerState === undefined ? undefined :
+      assertLayerState(mergeLayerState(template.layerState, targetLayers), template, 'Merged editor layer state');
     const resolved = await sceneModules.validate({
       moduleId: template.moduleId,
       parameters: { ...template.parameters, ...editor.overrides },
     });
-    const beats = template.cues.map((cue, index) => ({
-      wordId: input.bindings[index],
-      label: cue.label,
-    }));
+    const timingByCue = new Map(template.cueTimings?.map(item => [item.cueIndex, item]));
+    const beats = template.cues.map((cue, index) => {
+      const durationFrames = timingByCue.get(index)?.declaredDurationFrames;
+      return {wordId: input.bindings[index], label: cue.label,
+        ...(durationFrames === undefined ? {} : {durationFrames})};
+    });
+    const eventTimings = Object.fromEntries((template.cueTimings ?? []).filter(item => item.timing !== undefined)
+      .map(item => ['beat:' + input.bindings[item.cueIndex], clone(item.timing!)]));
     const target = clone(input.target);
     const components = template.contents ? instantiateAnimationComponents(template.id,template.contents,target,input.bindings) : target.components;
     if(template.contents)await installAnimationAssets(resolvedRoot,template.moduleId,template.contents,options);
@@ -1107,6 +1248,11 @@ export function createAnimationTemplates(
     void _discardedBeats;
     return {
       ...preserved,
+      ...(layerState === undefined && Object.keys(eventTimings).length === 0 ? {} : {editor: {
+        ...(target.editor ?? {overrides: {}, locks: []}),
+        ...(layerState ?? {}),
+        ...(Object.keys(eventTimings).length === 0 ? {} : {eventTimings}),
+      }}),
       ...(components===undefined?{}:{components}),
       beats,
       program: {

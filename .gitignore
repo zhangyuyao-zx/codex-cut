@@ -5,3 +5,7 @@ runtime/
 *.log
 .DS_Store
 workbench-local/plugin-package/codex-cut/local-config.json
+# Generated personal animation archives; authored examples already tracked stay tracked.
+workbench-local/scenes/saved-*.json
+workbench-local/scenes/saved-*.jsx
+public/saved-animations/

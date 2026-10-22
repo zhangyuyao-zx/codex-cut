@@ -7,12 +7,14 @@ import { Transform } from "node:stream";
 import { resolve, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createRoughcutService, projectCutWords } from "./roughcut-service";
+import {createAudioWaveforms} from './audio-waveform';
 import { transcribeMedia, parseWhisperJson } from "../modules/server/transcription";
 export async function roughcutRoutes(dir: string) {
   const service = await createRoughcutService(dir, {
       recoverInterrupted: true,
     }),
     router = Router();
+  const waveform=createAudioWaveforms(dir);
   let transcribing = false,
     transcriptionError = "";
   const state = async () => {
@@ -29,6 +31,15 @@ export async function roughcutRoutes(dir: string) {
     };
   };
   router.get("/", async (_req, res) => res.json(await state()));
+  router.get('/waveform',async(req,res,next)=>{
+    try{
+      const s=await service.get(),asset=s.timeline?.assets.find(a=>a.id===req.query.assetId);
+      const fileName=asset?.proxyFileName??(!s.timeline&&s.asset?basename(s.asset.url):'');
+      if(!fileName || (s.timeline&&!asset))throw Error('波形素材不在当前工程');
+      const duration=asset?asset.durationFrames/30:s.asset!.durationMs/1000;
+      res.json(await waveform(fileName,duration));
+    }catch(error){next(error);}
+  });
   router.post("/upload", async (req, res, next) => {
     let temp = "";
     try {
@@ -83,6 +94,10 @@ export async function roughcutRoutes(dir: string) {
       await service.setClips(req.body.expectedRevision, req.body.clips);
       res.json(await state());
     } catch (e) { next(e); }
+  });
+  router.post('/split',async(req,res,next)=>{
+    try{await service.splitClip(req.body.expectedRevision,req.body.clipId,req.body.sourceFrame);res.json(await state());}
+    catch(error){next(error);}
   });
   router.post("/undo", async (req, res, next) => {
     try {

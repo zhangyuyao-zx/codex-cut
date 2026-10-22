@@ -4,9 +4,11 @@ import {
   type ClipTransform,
   type CutTimeline,
   type TimelineClip,
+  resolveCutTimeline,
 } from "./cut-timeline";
 import { cutPreviewGeometry } from "./cut-preview-geometry";
-import {EditorWorkspace, SidebarTabs, FittedCanvas} from './EditorWorkspace';
+import {EditorWorkspace, SidebarTabs, FittedCanvas,EditorDock} from './EditorWorkspace';
+import {TimelineEditor} from './TimelineEditor';
 
 type CutState = {
   revision: number;
@@ -28,6 +30,7 @@ type MultiAssetCutProps = {
   onRefresh: () => Promise<void>;
   compact?: boolean;
   onDirtyChange?: (dirty:boolean)=>void;
+  initialFrame?:number;
 };
 
 const CANVAS_WIDTH = 1920;
@@ -156,7 +159,7 @@ function NumericField({
   );
 }
 
-export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyChange }: MultiAssetCutProps) {
+export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyChange,initialFrame=0 }: MultiAssetCutProps) {
   const [leftTab,setLeftTab] = useState('assets');
   const timeline = useMemo(
     () => timelineForState(state),
@@ -166,17 +169,22 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
   const [selectedClipId, setSelectedClipId] = useState("");
   const [draft, setDraft] = useState<TimelineClip | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
-  useEffect(()=>{onDirtyChange?.(draftDirty);},[draftDirty,onDirtyChange]);
   useEffect(()=>()=>{onDirtyChange?.(false);},[onDirtyChange]);
   const [working, setWorking] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [previewProgress, setPreviewProgress] = useState(0);
   const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [previewMode,setPreviewMode]=useState<'clip'|'cut'>('clip');
+  const [continuousFrame,setContinuousFrame]=useState(0);
+  const continuousVideo=useRef<HTMLVideoElement>(null);
   const [previewDimensions, setPreviewDimensions] = useState<{ source: string; width: number; height: number } | null>(null);
   const draftRevision = useRef(state.revision);
   const pendingSelection = useRef<{ assetId: string; clipId: string; revision: number } | null>(null);
   const previewVideo = useRef<HTMLVideoElement>(null);
+  const pendingSourceFrame=useRef<number|null>(null);
+  const [timelineGesture,setTimelineGesture]=useState(false);
+  const restoredPosition=useRef(false);
 
   const assets = timeline?.assets || [];
   const clips = timeline?.clips || [];
@@ -184,7 +192,10 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
   const selectedClip = clips.find((clip) => clip.id === selectedClipId);
   const draftAsset = assets.find((asset) => asset.id === draft?.assetId);
   const pending = !!working || !!state.busy || !!state.transcribing;
+  const resolvedTimeline=useMemo(()=>timeline?resolveCutTimeline(timeline):null,[timeline]);
   const previewCurrent = state.preview?.revision === state.revision;
+  useEffect(()=>{if(!previewCurrent)setPreviewMode('clip');},[previewCurrent]);
+  useEffect(()=>{onDirtyChange?.(draftDirty||timelineGesture);},[draftDirty,timelineGesture,onDirtyChange]);
   const draftValid = !!draft && draft.outFrame > draft.inFrame && !!draftAsset;
   const supportsTimeline = state.capabilities?.multiAsset === true && state.capabilities?.clipTransforms === true;
 
@@ -194,6 +205,15 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
       setSelectedClipId("");
       setDraft(null);
       return;
+    }
+    if(!restoredPosition.current){
+      restoredPosition.current=true;let frame=initialFrame;
+      try{const saved=JSON.parse(localStorage.getItem('workbench.cut-timeline-position')??'null');
+        if(frame===0&&saved?.asset===state.asset?.url&&Number.isSafeInteger(saved.frame))frame=saved.frame;
+      }catch{}
+      const hit=resolveCutTimeline(timeline).clips.find(c=>frame>=c.startFrame&&frame<c.endFrame);
+      if(hit){pendingSourceFrame.current=hit.inFrame+frame-hit.startFrame;setSelectedAssetId(hit.assetId);setSelectedClipId(hit.id);
+        setDraft(cloneClip(hit));draftRevision.current=state.revision;return;}
     }
     const pending = pendingSelection.current;
     if (pending) {
@@ -228,6 +248,12 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
       }
     }
   }, [timeline, assets, clips, selectedAssetId, selectedClipId, draftDirty, state.revision]);
+  useEffect(()=>{
+    if(!state.asset||!draft||draftDirty)return;
+    const clip=resolvedTimeline?.clips.find(c=>c.id===draft.id);if(!clip)return;
+    const frame=previewMode==='cut'?continuousFrame:clip.startFrame+Math.round((draft.outFrame-draft.inFrame)*previewProgress);
+    try{localStorage.setItem('workbench.cut-timeline-position',JSON.stringify({asset:state.asset.url,frame}));}catch{}
+  },[draft?.id,previewProgress,continuousFrame,previewMode,draftDirty]);
 
   useEffect(() => {
     if (!draftDirty || state.revision === draftRevision.current) return;
@@ -295,6 +321,31 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
     setError("");
   }
 
+  function seekTimeline(atFrame:number){
+    if(draftDirty||pending)return;
+    const hit=resolvedTimeline?.clips.find(c=>atFrame>=c.startFrame&&atFrame<c.endFrame);if(!hit)return;
+    const sourceFrame=hit.inFrame+atFrame-hit.startFrame;
+    if(previewMode==='cut'&&continuousVideo.current){continuousVideo.current.pause();continuousVideo.current.currentTime=atFrame/CUT_FPS;setContinuousFrame(atFrame);}
+    if(hit.id!==draft?.id){pendingSourceFrame.current=sourceFrame;selectClip(hit);}
+    else if(previewVideo.current){previewVideo.current.pause();previewVideo.current.currentTime=sourceFrame/CUT_FPS;
+      setPreviewProgress((sourceFrame-hit.inFrame)/(hit.outFrame-hit.inFrame));}
+  }
+
+  async function trimTimeline(id:string,edge:'start'|'end',sourceFrame:number,revision=state.revision){
+    if(revision!==state.revision){setError('工程已更新，本次修边未覆盖新版本。请检查后重试。');return;}
+    if(draftDirty||pending)return;const clip=clips.find(c=>c.id===id);if(!clip)return;
+    const asset=assets.find(a=>a.id===clip.assetId)!;
+    const next={...clip,...(edge==='start'?{inFrame:clamp(Math.round(sourceFrame),0,clip.outFrame-1)}:{outFrame:clamp(Math.round(sourceFrame),clip.inFrame+1,asset.durationFrames)})};
+    await run('正在修剪片段…',()=>saveClips(clips.map(c=>c.id===id?next:c),next));
+  }
+
+  async function splitAtPlayhead(){
+    if(!draft||draftDirty||pending)return;
+    const active=previewMode==='cut'?resolvedTimeline?.clips.find(c=>continuousFrame>=c.startFrame&&continuousFrame<c.endFrame):null;
+    const sourceFrame=active?active.inFrame+continuousFrame-active.startFrame:Math.round(draft.inFrame+(draft.outFrame-draft.inFrame)*previewProgress);
+    await run('正在分割片段…',async()=>{await api('cut/split',{expectedRevision:state.revision,clipId:active?.id??draft.id,sourceFrame});});
+  }
+
   function selectAsset(assetId: string) {
     if (draftDirty) {
       setError("当前片段有未保存属性，请先保存或重置草稿。");
@@ -312,6 +363,7 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
 
   function patchDraft(patch: Partial<TimelineClip>) {
     if (!draft) return;
+    continuousVideo.current?.pause();setPreviewMode('clip');
     setDraft({ ...draft, ...patch });
     setDraftDirty(true);
     setMessage("");
@@ -616,11 +668,16 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
     <section className="multi-asset-preview-panel" aria-label="单片段属性预览">
       <div className="canvas-title">
         <span>{draftAsset?.name || '剪辑预览'}</span>
-        <small>1920 × 1080 · 30 fps</small>
+        <div><button type="button" aria-pressed={previewMode==='clip'} onClick={()=>{continuousVideo.current?.pause();setPreviewMode('clip');}}>片段属性</button>
+          <button type="button" aria-pressed={previewMode==='cut'} disabled={!previewCurrent||!state.preview||draftDirty} onClick={()=>{previewVideo.current?.pause();setPreviewMode('cut');}}>连续预览</button></div>
       </div>
       <FittedCanvas className="cut-preview-fit">
       <div className="multi-asset-preview-stage">
-        {previewSource && draft ? (
+        {previewMode==='cut'&&previewCurrent&&state.preview?<video ref={continuousVideo} src={state.preview.url} controls
+          style={{width:'100%',height:'100%',objectFit:'contain'}}
+          onLoadedMetadata={e=>{e.currentTarget.currentTime=continuousFrame/CUT_FPS;}}
+          onTimeUpdate={e=>{const f=Math.round(e.currentTarget.currentTime*CUT_FPS);setContinuousFrame(f);
+            const active=resolvedTimeline?.clips.find(c=>f>=c.startFrame&&f<c.endFrame);if(active&&active.id!==selectedClipId&&!draftDirty)selectClip(active);}}/>:previewSource && draft ? (
           <div
             className={previewGeometry ? "multi-asset-preview-transform" : "multi-asset-preview-measure"}
             style={previewGeometry ? previewTransformStyle : { inset: 0 }}
@@ -645,7 +702,8 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
                   event.currentTarget.volume = clamp(draft.transform.volume, 0, 1);
                   setPreviewProgress(0);
                   setPreviewPlaying(false);
-                  try { event.currentTarget.currentTime = draft.inFrame / CUT_FPS; } catch {}
+                  const sourceFrame=pendingSourceFrame.current??draft.inFrame;pendingSourceFrame.current=null;
+                  try { event.currentTarget.currentTime = sourceFrame / CUT_FPS;setPreviewProgress((sourceFrame-draft.inFrame)/(draft.outFrame-draft.inFrame)); } catch {}
                 }}
                 onPlay={() => setPreviewPlaying(true)}
                 onPause={() => setPreviewPlaying(false)}
@@ -666,10 +724,10 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
         ) : (
           <div className="empty">从素材箱选择或添加一个片段</div>
         )}
-        {previewSource && draft && !previewGeometry && <div className="multi-asset-preview-loading">正在读取素材画面尺寸…</div>}
+        {previewMode==='clip'&&previewSource && draft && !previewGeometry && <div className="multi-asset-preview-loading">正在读取素材画面尺寸…</div>}
       </div>
       </FittedCanvas>
-      <div className="multi-asset-preview-controls" aria-label="单片段预览控制">
+      {previewMode==='clip'&&<div className="multi-asset-preview-controls" aria-label="单片段预览控制">
         <button type="button" disabled={!draft || !previewSource} onClick={togglePreviewPlayback}>
           {previewPlaying ? "暂停" : "播放"}
         </button>
@@ -684,7 +742,7 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
           onChange={(event) => seekPreview(Number(event.target.value))}
         />
         <span>{draft ? `${(draft.inFrame / CUT_FPS + ((draft.outFrame - draft.inFrame) / CUT_FPS) * previewProgress).toFixed(2)}s / ${(draft.outFrame / CUT_FPS).toFixed(2)}s` : "—"}</span>
-      </div>
+      </div>}
       <p className="hint multi-asset-preview-note">
         这里预览单个素材的裁剪、位置、缩放、旋转和音量；片段连续顺序请生成剪后预览。
       </p>
@@ -790,7 +848,12 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
         <h2>素材逐字稿 <small>{selectedWords.length ? `${selectedWords.length} 个词` : "尚未转写"}</small></h2>
       </div>
       {selectedWords.length ? (
-        <p>{selectedWords.map((word) => <span key={word.id} title={frameLabel(Math.round(word.startMs * CUT_FPS / 1000))}>{word.text} </span>)}</p>
+        <p>{selectedWords.map((word) => {
+          const hit=resolvedTimeline?.clips.find(c=>c.assetId===selectedAsset?.id&&word.startMs>=c.inFrame/30*1000&&word.startMs<c.outFrame/30*1000);
+          return <button key={word.id} type="button" className="transcript-word" disabled={!hit||pending||draftDirty}
+            title={hit?'点击定位到口播 '+frameLabel(Math.round(word.startMs*.03)):'这句未保留在剪辑中'}
+            onClick={()=>{if(hit)seekTimeline(hit.startFrame+Math.round(word.startMs*.03)-hit.inFrame);}}>{word.text} </button>;
+        })}</p>
       ) : (
         <p className="hint">先选择素材，再使用本地转写或导入词级 JSON。</p>
       )}
@@ -803,13 +866,23 @@ export function MultiAssetCut({ state, api, onRefresh, compact = false, onDirtyC
   return (
     <Shell className={compact ? "multi-asset-editor compact" : "multi-asset-editor cut-workspace"}>
       <aside className="left editor-sidebar">
-        <SidebarTabs value={leftTab} onChange={setLeftTab} items={[{id:'assets',label:'素材'},{id:'transcript',label:'文稿'}]}/>
+        <SidebarTabs value={leftTab} onChange={setLeftTab} items={[{id:'assets',label:'素材'},{id:'transcript',label:'文稿'},{id:'clips',label:'片段'}]}/>
         <div className="sidebar-scroll" hidden={leftTab !== 'assets'}>{assetBin}</div>
         <div className="sidebar-scroll" hidden={leftTab !== 'transcript'}>{transcript}</div>
+        <div className="sidebar-scroll" hidden={leftTab !== 'clips'}>{clipList}</div>
       </aside>
       <div className="multi-asset-center editor-main">
         {preview}
-        <div className="cut-document-dock">{clipList}</div>
+        {compact?<div className="cut-document-dock">{clipList}</div>:<EditorDock><TimelineEditor timeline={timeline} revision={state.revision}
+          selectedClipId={selectedClipId} frame={previewMode==='cut'?continuousFrame:(resolvedTimeline?.clips.find(c=>c.id===draft?.id)?.startFrame??0)+Math.round((draft?draft.outFrame-draft.inFrame:0)*previewProgress)}
+          api={api} disabled={pending||draftDirty} onSeek={seekTimeline} onGesture={setTimelineGesture}
+          onTrim={(id,edge,frame,revision)=>void trimTimeline(id,edge,frame,revision)}
+          toolbar={<>
+            <button type="button" disabled={pending||draftDirty||timelineGesture||!draft} onClick={()=>void splitAtPlayhead()}>分割</button>
+            <button type="button" disabled={pending||draftDirty||timelineGesture||!draft} onClick={()=>void removeClip()}>删除片段</button>
+            <button type="button" disabled={pending||draftDirty||timelineGesture||!clips.length} onClick={()=>void render()}>生成连续预览</button>
+            <button type="button" disabled={pending||draftDirty||timelineGesture||state.revision<=0} onClick={()=>void run('正在撤销…',()=>api('cut/undo',{expectedRevision:state.revision}))}>撤销</button>
+          </>}/></EditorDock>}
       </div>
       <aside className="multi-asset-right right editor-inspector">
         <div className="editor-panel-title">片段属性</div>

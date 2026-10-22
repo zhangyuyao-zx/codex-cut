@@ -13,6 +13,7 @@ import {
 import { preserveSceneEdits } from "./editable-objects";
 import { applyEditorCommand, replayEditorChanges, readEditorField, validateOperationId, validateEditorRevision, editorHistoryFor, editorTargetsFor, assertEditorTargetsCompatible, type EditorTarget, type EditorCommand, type EditorReplayRequest, type EditorDescriptor, type EditorJournal, type EditorHistory, EditorCommandError } from './editor-commands';
 import {sceneEntryTransitionSchema} from "./scene-transition";
+import {eventTimingsSchema} from './scene-event-timing';
 import {assertTransitionPredecessors} from "./transition-dependencies";
 import {visualMemberSchema,visualValuesSchema} from './visual-library-contract';
 const STORE_FILE_NAME = "production.json";
@@ -39,6 +40,7 @@ export const sceneBeatSchema = z
   .object({
     wordId: wordIdSchema,
     label: textSchema,
+    durationFrames: z.number().int().min(1).max(30000).optional(),
   })
   .strict();
 
@@ -79,6 +81,7 @@ export const sceneSchema = z
         entryTransition: sceneEntryTransitionSchema.nullable().optional(),
         objectTransforms: z.record(idSchema,z.object({x:z.number().finite().min(-20000).max(20000).optional(),y:z.number().finite().min(-20000).max(20000).optional(),scale:z.number().finite().min(0.05).max(8).optional(),rotation:z.number().finite().min(-3600).max(3600).optional()}).strict()).optional(),
         objectLocks: z.array(idSchema).max(1000).optional(),
+        eventTimings: eventTimingsSchema.optional(),
         objectVisibility: z.record(idSchema,z.boolean()).optional(),
         objectOrder: z.record(z.string().regex(/^(root|group:[A-Za-z0-9][A-Za-z0-9_-]*)$/),z.array(idSchema).max(1000)).optional(),
       })
@@ -201,6 +204,7 @@ export interface ProductionStore {
     expectedRevision: number,
     scene: Scene,
     requests: readonly MaterialRequest[],
+    options?:{restoreCapturedEditor?:boolean},
   ): Promise<ProductionState>;
   setStylePack(expectedRevision:number,stylePack:z.infer<typeof visualMemberSchema>,scenes:readonly Scene[]):Promise<ProductionState>;
   addFeedback(
@@ -492,6 +496,7 @@ class ProductionStoreImpl implements ProductionStore {
     expectedRevision: number,
     scene: Scene,
     requests: readonly MaterialRequest[],
+    options:{restoreCapturedEditor?:boolean}={},
   ): Promise<ProductionState> {
     return this.serialized(async () => {
       const envelope = await this.loadEnvelopeLocked();
@@ -503,6 +508,16 @@ class ProductionStoreImpl implements ProductionStore {
           `Scene does not exist: ${String(scene?.id ?? "")}`,
         );
       preserveSceneEdits([existing],[scene],'codex');
+      const restoredEditor=options.restoreCapturedEditor&&scene.editor?{
+        ...scene.editor,...existing.editor,
+        overrides:clone(existing.editor?.overrides??{}),locks:clone(existing.editor?.locks??[]),
+        objectTransforms:Object.fromEntries([...new Set([...Object.keys(scene.editor.objectTransforms??{}),...Object.keys(existing.editor?.objectTransforms??{})])].map(id=>
+          [id,{...scene.editor!.objectTransforms?.[id],...existing.editor?.objectTransforms?.[id]}])),
+        objectVisibility:{...scene.editor.objectVisibility,...existing.editor?.objectVisibility},
+        objectOrder:{...scene.editor.objectOrder,...existing.editor?.objectOrder},
+        objectLocks:[...new Set([...(scene.editor.objectLocks??[]),...(existing.editor?.objectLocks??[])])],
+        ...(scene.editor.eventTimings===undefined&&existing.editor?.eventTimings===undefined?{}:{eventTimings:{...scene.editor.eventTimings,...existing.editor?.eventTimings}}),
+      }:existing.editor;
       const parsedRequests = parseWithSchema(
         z.array(materialRequestSchema).max(10_000),
         requests,
@@ -517,7 +532,7 @@ class ProductionStoreImpl implements ProductionStore {
           ...(existing.editor?.entryTransition===undefined?{}:{entryTransition:existing.editor.entryTransition??undefined}),
           // Applying an animation may replace the program and components, but
           // the existing user's editor overrides and locks remain authoritative.
-          ...(existing.editor === undefined ? {editor: undefined} : {editor: clone(existing.editor)}),
+          ...(restoredEditor === undefined ? {editor: undefined} : {editor: clone(restoredEditor)}),
         },
         "Invalid production scene",
       );

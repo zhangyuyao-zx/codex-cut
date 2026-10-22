@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   expandRangeToFrame,
   wordIdsBetween,
@@ -7,6 +7,9 @@ import {
 import { MultiAssetCut } from "./MultiAssetCut";
 import {EditorWorkspace, FittedCanvas} from './EditorWorkspace';
 import "./roughcut-interaction.css";
+import {TimelineEditor} from './TimelineEditor';
+import {cutEditorTimeline} from './cut-editor-model';
+import {resolveCutTimeline} from './cut-timeline';
 
 type Word = { id: string; text: string; startMs: number; endMs: number };
 type Range = { startMs: number; endMs: number };
@@ -204,10 +207,13 @@ export function Roughcut({
     );
   }
 
+  const editorTimeline=useMemo(()=>s?cutEditorTimeline(s):null,[s?.timeline,s?.asset,s?.words,s?.ranges]);
   if (!s) return <div className="loading">{error || "正在读取剪辑工程…"}</div>;
 
   if (s.timeline && s.capabilities?.multiAsset === true && s.capabilities?.clipTransforms === true) {
-    return <MultiAssetCut state={s} api={api} onRefresh={refresh} onDirtyChange={onDirtyChange} />;
+    const sourceFrame=Math.round(time*30),hit=resolveCutTimeline(s.timeline).clips.find(c=>sourceFrame>=c.inFrame&&sourceFrame<c.outFrame);
+    const frame=mode==='cut'?sourceFrame:hit?hit.startFrame+sourceFrame-hit.inFrame:0;
+    return <MultiAssetCut state={s} api={api} onRefresh={refresh} onDirtyChange={onDirtyChange} initialFrame={frame}/>;
   }
 
   const pending = !!working || s.busy || s.transcribing;
@@ -230,6 +236,11 @@ export function Roughcut({
     0,
   );
   const paragraphs = transcriptParagraphs(s.words);
+  let timelineFrame=Math.round(time*30);
+  if(mode==='source'){
+    let offset=0;
+    for(const range of s.ranges){if(time*1000>=range.startMs&&time*1000<range.endMs){timelineFrame=Math.round((offset+time*1000-range.startMs)*.03);break;}offset+=range.endMs-range.startMs;}
+  }
 
   function clearSelection() {
     setSelected([]);
@@ -433,29 +444,17 @@ export function Roughcut({
           )}
         </FittedCanvas>
         <section className="legacy-document-dock" aria-label="剪辑片段与文稿">
-        <div className="cut-segments roughcut-segment-strip" aria-label="保留片段">
-          {s.ranges.map((r: Range, i: number) => (
-            <button
-              className={
-                "roughcut-segment " +
-                (selectedSegment === i ? "selected" : "")
-              }
-              key={i}
-              style={{
-                flex: `0 0 ${((r.endMs - r.startMs) / totalRangeMs) * 100}%`,
-              }}
-              aria-pressed={selectedSegment === i}
-              title={`片段 ${i + 1} · ${formatRange(r)}`}
-              onClick={() => {
-                setSelectedSegment(i);
-                if (video.current) video.current.currentTime = segmentStartMs(i) / 1000;
-              }}
-            >
-              <b className="roughcut-segment-index">{String(i + 1).padStart(2, "0")}</b>
-              <span className="roughcut-segment-time">{formatRange(r)}</span>
-            </button>
-          ))}
-        </div>
+        {editorTimeline&&<div style={{height:156,flexShrink:0}}><TimelineEditor timeline={editorTimeline} revision={s.revision} frame={timelineFrame} api={api} disabled={pending}
+          onGesture={active=>onDirtyChange?.(active)}
+          onTrim={(id,edge,frame,revision)=>{const next=editorTimeline.clips.map(c=>c.id===id?{...c,...(edge==='start'?{inFrame:frame}:{outFrame:frame})}:c);
+            void run('正在修剪片段…',()=>api('cut/clips',{expectedRevision:revision??s.revision,clips:next}));}}
+          toolbar={<button type="button" disabled={pending} onClick={()=>{
+            const clip=resolveCutTimeline(editorTimeline).clips.find(c=>timelineFrame>=c.startFrame&&timelineFrame<c.endFrame);if(!clip)return;
+            void run('正在分割片段…',()=>api('cut/split',{expectedRevision:s.revision,clipId:clip.id,sourceFrame:clip.inFrame+timelineFrame-clip.startFrame}));}}>分割</button>}
+          onSeek={frame=>{let offset=0;for(const [index,range] of s.ranges.entries()){
+            const length=Math.round((range.endMs-range.startMs)*.03);if(frame<offset+length){
+              setSelectedSegment(index);if(video.current){video.current.pause();video.current.currentTime=mode==='source'?range.startMs/1000+(frame-offset)/30:frame/30;}break;
+            }offset+=length;}}}/></div>}
         <div className="transcript-head">
           <h2>
             逐字稿 <small>{s.words.length ? `${s.words.length} 个词` : "尚未转写"}</small>

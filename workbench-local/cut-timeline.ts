@@ -30,6 +30,8 @@ export const timelineAssetSchema = z.object({
 }).strict();
 export const timelineClipSchema = z.object({
   id, assetId: id, inFrame: frame, outFrame: frame,
+  // Server-owned identity shared by non-overlapping pieces of one split occurrence.
+  wordIdentity: id.optional(),
   transform: clipTransformSchema.default(() => clipTransformSchema.parse({})),
   // Set only by migration. New/repeated inserts must use occurrence word IDs.
   legacyWordIds: z.boolean().optional(),
@@ -56,6 +58,20 @@ export const cutTimelineSchema = z.object({
     const asset = assets.get(clip.assetId);
     if (!asset || clip.outFrame <= clip.inFrame || clip.outFrame > asset.durationFrames)
       fail('片段素材不存在或截取范围错误');
+  }
+  const occurrences = new Map<string, typeof timeline.clips>();
+  for (const clip of timeline.clips) {
+    const key = clip.wordIdentity ?? clip.id;
+    const siblings = occurrences.get(key) ?? [];
+    for (const other of siblings) {
+      if (other.assetId !== clip.assetId || (clip.inFrame < other.outFrame && other.inFrame < clip.outFrame))
+        fail('分割片段的词身份冲突；重复插入必须使用新的身份');
+      const asset = assets.get(clip.assetId);
+      if (asset?.words.some(w => w.endMs > clip.inFrame * 1000 / CUT_FPS && w.startMs < clip.outFrame * 1000 / CUT_FPS &&
+        w.endMs > other.inFrame * 1000 / CUT_FPS && w.startMs < other.outFrame * 1000 / CUT_FPS))
+        fail('同一个词不能分散在两个片段中，请在词与词之间分割');
+    }
+    siblings.push(clip); occurrences.set(key, siblings);
   }
 });
 export type CutTimeline = z.infer<typeof cutTimelineSchema>;
@@ -85,7 +101,7 @@ export function resolveCutTimeline(input: unknown) {
       const sourceEndMs = Math.min(endMs, word.endMs);
       if (sourceStartMs >= sourceEndMs) return [];
       return [{
-        id: timelineWordId(clip.id, word.id), clipId: clip.id,
+        id: timelineWordId(clip.wordIdentity ?? clip.id, word.id), clipId: clip.id,
         legacySourceId: clip.legacyWordIds ? word.id : undefined,
         assetId: clip.assetId, sourceWordId: word.id, text: word.text,
         startMs: clip.startFrame * 1000 / CUT_FPS + (sourceStartMs - startMs),

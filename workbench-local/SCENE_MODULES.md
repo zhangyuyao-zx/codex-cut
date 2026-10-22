@@ -36,11 +36,15 @@
 - parameters：经过模块定义校验、应用默认值后的参数。
 - from / duration：段落在剪后视频中的起点和长度，单位30fps帧。
 - words：本段逐字稿，id/text/start/end；start/end为段内局部帧。
-- beats：口播动作，wordId/label/frame；frame为段内局部帧。
+- beats：口播动作，wordId/label/frame 及可选 durationFrames；frame 为段内局部帧，已包含用户相对词锚点的偏移。声明时长的场景须实际消费 durationFrames，不能在实现里继续写死旧时长。
 - mediaSrc：实际粗剪视频；使用 OffthreadVideo 时 trimBefore={from}，声音静音。
 - materials：本段已补充素材的 id/src/kind。只有声明 acceptsMaterials=true 且代码确实实现展示时才能使用；未实现素材展示的模块不能接收已提供的素材。
 
 动画由 useCurrentFrame 驱动。按 beats[i].frame 开始动作，不把所有重点同时显示。不使用随机数、墙上时钟或CSS动画决定画面。参数和口播文本不能写死回代码；设计说明不是画面文字。
+
+C 编辑器以 `scene.beats[].durationFrames` 显式声明该动作时长可编辑。`scene.editor.eventTimings` 可选，键为 `beat:<原始词ID>` 或视觉资产的 `cue:<cueID>`，值 `{offsetFrames,durationFrames?}`。每次从当前词时间重算，不保存绝对开始帧；被删词或越界调整需重新绑定。用 `production/event-edit` 窄接口修改，不绕开用户草稿或覆盖别的 editor 字段。
+
+整段动画存档新增可选 layerState/cueTimings，保留图层调整和相对动作节奏；新词按存档 cue 索引绑定。无法迁移目标已有调整、同词事件不同偏移或时长时明确拒绝。当前不自动从任意场景代码抽取对象/组。详见 [C 技术记录与兼容边界](../docs/implementation/2026-10-22-timeline-and-animation-reuse.md)。
 
 主播放器负责口播音轨。单场景预览使用同一段音频，最终画面渲染后无损封装粗剪音轨。段落之间没有设计覆盖的空隙保留粗剪原画面。历史工程已有旧组件仍按隔离兼容实现解析；新叠加选用视觉资产库。
 

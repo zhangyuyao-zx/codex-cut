@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SceneModulePreview } from "./SceneModulePreview";
 import {ActionReview} from "./ActionReview";
 import {reviewActions, localPlaybackTime} from "./action-review";
@@ -18,6 +18,9 @@ import {CanvasTransformProperties} from './CanvasTransformProperties';
 import {EditorWorkspace, SidebarTabs, EditorDock, FittedCanvas} from './EditorWorkspace';
 import {LayerPanel, ObjectLayerMenu, type LayerMenuAnchor} from './LayerPanel';
 import {EditorIcon} from './EditorIcon';
+import {TimelineEditor,type TimelineEvent} from './TimelineEditor';
+import {cutEditorTimeline} from './cut-editor-model';
+import {SceneEventsPanel} from './SceneEventsPanel';
 
 const segmentStatusLabels: Record<string, string> = {
   unrendered: "待制作",
@@ -93,6 +96,9 @@ export function Production({
   const [leftTab, setLeftTab] = useState('scenes');
   const [inspectorTab, setInspectorTab] = useState('properties');
   const [layerMenu, setLayerMenu] = useState<LayerMenuAnchor | null>(null);
+  const [timelineActive,setTimelineActive]=useState(false);
+  const [eventFieldDirty,setEventFieldDirty]=useState(false);
+  const timelineModel=useMemo(()=>data?cutEditorTimeline(data.cut):null,[data?.cut]);
   const keyboardAction = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -109,7 +115,7 @@ export function Production({
   const canvasCommand = useRef<EditorCommand | null>(null);
   const canvasReplay = useRef<{direction: 'undo' | 'redo'; request: EditorReplayRequest; sceneId: string} | null>(null);
   const canvasPending = !!canvasCommand.current || !!canvasReplay.current;
-  const dirty = parameterDirty || canvasActive || canvasSaving || !!canvasDraft || canvasPending;
+  const dirty = parameterDirty || canvasActive || canvasSaving || !!canvasDraft || canvasPending || timelineActive || eventFieldDirty;
   const draftEditorBase = useRef<{values: Record<string, unknown>; overrides: Record<string, unknown>; locks: string[]} | null>(null);
   const [scopedState, setScopedState] = useState<{
     sceneId: string;
@@ -579,6 +585,19 @@ export function Production({
     if(dirty||busy||!data)return;
     const entry=sceneEntry(data,id,frame);if(entry)enterScene(entry);
   },[dirty,busy,data,enterScene]);
+  const seekTimeline=(frame:number)=>{
+    if(dirty||busy||!data)return;
+    const scene=data.resolved.scenes.find((s:any)=>s.startMs!==null&&frame>=Math.round(s.startMs*.03)&&frame<Math.round(s.endMs*.03));
+    if(scene){chooseScene(scene.id,frame);return;}
+    if(video.current&&view!=='scene'){video.current.pause();video.current.currentTime=frame/30;setTime(frame/30);}
+  };
+  const editEvent=async(event:TimelineEvent,patch:{offsetFrames?:number;durationFrames?:number;wordId?:string;reset?:boolean},revision:number)=>{
+    if(busy||parameterDirty||canvasPending||canvasActive)return false;
+    pendingReview.current=null;scenePlayer.current?.pause();video.current?.pause();
+    let saved=false;
+    await run(async()=>{await api('production/event-edit',{expectedRevision:revision,sceneId:event.sceneId,eventId:event.id,actor:'user',...patch});saved=true;
+      setNotice('动作已保存，仍然跟随绑定的口播词。');});return saved;
+  };
   useEffect(()=>{
     const request=pendingReview.current;
     if(!request||!data)return;
@@ -806,7 +825,7 @@ export function Production({
           )}
         </div>
         </details>
-
+        {data.capabilities?.filmDirection&&<details className="project-export"><summary>全片画面与风格</summary><FilmStoryboard api={api} data={data} selected={selected} disabled={dirty||busy||rendering} onSelect={chooseScene}/></details>}
         </div>
         <div className="sidebar-scroll" hidden={leftTab !== 'layers'}>
           <div className="layer-scene-title">{scene?.title || '当前段落'}</div>
@@ -1062,7 +1081,7 @@ export function Production({
         <div className="segment-command-bar" aria-label="当前段落操作">
           <div><strong>{statusHint}</strong><small>第 {sceneIndex + 1} / {data.resolved.scenes.length} 段 · {Math.max(0, time - (resolved?.startMs || 0) / 1000).toFixed(1)} 秒</small></div>
           <div className="segment-command-buttons">
-            {dirty ? <><button onClick={() => {draftRevision.current = null; draftEditorBase.current = null; canvasCommand.current = null; canvasReplay.current = null; setCanvasDraft(null); setDirty(false); setNotice(""); setError(''); void refresh().catch(error => setError(error.message));}} disabled={busy || canvasActive}>{canvasPending ? '重新读取已保存结果' : '放弃修改'}</button><button className="primary" disabled={busy || canvasActive} onClick={() => void save().catch(error => setError(error.message))}>{canvasPending ? '重试这次操作' : '保存修改'}</button></> :
+            {eventFieldDirty ? <span>请在属性面板保存或放弃动作调整</span> : timelineActive ? <span>松开后保存动作</span> : dirty ? <><button onClick={() => {draftRevision.current = null; draftEditorBase.current = null; canvasCommand.current = null; canvasReplay.current = null; setCanvasDraft(null); setDirty(false); setNotice(""); setError(''); void refresh().catch(error => setError(error.message));}} disabled={busy || canvasActive}>{canvasPending ? '重新读取已保存结果' : '放弃修改'}</button><button className="primary" disabled={busy || canvasActive} onClick={() => void save().catch(error => setError(error.message))}>{canvasPending ? '重试这次操作' : '保存修改'}</button></> :
              !scopedLoaded ? <button className="primary" disabled>读取当前段落…</button> :
              scopedError || scopedProgramError ? <button className="primary" disabled>当前段落不可用</button> :
              selectedRendering ? <span role="status">{Math.round((selectedLatest.progress || 0) * 100)}%</span> :
@@ -1125,12 +1144,10 @@ export function Production({
           <p className="error">{error || data.job.error}</p>
         )}
         <EditorDock>
-          <div className="scene-rail-heading"><span>段落导航</span><small>{data.resolved.scenes.length} 段 · {duration.toFixed(1)} 秒</small><span className="rail-shortcuts">空格 播放 / 暂停 · ← → 逐帧</span></div>
-          <div className="scene-rail" aria-label="全片段落导航">{data.resolved.scenes.map((item:any,index:number) => <button key={item.id} type="button" disabled={dirty || busy} aria-current={item.id === selected ? 'true' : undefined}
-            style={{flex:Math.max(1,(item.endMs || 0)-(item.startMs || 0))}} onClick={() => chooseScene(item.id)}>
-            <small>{String(index+1).padStart(2,'0')}</small><span>{item.title}</span><em>{Math.max(0,((item.endMs || 0)-(item.startMs || 0))/1000).toFixed(1)}s</em>
-          </button>)}</div>
-        {data.capabilities?.filmDirection&&<FilmStoryboard api={api} data={data} selected={selected} disabled={dirty||busy||rendering} onSelect={chooseScene}/>}
+          <TimelineEditor timeline={timelineModel} revision={data.plan.revision} frame={Math.round(time*30)} durationFrames={Math.round(duration*30)}
+            selectedSceneId={selected} scenes={data.resolved.scenes} events={data.timelineEvents||[]} api={api}
+            disabled={(dirty&&!timelineActive)||busy} onSeek={seekTimeline} onSelectScene={chooseScene} onGesture={setTimelineActive}
+            onEventEdit={(event,offsetFrames,durationFrames,revision)=>void editEvent(event,{offsetFrames,...(durationFrames===undefined?{}:{durationFrames})},revision??data.plan.revision)}/>
         </EditorDock>
       </main>
       <aside className="right editor-inspector">
@@ -1139,6 +1156,10 @@ export function Production({
           <>
             <section className="inspector-panel sidebar-scroll" hidden={inspectorTab !== 'properties'}>
             <div className="inspector-object-heading"><span className="inspector-object-icon"><EditorIcon name={selectedCanvasObject?.canvas?.text ? 'type' : 'shape'}/></span><div><strong>{sceneEditor?.objects.find((item:any)=>item.id === selectedObject)?.label || '画面属性'}</strong><small>{selectedObject && !objectVisibleFor(scene.editor,selectedObject) ? '图层已隐藏，可在左侧显示' : selectedObject ? '当前选中的对象' : '选择对象以开始编辑'}</small></div></div>
+            {scopedLoaded&&<SceneEventsPanel key={selected} events={(data.timelineEvents||[]).filter((e:TimelineEvent)=>e.sceneId===selected)}
+              words={data.resolved.words.filter((w:any)=>resolved?.startMs!=null&&resolved?.endMs!=null&&w.startMs>=resolved.startMs&&w.startMs<resolved.endMs)}
+              revision={data.plan.revision} disabled={busy||parameterDirty||canvasPending||canvasActive||timelineActive}
+              onDirtyChange={setEventFieldDirty} onEdit={editEvent}/>}
             {selectedCanvasObject?.canvas.transform && <CanvasTransformProperties
               value={objectTransformFor({objectTransforms: canvasTransforms}, selectedObject)}
               locked={effectiveObjectLocks.includes(selectedObject)}
@@ -1196,7 +1217,7 @@ export function Production({
                 setDirty(true);
               }}
             />
-            <p className="inspector-save-state" role="status">{dirty ? "修改即时预览 · 在画面下方保存" : "所有修改已保存"}</p>
+            <p className="inspector-save-state" role="status">{eventFieldDirty?'动作调整待保存':dirty ? "修改即时预览 · 在画面下方保存" : "所有修改已保存"}</p>
             <hr />
             {scene.program && <SaveAnimation api={api} scene={scene} revision={data.plan.revision} sourceHash={data.sceneModules.find((m:any)=>m.id===scene.program.moduleId)?.sourceHash} disabled={dirty||busy}/>}
             </section>

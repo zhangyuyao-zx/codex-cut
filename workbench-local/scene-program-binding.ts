@@ -3,6 +3,7 @@ import type { resolveProduction } from "./production-binding";
 import path from "node:path";
 import {assertSceneCueContract} from "./scene-cue-contract";
 import {resolveVisualCues} from './visual-application';
+import {sceneEvents} from './scene-event-timing';
 
 function safeMaterialFileName(value:unknown): value is string {
   return typeof value==='string' && value.length>0 && value!=='.' && value!=='..' &&
@@ -52,7 +53,10 @@ export async function bindScenePrograms(
         );
       const range = resolved.scenes.find((r) => r.id === s.id)!;
       const semantic=module.visualAsset;
-      const beats=semantic?resolveVisualCues(semantic.cues,s.program!.cueBindings,resolved.words,range.startMs!,range.endMs!):range.beats;
+      if(semantic)resolveVisualCues(semantic.cues,s.program!.cueBindings,resolved.words,range.startMs!,range.endMs!);
+      const timed=sceneEvents(s,resolved.words,range.startMs,range.endMs,semantic?.cues);
+      if(timed.issues.length)throw Error(timed.issues.join('\n'));
+      const beats=timed.events.map(b=>({...b,label:semantic?b.id.slice(4):b.label}));
       if(semantic){
         const length=Math.round(range.endMs!*30/1000)-Math.round(range.startMs!*30/1000);
         if(length<semantic.constraints.minFrames||length>semantic.constraints.maxFrames)throw Error('「'+s.title+'」超出资产支持时长：'+semantic.constraints.notes);
@@ -95,6 +99,7 @@ export async function bindScenePrograms(
           wordId: b.wordId,
           label: b.label,
           frame: Math.round((b.timeMs! * 30) / 1000) - from,
+          ...(b.durationFrames===undefined?{}:{durationFrames:b.durationFrames}),
         })),
         materials,
         ...(s.entryTransition?{entryTransition:s.entryTransition}:{}),

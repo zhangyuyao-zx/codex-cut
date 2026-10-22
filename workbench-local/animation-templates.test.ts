@@ -21,6 +21,8 @@ import {
 import { createSceneModules, type SceneModuleDetail } from "./scene-modules";
 import type { Scene } from "./production-store";
 import {createComponentAssets} from './component-assets';
+import {objectLockedFor} from './editor-commands';
+import {sceneEvents} from './scene-event-timing';
 
 const temporaryDirectories: string[] = [];
 
@@ -117,6 +119,137 @@ afterEach(async () => {
 });
 
 describe("animation templates", () => {
+  it('preserves editable layer hierarchy and merges saved state with target fields without mutating either scene', async () => {
+    const root = await makeRoot(); await writeSourceModule(root);
+    const canvas = {transform: true, visibility: true, reorder: true};
+    const objects = [
+      {id: 'panel', label: 'Panel', parameters: [], kind: 'group', canvas},
+      {...sourceManifest.objects[0], parentId: 'panel', kind: 'text', canvas: {...canvas, text: 'caption'}},
+      {id: 'badge', label: 'Badge', parameters: [], parentId: 'panel', kind: 'shape', canvas},
+      {id: 'background', label: 'Background', parameters: [], kind: 'shape', canvas},
+    ];
+    await writeFile(path.join(root, 'workbench-local/scenes/source-animation.json'), JSON.stringify({...sourceManifest, objects}));
+    const source = sourceScene();
+    source.editor = {...source.editor!, objectTransforms: {headline: {x: 12, y: 24, scale: 1.5, rotation: 30}},
+      objectVisibility: {headline: false, badge: false}, objectOrder: {root: ['background', 'panel'], 'group:panel': ['badge', 'headline']},
+      objectLocks: ['panel']};
+    const original = structuredClone(source);
+    const service = await templateService(root), saved = await service.save({name: 'Layer archive', scene: source});
+    const reopened = await templateService(root);
+    expect((await reopened.list())[0]).toEqual(saved);
+    const detail = await createSceneModules(root).detail(saved.moduleId);
+    expect(detail.objects).toEqual(objects);
+    const target = targetScene();
+    target.editor = {...target.editor!, objectTransforms: {headline: {x: 99}}, objectVisibility: {headline: true},
+      objectOrder: {'group:panel': ['headline', 'badge']}, objectLocks: ['badge']};
+    const originalTarget = structuredClone(target);
+    const applied = await reopened.instantiate({id: saved.id, target, bindings: ['new-a', 'new-b']});
+    expect(applied.editor).toEqual({...target.editor,
+      objectTransforms: {headline: {x: 99, y: 24, scale: 1.5, rotation: 30}},
+      objectVisibility: {headline: true, badge: false},
+      objectOrder: {root: ['background', 'panel'], 'group:panel': ['headline', 'badge']}, objectLocks: ['panel', 'badge']});
+    expect(objectLockedFor(applied.editor, {objects: detail.objects!}, 'headline')).toBe(true);
+    expect(applied.program?.parameters).toEqual({caption: '用户已调整', count: 7});
+    expect(applied.beats.map(beat => beat.wordId)).toEqual(['new-a', 'new-b']);
+    const fresh = {...targetScene(), editor: undefined};
+    expect((await reopened.instantiate({id: saved.id, target: fresh, bindings: ['a', 'b']})).editor)
+      .toEqual({overrides: {}, locks: [], ...saved.layerState});
+    expect(source).toEqual(original); expect(target).toEqual(originalTarget);
+  });
+
+  it('rejects unknown or incompatible source/target layers and invalid archived descriptors', async () => {
+    const root = await makeRoot(); await writeSourceModule(root);
+    const objects = [{...sourceManifest.objects[0], canvas: {transform: true, visibility: true, reorder: true}},
+      {id: 'badge', label: 'Badge', parameters: [], canvas: {reorder: true}}];
+    await writeFile(path.join(root, 'workbench-local/scenes/source-animation.json'), JSON.stringify({...sourceManifest, objects}));
+    const service = await templateService(root);
+    const source = sourceScene(); source.editor!.objectLocks = ['missing'];
+    await expect(service.save({name: 'Invalid source', scene: source})).rejects.toThrow(/missing/);
+    expect(await service.list()).toEqual([]);
+    delete source.editor!.objectLocks;
+    source.editor!.objectTransforms = {headline: {x: 12}};
+    const saved = await service.save({name: 'Valid', scene: source});
+    const invalidLayers: Partial<NonNullable<Scene['editor']>>[] = [
+      {objectLocks: ['unknown']}, {objectVisibility: {badge: false}},
+      {objectOrder: {root: ['headline']}}, {objectOrder: {'group:missing': ['headline', 'badge']}},
+      {objectTransforms: {headline: {scale: 0}}},
+    ];
+    for (const layers of invalidLayers) await expect(service.instantiate({id: saved.id, target: {...targetScene(), editor: {...targetScene().editor!, ...layers}},
+      bindings: ['a', 'b']})).rejects.toThrow(/Target editor layer state/);
+    const metadataPath = path.join(root, 'animation-templates/templates.json');
+    const pristine = JSON.parse(await readFile(metadataPath, 'utf8'));
+    for (const mutate of [
+      (t: any) => {t.layerState.objectLocks = ['unknown'];},
+      (t: any) => {t.layerState.objectOrder = {root: ['headline']};},
+      (t: any) => {t.layerState.objectTransforms.headline = {opacity: 0};},
+      (t: any) => {t.objects[0].parentId = 'missing';},
+      (t: any) => {t.objects[0].canvas.text = 'count';},
+      (t: any) => {t.objects[0].kind = 'unsupported';},
+    ]) {
+      const altered = structuredClone(pristine); mutate(altered.templates[0]);
+      await writeFile(metadataPath, JSON.stringify(altered));
+      await expect(service.list()).rejects.toThrow();
+    }
+  });
+
+  it('rebinds captured event edits and explicit duration declarations through cue indices without changing the source', async () => {
+    const root = await makeRoot(); await writeSourceModule(root);
+    const source = sourceScene();
+    source.beats[0].durationFrames = 12;
+    source.editor!.eventTimings = {'beat:source-word-a': {offsetFrames: 4, durationFrames: 18},
+      'beat:source-word-b': {offsetFrames: -2}};
+    const original = structuredClone(source);
+    const service = await templateService(root);
+    const saved = await service.save({name: 'Timing edits', scene: source});
+    expect(saved.cueTimings).toEqual([
+      {cueIndex: 0, declaredDurationFrames: 12, timing: {offsetFrames: 4, durationFrames: 18}},
+      {cueIndex: 1, timing: {offsetFrames: -2}},
+    ]);
+    const reopened = await templateService(root);
+    expect((await reopened.list())[0]).toEqual(saved);
+    const applied = await reopened.instantiate({id: saved.id, target: targetScene(), bindings: ['new-a', 'new-b']});
+    expect(applied.beats).toEqual([{wordId: 'new-a', label: '第一重点', durationFrames: 12},
+      {wordId: 'new-b', label: '第二重点'}]);
+    expect(applied.editor).toEqual({...targetScene().editor, eventTimings: {
+      'beat:new-a': {offsetFrames: 4, durationFrames: 18}, 'beat:new-b': {offsetFrames: -2},
+    }});
+    const newWords = [{sourceId: 'new-a', startMs: 400}, {sourceId: 'new-b', startMs: 1000}];
+    const timed = sceneEvents(applied, newWords, 0, 3000);
+    expect(timed.issues).toEqual([]);
+    expect(timed.events[0]).toMatchObject({frame:16,durationFrames:18,durationEditable:true});
+    expect(timed.events[1]).toMatchObject({frame:28,durationEditable:false});
+    expect(sceneEvents(applied, [{sourceId:'new-a',startMs:800},newWords[1]], 0, 3000).events[0].frame).toBe(28);
+    expect(source).toEqual(original);
+    await expect(reopened.instantiate({id: saved.id, target: applied, bindings: ['next-a', 'next-b']}))
+      .rejects.toThrow('请先清除或迁移');
+
+    const declared = sourceScene(); declared.beats[0].durationFrames = 9;
+    const declaredTemplate = await service.save({name: 'Duration declaration', scene: declared});
+    const declaredApplied = await service.instantiate({id: declaredTemplate.id, target: targetScene(), bindings: ['a', 'b']});
+    expect(declaredApplied.beats[0].durationFrames).toBe(9);
+    expect(declaredApplied.editor).toEqual(targetScene().editor);
+    const metadataPath = path.join(root, 'animation-templates/templates.json');
+    const pristine = JSON.parse(await readFile(metadataPath, 'utf8'));
+    for (const cueTimings of [
+      [{cueIndex: 20, timing: {offsetFrames: 1}}],
+      [{cueIndex: 0, timing: {offsetFrames: 1}}, {cueIndex: 0, timing: {offsetFrames: 2}}],
+      [{cueIndex: 0, timing: {offsetFrames: 1, durationFrames: 8}}],
+    ]) {
+      const invalid = structuredClone(pristine); invalid.templates[0].cueTimings = cueTimings;
+      await writeFile(metadataPath, JSON.stringify(invalid));
+      await expect(service.list()).rejects.toThrow('cueTimings');
+    }
+  });
+
+  it('rejects orphaned source timing edits and duration edits without an explicit declaration', async () => {
+    const root = await makeRoot(); await writeSourceModule(root);
+    const service = await templateService(root), source = sourceScene();
+    source.editor!.eventTimings = {'beat:missing': {offsetFrames: 2}};
+    await expect(service.save({name: 'Orphaned timing', scene: source})).rejects.toThrow('失去绑定');
+    source.editor!.eventTimings = {'beat:source-word-a': {offsetFrames: 2, durationFrames: 9}};
+    await expect(service.save({name: 'Undeclared duration', scene: source})).rejects.toThrow('未声明可编辑时长');
+  });
+
   it('snapshots visual SCENE style/list values, shared-word semantic cues and visual material slot IDs',async()=>{
     const root=await makeRoot(),sourceDirectory=path.join(root,'visual-assets');
     await mkdir(sourceDirectory);
@@ -140,17 +273,23 @@ describe("animation templates", () => {
     const source:Scene={id:'source-scene',title:'Source',intent:'Semantic visual scene',startWordId:'source-start',endWordId:'source-end',beats:[],
       program:{moduleId:detail.id,styleDefaults:{labels:['pack default'],palette:['#223344','#556677'],accent:'#aabbcc',scale:1.5},
         parameters:{labels:['scene content'],scale:2},cueBindings:{reveal:'source-word',settle:'source-word'}},
-      editor:{overrides:{scale:3},locks:['scale']}};
+      editor:{overrides:{scale:3},locks:['scale'],eventTimings:{'cue:reveal':{offsetFrames:5},'cue:settle':{offsetFrames:5}}}};
     const saved=await service.save({name:'Semantic scene',scene:source,wordOrder:['source-start','source-word','source-end'],requests:[
       {id:'random-request-id',sceneId:source.id,description:'主图',reason:'真实文件',status:'provided',fileName:'actual.png',visualSlot:{moduleId:detail.id,slotId:'hero'}},
       {id:'stale-request',sceneId:source.id,description:'旧模块',reason:'不应读取',status:'provided',fileName:'missing.png',visualSlot:{moduleId:'other-module',slotId:'ignored'}},
     ]});
     expect(saved.parameters).toEqual({labels:['scene content'],palette:['#223344','#556677'],accent:'#aabbcc',scale:3});
     expect(saved.cues).toEqual([{label:'reveal'}]);
+    expect(saved.cueTimings).toEqual([{cueIndex:0,timing:{offsetFrames:5}}]);
     expect(saved.contents?.materials).toMatchObject([{id:'hero',kind:'image'}]);
     const target:Scene={id:'target',title:'Target',intent:'New narration',startWordId:'target-start',endWordId:'target-end',beats:[],editor:{overrides:{},locks:[]}};
     const applied=await service.instantiate({id:saved.id,target,bindings:['new-word']});
     expect(applied.beats).toEqual([{wordId:'new-word',label:'reveal'}]);
+    expect(applied.editor?.eventTimings).toEqual({'beat:new-word':{offsetFrames:5}});
+    source.editor!.eventTimings!['cue:settle']={offsetFrames:7};
+    await expect(service.save({name:'Ambiguous shared word',scene:source,wordOrder:['source-start','source-word','source-end']}))
+      .rejects.toThrow('同词事件的偏移或时长不同');
+    source.editor!.eventTimings!['cue:settle']={offsetFrames:5};
     const requests=await service.instantiateMaterials(saved.id,applied,[]);
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({status:'provided',animationSlot:{moduleId:saved.moduleId,templateId:saved.id,materialId:'hero'}});
