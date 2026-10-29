@@ -774,7 +774,7 @@ export function Production({
   });
   const statusHint = (scopedError && "当前段落读取失败") || (scopedLoaded && scopedProgramError && "请补齐本段素材") || (scopedLoading && "正在读取当前段落…") || (!scopedLoaded && "正在读取当前段落…") || (dirty ? "有未保存修改" : selectedRendering ? "正在生成本段样片" : approvedCurrent ? "本段已确认" :
     currentLatest ? (feedbackOpen ? `${feedbackOpen} 条反馈待处理` : currentLatest.pendingMaterials ? "补齐素材后可确认" : "样片已就绪，播放后确认") :
-    selectedLatest?.status === "failed" ? "生成失败，可以重试" : selectedLatest ? "画面已更新，请重新生成样片" : "编辑满意后，生成带原声的本段样片");
+    selectedLatest?.status === "failed" ? "生成失败，可以重试" : selectedLatest ? "画面已更新，请重新生成样片" : "编辑满意后，生成带声音的本段样片");
   return (
     <EditorWorkspace className="production-workspace">
       <aside className="left editor-sidebar">

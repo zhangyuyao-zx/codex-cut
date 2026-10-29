@@ -14,6 +14,7 @@ export type SceneModuleInput = {
   words: { id: string; text: string; start: number; end: number }[];
   beats: { wordId: string; label: string; frame: number; durationFrames?:number }[];
   mediaSrc: string;
+  audioSrc?: string;
   componentLayers?: any[];
   materials: { id: string; src: string; kind: "image" | "video" }[];
   entryTransition?: SceneEntryTransition;
@@ -62,9 +63,9 @@ export function SceneModuleSurface({
       {includeAudio && (
         <Audio
           src={
-            scene.mediaSrc.startsWith("/")
-              ? scene.mediaSrc
-              : staticFile(scene.mediaSrc)
+            (scene.audioSrc??scene.mediaSrc).startsWith("/")
+              ? (scene.audioSrc??scene.mediaSrc)
+              : staticFile(scene.audioSrc??scene.mediaSrc)
           }
           trimBefore={scene.from}
         />

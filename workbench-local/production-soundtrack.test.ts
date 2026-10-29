@@ -1,0 +1,53 @@
+import {mkdtemp,readFile,rm,writeFile,chmod,unlink,stat,utimes} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {it,expect} from 'vitest';
+import {importSoundtrack,verifySoundtrack,copySoundtrack,soundtrackPath,productionAudioArgs} from './production-soundtrack';
+import {runtimeCommand} from './runtime-paths';
+import {createContentDigester} from './cut-media-identity';
+import {createProjectCheckpoint,restoreProjectCheckpoint} from './project-checkpoint';
+const exec=promisify(execFile);
+it('probes real audio, freezes a project copy, rejects bad inputs/stale cuts/tampering and backs up bytes',async()=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'soundtrack-'));
+  try{
+    const input=path.join(dir,'mix.wav'),production=path.join(dir,'project/production');
+    await exec(runtimeCommand('ffmpeg'),['-v','error','-f','lavfi','-i','sine=frequency=440:duration=1','-c:a','pcm_s16le',input]);
+    const mix=await importSoundtrack(production,input,7,30),stored=soundtrackPath(production,mix);
+    expect(await readFile(stored)).toEqual(await readFile(input));
+    expect((await stat(stored)).mode&0o222).toBe(0);
+    expect(await verifySoundtrack(production,mix,7,30)).toBe(stored);
+    const cachedDigest=createContentDigester();
+    expect(await verifySoundtrack(production,mix,7,30,cachedDigest)).toBe(stored);
+    expect(await verifySoundtrack(production,mix,7,30,cachedDigest)).toBe(stored);
+    await expect(verifySoundtrack(production,mix,8,30)).rejects.toThrow('已过期');
+    await expect(importSoundtrack(production,input,7,60)).rejects.toThrow('时长');
+    await expect(importSoundtrack(production,'../mix.wav',7,30)).rejects.toThrow('绝对');
+    await expect(importSoundtrack(production,dir,7,30)).rejects.toThrow('普通');
+    await writeFile(path.join(dir,'empty.wav'),'');
+    await expect(importSoundtrack(production,path.join(dir,'empty.wav'),7,30)).rejects.toThrow('非空');
+    const noAudio=path.join(dir,'silent.mp4');
+    await exec(runtimeCommand('ffmpeg'),['-v','error','-f','lavfi','-i','color=s=16x16:r=30:d=1','-an',noAudio]);
+    await expect(importSoundtrack(production,noAudio,7,30)).rejects.toThrow('没有可用音频');
+    const copied=path.join(dir,'copy.wav');await copySoundtrack(production,mix,copied,7,30);
+    const repo=path.join(dir,'repo');await import('node:fs/promises').then(fs=>fs.mkdir(repo));
+    await writeFile(path.join(repo,'package.json'),'{}');
+    const backup=path.join(dir,'backup');await createProjectCheckpoint({repo,project:path.join(dir,'project'),destination:backup});
+    await restoreProjectCheckpoint(backup,path.join(dir,'restored'));
+    expect(await readFile(path.join(dir,'restored/project/production/soundtracks',mix.fileName))).toEqual(await readFile(input));
+    const beforeReplacement=await stat(stored);
+    await chmod(stored,0o644);await writeFile(stored,Buffer.alloc(beforeReplacement.size));
+    await utimes(stored,beforeReplacement.atime,beforeReplacement.mtime);
+    await expect(verifySoundtrack(production,mix,7,30,cachedDigest)).rejects.toThrow('丢失或变化');
+    await expect(verifySoundtrack(production,mix,7,30)).rejects.toThrow('丢失或变化');
+    await expect(copySoundtrack(production,mix,path.join(dir,'bad.wav'),7,30)).rejects.toThrow('丢失或变化');
+    await unlink(stored);await expect(verifySoundtrack(production,mix,7,30)).rejects.toThrow('丢失或变化');
+    expect(()=>soundtrackPath(production,{...mix,fileName:'../mix.wav'})).toThrow();
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
+it('uses full-film frame coordinates for sample audio and preserves the legacy copy codec',()=>{
+  expect(productionAudioArgs(45,90,true,true)).toContain('atrim=start=1.5:end=3,asetpts=PTS-STARTPTS');
+  expect(productionAudioArgs(0,90,false,false)).toEqual(['-c','copy']);
+  expect(productionAudioArgs(0,90,false,true)).toContain('aac');
+});

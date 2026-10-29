@@ -1,3 +1,4 @@
+import {soundtrackSchema,type ProductionSoundtrack} from './production-soundtrack';
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -140,6 +141,8 @@ export const productionStateSchema = z
     revision: revisionSchema,
     source: productionSourceSchema.nullable(),
     stylePack: visualMemberSchema.optional(),
+    soundtrack: soundtrackSchema.nullable().optional(),
+    soundtrackRevision: revisionSchema.optional(),
     scenes: z.array(sceneSchema).max(2_000),
     requests: z.array(materialRequestSchema).max(10_000),
     feedback: z.array(feedbackSchema).max(10_000),
@@ -206,6 +209,7 @@ export interface ProductionStore {
     requests: readonly MaterialRequest[],
     options?:{restoreCapturedEditor?:boolean},
   ): Promise<ProductionState>;
+  setSoundtrack(expectedRevision:number,soundtrack:ProductionSoundtrack|null):Promise<ProductionState>;
   setStylePack(expectedRevision:number,stylePack:z.infer<typeof visualMemberSchema>,scenes:readonly Scene[]):Promise<ProductionState>;
   addFeedback(
     expectedRevision: number,
@@ -485,6 +489,14 @@ class ProductionStoreImpl implements ProductionStore {
         "Invalid production state",
       );
       return this.commit(envelope, nextState);
+    });
+  }
+
+  public async setSoundtrack(expectedRevision:number,soundtrack:ProductionSoundtrack|null):Promise<ProductionState>{
+    return this.serialized(async()=>{
+      const envelope=await this.loadEnvelopeLocked();assertExpectedRevision(envelope.state,expectedRevision);
+      return this.commit(envelope,parseState({...envelope.state,revision:nextRevision(envelope.state.revision),
+        soundtrack:soundtrackSchema.nullable().parse(soundtrack),soundtrackRevision:nextRevision(envelope.state.soundtrackRevision??0)},'Invalid soundtrack'));
     });
   }
 

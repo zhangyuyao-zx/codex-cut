@@ -36,6 +36,7 @@ export type Props = {
   };
   duration: number;
   mediaSrc?: string;
+  audioSrc?: string;
   headlines?: { intro: string; transcript: string; alignment: string };
   values: {
     title: string;
@@ -96,6 +97,7 @@ export function TranscriptAnimation({
   values,
   motion,
   mediaSrc,
+  audioSrc,
   headlines,
 }: Props) {
   const C = { ...palette, accent: values.accent };
@@ -120,10 +122,10 @@ export function TranscriptAnimation({
     >
       <Audio
         src={
-          mediaSrc
-            ? mediaSrc.startsWith("/")
-              ? mediaSrc
-              : staticFile(mediaSrc)
+          (audioSrc??mediaSrc)
+            ? (audioSrc??mediaSrc)!.startsWith("/")
+              ? (audioSrc??mediaSrc)!
+              : staticFile((audioSrc??mediaSrc)!)
             : staticFile("narration.m4a")
         }
       />

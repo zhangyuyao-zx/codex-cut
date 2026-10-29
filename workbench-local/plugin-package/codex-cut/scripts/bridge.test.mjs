@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {invoke,tools} from './bridge.mjs';
 const plugin=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const {workbenchRoot:root}=JSON.parse(await readFile(resolve(plugin,'local-config.json'),'utf8'));
+const {projectDirectory}=await import(pathToFileURL(resolve(root,'workbench-local/project-location.mjs')).href);
 const digest=async f=>createHash('sha256').update(await readFile(resolve(root,f))).digest('hex');
 test('seven discoverable tools and exact argument validation',async()=>{
  assert.equal(tools.length,7);assert.equal(new Set(tools.map(t=>t.name)).size,7);
@@ -31,7 +32,7 @@ test('wrong localhost service identity rejected before any write',async t=>{
 });
 test('unsaved draft blocks writes before fetching token',async t=>{
  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original;});const urls=[];
- globalThis.fetch=async url=>{urls.push(url);return new Response(JSON.stringify(url.endsWith('/health')?{appId:'codex-local-video-workbench',ready:true,root}:{selection:{hasUnsavedChanges:true}}));};
+ globalThis.fetch=async url=>{urls.push(url);return new Response(JSON.stringify(url.endsWith('/health')?{appId:'codex-local-video-workbench',ready:true,root,projectDir:projectDirectory(root)}:{selection:{hasUnsavedChanges:true}}));};
  await assert.rejects(invoke('render_segment',{sceneId:'x',expectedRevision:0}),/未保存/);assert(!urls.some(u=>u.endsWith('/bootstrap')));
 });
 test('stdio initialize, tool discovery and actual status response',async()=>{
@@ -46,7 +47,7 @@ function mockService(t,{dirty=false,productionRevision=7,cutRevision=13,libraryR
  const state={revision:libraryRevision,assets:[],packs:[],references:[],favorites:[],active:null,...library};
  globalThis.fetch=async(url,options={})=>{
   const pathname=new URL(url).pathname,body=options.body?JSON.parse(options.body):undefined;calls.push({path:pathname,method:options.method??'GET',body,headers:options.headers});
-  const output=pathname==='/api/health'?{appId:'codex-local-video-workbench',ready:true,root}:
+  const output=pathname==='/api/health'?{appId:'codex-local-video-workbench',ready:true,root,projectDir:projectDirectory(root)}:
    pathname==='/api/production'?{plan:{revision:productionRevision},selection:{hasUnsavedChanges:dirty,sceneId:'existing-scene'}}:
    pathname==='/api/cut'&&options.method!=='POST'?{revision:cutRevision}:
    pathname==='/api/visual-library'&&options.method!=='POST'?state:
@@ -55,6 +56,33 @@ function mockService(t,{dirty=false,productionRevision=7,cutRevision=13,libraryR
  };
  return {calls,state};
 }
+
+test('same repository with a different active project is rejected before reads or mutations',async t=>{
+ const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original;});const calls=[];
+ globalThis.fetch=async url=>{calls.push(new URL(url).pathname);return new Response(JSON.stringify({appId:'codex-local-video-workbench',ready:true,root,projectDir:resolve(root,'projects/wrong-project')}));};
+ await assert.rejects(invoke('update_project',{operation:'production/parameters',expectedRevision:7,data:{}}),/当前工程与所选目录不一致/);
+ assert.deepEqual(calls,['/api/health']);
+});
+
+test('soundtrack writes preserve guards and carry the selected project identity',async t=>{
+ const {calls}=mockService(t);
+ const status=await invoke('workbench_status');assert.equal(status.projectDir,projectDirectory(root));
+ await invoke('update_project',{operation:'production/soundtrack',expectedRevision:7,data:{path:null,expectedCutRevision:13}});
+ const write=calls.find(call=>call.method==='POST');assert.equal(write.path,'/api/production/soundtrack');
+ assert.equal(write.headers['x-workbench-project-dir'],encodeURIComponent(projectDirectory(root)));
+ assert.equal(write.body.actor,'codex');assert.equal(write.body.expectedCutRevision,13);
+});
+
+test('project changes during a write stop it before the POST',async t=>{
+ const {calls}=mockService(t),fetch=globalThis.fetch;let healthReads=0;
+ globalThis.fetch=async(url,options)=>{
+  if(new URL(url).pathname==='/api/health'&&++healthReads===3)
+   return new Response(JSON.stringify({appId:'codex-local-video-workbench',ready:true,root,projectDir:resolve(root,'projects/switched')}));
+  return fetch(url,options);
+ };
+ await assert.rejects(invoke('update_project',{operation:'production/soundtrack',expectedRevision:7,data:{path:null,expectedCutRevision:13}}),/当前工程与所选目录不一致/);
+ assert(!calls.some(call=>call.method==='POST'));
+});
 
 test('new detail selectors validate nested member shape before network and resolve both supported forms',async t=>{
  const {calls}=mockService(t);

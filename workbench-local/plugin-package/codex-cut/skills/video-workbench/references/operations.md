@@ -4,7 +4,15 @@
 
 插件根目录 `local-config.json` 的 `workbenchRoot` 指向已有仓库；可用进程环境变量 `CODEX_CUT_ROOT` 覆盖。`workbench_status` 返回有效根目录。插件是本机连接版，依赖该仓库及其现有 Node、FFmpeg、Chromium、Remotion 运行时，不包含用户视频或模型凭据，也不自动下载依赖。
 
-当前后端只有一个活动工程，不支持通过插件任意新建/切换多个工程。新视频必须先保护现有活动工程；不能把导入命令当作无损新建工程。
+4340 同时只有一个活动工程。新内容先保存并正常停止服务，在配置仓库执行：
+
+```bash
+node workbench-local/select-project.mjs --path "/absolute/content-project/video/Codex-Cut" --content-id CYYYYMMDD-NNN --name "实际选题名称"
+```
+
+将占位符换成已建内容项目的绝对路径与稳定编号。新目录须为空；命令只写入内容身份和 `projects/active-project.json`，不导入、不启动、不改旧工程。旧工程可只传 `--path`，保留原身份。选择与启动共用仓库端口锁；运行中须正常停止后再选，不自动终止陌生服务。`WORKBENCH_PROJECT_DIR` 优先于持久选择，必须为绝对路径；与选择目标冲突时命令拒绝。无覆盖／选择时继续用 `projects/local-workbench`。
+
+随后 `open_workbench`、`read_project summary`，核对实际 `projectDir`、`contentId` 与本期记录再导入。启动器和插件同时检查 appId、源码根、实际工程目录及就绪状态；同仓库另一工程也拒绝复用或写入。旧服务若没有 projectDir 健康字段，先用旧版本正常停止后再升级启动。日志位于 `projects/.launcher-runtime/4340/server.log`。不能把导入命令当作无损新建工程。
 
 ## 工具
 
@@ -27,6 +35,7 @@
 
 | operation | data |
 |---|---|
+| production/soundtrack | `{path:"完整混音本地绝对路径"或null,expectedCutRevision:刚读取的cut.revision}`；外层 expectedRevision 用制作修订。必须包含口播并与全片粗剪从零点对齐、等长（容差一帧）；复制校验并计入确认身份。null 明确清除。更换／清除后旧段落确认失效，粗剪过期或文件变化会阻止预览和渲染 |
 | production/parameters | `{sceneId,patch:{参数名:值}}` |
 | production/event-edit | `{sceneId,eventId,offsetFrames?,durationFrames?,wordId?,reset?}`；eventId 来自 summary/production.timelineEvents；调整相对词的偏移或重绑，显式声明的动作才可改时长。保留其他字段，expectedRevision 为当前制作修订 |
 | production/editor/command | `{operationId:UUID,sceneId,objectId,changes:[{kind,key,before,after}]}`；共享画布编辑协议，见下方说明 |
@@ -108,6 +117,14 @@ controls 是有 key/label/type/required/default 的判别对象；text、color�
 
 段落素材上传在工作台完成，或按已有接口绑定真实文件。不能将 request.status 手改为 provided 冒充上传成功。新资产媒体绑定按库详情和 `SCENE_MODULES.md` 处理；旧组件仅维护已有工程。
 
+## 声音进入正式输出
+
+最小声音路径是一条完整混音：由 Codex 使用已有 FFmpeg 等工具把应保留的口播、音乐、音效合成，保留本期来源、音量安排、命令与文件，再用上表绑定。建议使用浏览器可播放的 WAV 等常用格式。工作台验证真实音轨可解码、时长与当前粗剪一致，再保存只读副本和内容哈希；用户原文件不被覆盖。
+
+summary/production 的 `soundtrackStatus` 给出 `mode: master|source`、ready 与错误；plan.soundtrack 记录绑定。原生预览和段落／全片输出都取同一音轨，段落按全片帧范围截取，合成保持连续。声音文件缺失、被改或粗剪版本过期时明确报错，不静默退回原声。重新绑定或清除都会更改确认身份；备份随 production 目录包含声音副本。
+
+工作台没有新增多轨混音器，口播时间线波形仍来自粗剪。任意 TSX 内另放 Audio、stylePack.sound 的说明或资产静音样片不等于声音已进入最终输出。检查实际播放的人声可懂度、音乐遮挡和段落边界；没有听过不声称听觉验收。技术检查与用户对具体作品的认可分别记录。
+
 ## 动画代码
 
 原创项目场景直接在 `workbench-local/scenes/` 编写 TSX 与清单，用 production/scenes 绑定当前段落；不必先入库。清单可声明 dependencies 和 styleBindings，准确协议读项目 `SCENE_MODULES.md`。设计与实现沿用 Remotion，按需要使用 SVG、Canvas、着色器、ThreeCanvas。先实现代表创意的镜头，再补齐必要的对象参数与口播绑定；交付前保护用户覆盖和锁。认可后可保存动画或提炼新库资产，不用几个固定场景替代创作。
@@ -120,7 +137,7 @@ stylePackInfo.tokens 是固定包的共同样式值，`coverage.scenes[].values`
 
 段落 schema 与 design 对象参考 `production-store.ts`、`creative-design.ts`；参数与锁定参考 `editable-objects.ts`。只保存设计文字不会自动产生动画。
 
-存在共享模块时修改代码可能影响多段，先核对调用者与确认状态。确认记录 `projects/local-workbench/production/segment-reviews.json` 和关联 renders 是成果资产，不可当缓存删除。旧视频可查看不等于完整源码一键回滚。
+存在共享模块时修改代码可能影响多段，先核对调用者与确认状态。确认记录 `<实际projectDir>/production/segment-reviews.json` 和关联 renders 是成果资产，不可当缓存删除。旧视频可查看不等于完整源码一键回滚。
 
 ## 保存与恢复边界
 

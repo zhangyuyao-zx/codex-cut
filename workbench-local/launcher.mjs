@@ -6,6 +6,7 @@ import { mkdir, open, readFile, unlink } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import {canonicalPath, projectDirectory, assertProjectPath} from './project-location.mjs';
 
 export const APP_ID = "codex-local-video-workbench";
 export const HOST = "127.0.0.1";
@@ -31,7 +32,9 @@ export function repoRootFromModule(moduleUrl = import.meta.url) {
 }
 
 export function createConfig(options = {}) {
-  const repoRoot = resolve(options.repoRoot ?? options.root ?? repoRootFromModule());
+  const repoRoot = canonicalPath(options.repoRoot ?? options.root ?? repoRootFromModule());
+  const env = options.env ?? process.env;
+  const projectDir = assertProjectPath(repoRoot, options.projectDir ?? projectDirectory(repoRoot, env));
   const port = Number(options.port ?? PORT);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new LauncherError(`无效工作台端口：${String(options.port)}`, {
@@ -39,10 +42,11 @@ export function createConfig(options = {}) {
     });
   }
   const runtimeDir = resolve(
-    options.runtimeDir ?? resolve(repoRoot, "projects/local-workbench/runtime"),
+    options.runtimeDir ?? resolve(repoRoot, "projects/.launcher-runtime", String(port)),
   );
   return {
     repoRoot,
+    projectDir,
     port,
     baseUrl: options.baseUrl ?? `http://${HOST}:${port}`,
     runtimeDir,
@@ -52,7 +56,7 @@ export function createConfig(options = {}) {
     spawnImpl: options.spawnImpl ?? spawn,
     openImpl: options.openImpl ?? spawn,
     tsxPath: options.tsxPath,
-    env: options.env ?? process.env,
+    env: {...env, WORKBENCH_PROJECT_DIR: projectDir},
     startupTimeoutMs: options.startupTimeoutMs ?? STARTUP_TIMEOUT_MS,
     shutdownTimeoutMs: options.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS,
     healthTimeoutMs: options.healthTimeoutMs ?? HEALTH_TIMEOUT_MS,
@@ -135,13 +139,14 @@ async function request(config, path, init = {}, timeoutMs = config.healthTimeout
   }
 }
 
-function healthIdentity(body, expectedRoot) {
+function healthIdentity(body, expectedRoot, expectedProjectDir) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   if (body.appId !== APP_ID || body.root !== expectedRoot || !isIntegerPid(body.pid)) {
     return null;
   }
+  if (typeof body.projectDir !== 'string' || canonicalPath(body.projectDir) !== expectedProjectDir) return null;
   if (typeof body.ready !== "boolean") return null;
-  return { appId: body.appId, root: body.root, pid: body.pid, ready: body.ready };
+  return { appId: body.appId, root: body.root, projectDir:body.projectDir, pid: body.pid, ready: body.ready };
 }
 
 export async function inspectService(options = {}) {
@@ -160,7 +165,7 @@ export async function inspectService(options = {}) {
       config,
     };
   }
-  const identity = healthIdentity(response.body, config.repoRoot);
+  const identity = healthIdentity(response.body, config.repoRoot, config.projectDir);
   if (!identity) {
     return {
       kind: "foreign",
@@ -197,6 +202,8 @@ function foreignServiceError(inspection, config) {
   const root = inspection?.body?.root;
   const detail = root && root !== config.repoRoot
     ? `端口 ${config.port} 上的服务根目录是 ${root}`
+    : root === config.repoRoot && inspection?.body?.projectDir !== config.projectDir
+    ? `端口 ${config.port} 的实际工程是 ${inspection?.body?.projectDir || '未知（旧服务需更新）'}，预期为 ${config.projectDir}`
     : `端口 ${config.port} 没有返回本工作台的健康身份`;
   return new LauncherError(
     `${detail}；为保护其他进程，未启动或停止任何服务。`,
@@ -352,6 +359,15 @@ async function releaseLock(config, record) {
   }
 }
 
+export async function withProjectSelectionLock(options, operation) {
+  const config = createConfig(options);
+  let lock = await acquireLock(config);
+  if (!lock && await removeDeadLock(config, await readLock(config))) lock = await acquireLock(config);
+  if (!lock) throw Error('正在启动或选择工程，请等待完成后重试');
+  try { return await operation(); }
+  finally { await releaseLock(config, lock); }
+}
+
 async function waitForReady(config, { childState, returnOnFree = false, timeoutMs, deadline: suppliedDeadline } = {}) {
   const deadline = suppliedDeadline ?? config.now() + (timeoutMs ?? config.startupTimeoutMs);
   let last;
@@ -495,6 +511,7 @@ async function finishStart(config, inspection, { reused, pid } = {}) {
     launcherPid: pid && pid !== healthPid ? pid : undefined,
     url: config.baseUrl + "/",
     health: inspection.body,
+    projectDir: config.projectDir,
     logPath: config.logPath,
     openWarning,
   };
@@ -518,6 +535,8 @@ export async function startWorkbench(options = {}) {
   }
   const lock = acquired.record;
   try {
+    if (!options.projectDir && projectDirectory(config.repoRoot, options.env ?? process.env) !== config.projectDir)
+      throw new LauncherError('等待启动期间所选工程已变化，请重新启动', {code:'PROJECT_SELECTION_CHANGED'});
     inspection = await inspectService(config);
     if (inspection.kind === "ready") {
       return finishStart(config, inspection, { reused: true });
@@ -716,7 +735,7 @@ export function formatResult(result) {
   }
   if (result.command === "start") {
     const prefix = result.reused ? "已复用运行中的工作台" : "工作台已启动";
-    const lines = [prefix, `地址：${result.url}`, `PID：${result.pid}`, `日志：${result.logPath}`];
+    const lines = [prefix, `地址：${result.url}`, `工程：${result.projectDir}`, `PID：${result.pid}`, `日志：${result.logPath}`];
     if (result.openWarning) lines.push(result.openWarning);
     return lines.join("\n");
   }

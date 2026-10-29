@@ -313,3 +313,16 @@ describe('creative design persistence',()=>{
   expect((await store.undo(2)).scenes[0].design).toBeUndefined();
  });
 });
+
+it('preserves soundtrack history, scenes and user locks across set, clear, stale write and undo',async()=>{
+  const store=await createProductionStore(await makeTemporaryDirectory());
+  const first=await store.setScenes(0,null,[{...scene('sound'),editor:{overrides:{headline:'user'},locks:['headline']}}]);
+  const soundtrack={fileName:'11111111-1111-1111-1111-111111111111.wav',contentHash:'a'.repeat(64),name:'mix.wav',cutRevision:2,durationFrames:30,durationSeconds:1};
+  const bound=await store.setSoundtrack(first.revision,soundtrack);
+  expect(bound).toMatchObject({soundtrack,soundtrackRevision:1,scenes:first.scenes});
+  await expect(store.setSoundtrack(first.revision,null)).rejects.toMatchObject({code:'STALE_REVISION'});
+  const cleared=await store.setSoundtrack(bound.revision,null);
+  expect(cleared).toMatchObject({soundtrack:null,soundtrackRevision:2,scenes:first.scenes});
+  expect(await store.undo(cleared.revision)).toMatchObject({soundtrack,soundtrackRevision:1});
+  await expect(store.setSoundtrack(cleared.revision+1,{...soundtrack,fileName:'../escape.wav'})).rejects.toThrow();
+});

@@ -40,6 +40,8 @@
 
 **v0.2.3：工作台回到看、改和确认。** 只保留「剪辑」「制作与审阅」两个主工作区，资源是辅助入口；设计和检查交给 Codex，用户直接调参数、留意见和逐段确认。样片完成后打开结果，确认后进入下一段，最后一段可接续合成。「我的动画」接回统一资源入口，草稿和旧存档继续保留。详见[精简后的使用流程](docs/SIMPLIFIED_WORKFLOW.md)。
 
+**v0.3.1：独立工程与完整混音。** 启动前选择独立目录，插件核对实际工程路径与内容编号；同源码目录内的另一工程也不会被误用。完整混音包含口播、音乐和音效，并进入原生预览、逐段样片与整片合成；更换声音会使旧确认失效。见[交接与验证记录](docs/implementation/2026-10-29-project-and-soundtrack.md)。
+
 **v0.3.0：直接编辑与配套版本恢复。** 声明对象支持拖动、缩放、旋转和就地改字，图层与属性保持一致；时间线显示真实片段、波形、段落和口播动作。用户调整与作者动画分开保存，Codex 接着改时保留覆盖和锁。预览以事件同步，重场景可播放当前原声样片，定位仍按帧编辑。
 
 命名备份将代码、工程、素材和固定视觉库配套保存，恢复为新副本；旧 schema 1 工程/备份保持兼容。A—E 已完成独立工程的技术验证，实际用户使用与审美接受待反馈。见[恢复与交付记录](docs/implementation/2026-10-22-recovery-and-release.md)、[预览与性能实测](docs/implementation/2026-10-22-preview-performance.md)、[完整开发计划](docs/plans/2026-10-22-openfilm-editor-upgrade.md)。
@@ -106,7 +108,7 @@ Codex Cut 是一个 **Codex 驱动、本地运行的视频剪辑与动画包装�
 
 它面向口播、访谈、教程和知识类视频。创作过程围绕真实文稿与口播节奏展开，让动画在说到对应内容时依次出现。
 
-> 当前版本：`v0.3.0` 预览版 · 本地优先 · 项目和媒体默认不进入 Git。技术验证、插件安装和用户作品认可分别记录，详见[当前交付记录](docs/implementation/2026-10-22-recovery-and-release.md)。
+> 当前版本：`v0.3.1` 预览版 · 本地优先 · 项目和媒体默认不进入 Git。技术验证、插件安装和用户作品认可分别记录，详见[当前交付记录](docs/implementation/2026-10-29-project-and-soundtrack.md)。
 
 ## 核心能力
 
@@ -189,6 +191,10 @@ npm run stop     # 保存后停止服务
 npm run dev      # 开发模式
 ```
 
+新内容的目录选择由 Codex 执行：保存、正常停止服务后，在源码根运行 `node workbench-local/select-project.mjs --path /absolute/content-project/video/Codex-Cut --content-id CYYYYMMDD-NNN --name "实际题目"`，再启动并核对插件返回的 projectDir/contentId。占位符须换成实际信息；选择不导入素材。已有工程只需 `--path`，不重写原身份。无选择记录时沿用默认工程。详见[操作说明](workbench-local/plugin-package/codex-cut/skills/video-workbench/references/operations.md#工程位置)。
+
+需要音乐／音效时，由 Codex 用既有工具制作一条包含口播、等长并对齐粗剪的完整混音，绑定后供预览、段落与合成共用。工作台暂不提供多轨调音台；任意场景里另加声音不会自动成为正式音轨。
+
 正式渲染还需要匹配当前平台的浏览器与 Remotion 合成器。可使用以下环境变量指向本机运行时：
 
 | 变量 | 用途 |
@@ -265,10 +271,10 @@ Codex Cut 的项目原创代码以 [PolyForm Noncommercial License 1.0.0](LICENS
 
 ## 状态
 
-- **当前版本**：`0.3.0` 预览版；本轮 A—E 编辑升级的实现、技术验证和发布分别记录。
+- **当前版本**：`0.3.1` 预览版；新增独立工程接入与完整混音，历史 A—E 编辑升级继续保留。
 - **源码状态**：保留现有 Remotion、六步创作方法与逐段确认，加入共享对象命令、编辑外壳、时间线、事件同步及配套恢复；旧库只兼容历史引用。
 - **实际证据**：独立合成工程完成手动调整 → Codex 接续 → 重开 → 三段带原声样片 → 技术确认 → 12 秒合成；代码/工程副本按锁重装依赖后可启动并保持对应身份。
-- **用户验收**：真实影片审美、内容质量及长期使用仍由用户判断；本轮没有重剪、重做或确认 DJI。详见[当前状态](workbench-local/PLAN_STATUS.md)。
+- **用户验收**：真实影片审美、内容质量及长期使用仍由用户判断；本轮没有重剪、重做或确认 DJI。本轮证据见[交接与验证记录](docs/implementation/2026-10-29-project-and-soundtrack.md)，历史编辑升级见[状态记录](workbench-local/PLAN_STATUS.md)。
 - **授权状态**：PolyForm Noncommercial 1.0.0，允许个人与非商业使用；上游授权见上述说明。
 
 完整范围、阶段证据与尚待完成项见[对标视频提炼与整片风格包升级计划](docs/plans/2026-10-21-reference-distillation-style-packs.md)。新库操作见[参考提炼与视觉资产库](docs/REFERENCE_LIBRARY.md)。

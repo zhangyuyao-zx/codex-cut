@@ -1,3 +1,4 @@
+import {copySoundtrack,type ProductionSoundtrack} from './production-soundtrack';
 import {runtimeCommand} from "./runtime-paths";
 import {constants} from 'node:fs';
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
@@ -11,6 +12,7 @@ export async function assembleSegmentPictures(options: {
   productionDir: string; runDir: string; source: string; clips: SegmentApproval[];
   sourceHash?: string;
   encodeSourceAudio?: boolean;
+  soundtrack?: {productionDir:string;metadata:ProductionSoundtrack;cutRevision:number};
   duration: number; signal?: AbortSignal; stage?: (stage: string) => void;
 }) {
   const {runDir, clips, duration, signal} = options;
@@ -35,6 +37,7 @@ export async function assembleSegmentPictures(options: {
   await copyFile(options.source, resolve(runDir, 'media', 'source.mp4'),constants.COPYFILE_FICLONE);
   if (options.sourceHash && await fileDigest(resolve(runDir,'media','source.mp4')) !== options.sourceHash)
     throw Error('粗剪预览在准备合成期间发生变化，请重新生成预览');
+  const audioSource=options.soundtrack?await copySoundtrack(options.soundtrack.productionDir,options.soundtrack.metadata,resolve(runDir,'media','soundtrack.'+options.soundtrack.metadata.fileName.split('.').at(-1)),options.soundtrack.cutRevision,duration):resolve(runDir,'media','source.mp4');
   await writeFile(resolve(runDir, 'concat.txt'), clips.map((_,i) => `file 'segments/${i}.mp4'`).join('\n'));
   options.stage?.('拼接已确认画面');
   await run(runtimeCommand("ffmpeg"), ['-v','error','-f','concat','-safe','1','-i',resolve(runDir,'concat.txt'),'-map','0:v:0','-an','-c:v','copy',resolve(runDir,'picture.mp4')]);
@@ -42,9 +45,9 @@ export async function assembleSegmentPictures(options: {
   const media = JSON.parse(probe.stdout);
   const v = media.streams?.[0];
   if (Number(v?.nb_read_frames) !== duration || v.width !== 1920 || v.height !== 1080 || v.avg_frame_rate !== '30/1' || Math.abs(Number(media.format?.duration) - duration/30) > 0.002) throw Error('拼接后的帧数、规格或时长与时间线不一致');
-  options.stage?.('合入完整原声');
-  await run(runtimeCommand("ffmpeg"), ['-v','error','-i',resolve(runDir,'picture.mp4'),'-i',resolve(runDir,'media','source.mp4'),'-map','0:v:0','-map','1:a:0',
-    ...(options.encodeSourceAudio?['-c:v','copy','-c:a','aac','-b:a','192k']:['-c','copy']),
+  options.stage?.(options.soundtrack?'合入完整混音':'合入完整原声');
+  await run(runtimeCommand("ffmpeg"), ['-v','error','-i',resolve(runDir,'picture.mp4'),'-i',audioSource,'-map','0:v:0','-map','1:a:0',
+    ...(options.encodeSourceAudio||options.soundtrack?['-c:v','copy','-c:a','aac','-b:a','192k']:['-c','copy']),
     '-t',String(duration/30),'-movflags','+faststart',resolve(runDir,'review.mp4')]);
   signal?.throwIfAborted();
   return {pictureHash: await fileDigest(resolve(runDir,'picture.mp4')), media};

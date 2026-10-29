@@ -14,26 +14,25 @@ import {checkpointRoutes} from './checkpoint-routes';
 import {createVisualLibraryService} from './visual-library-service';
 import {creativeRuntimeAliases} from './creative-runtime-dependencies';
 import {createPreviewInvalidator} from './vite-preview-invalidation';
-const root = process.cwd(),
-  dir = resolve(process.env.WORKBENCH_PROJECT_DIR || resolve(root, "projects/local-workbench")),
+import {canonicalPath, projectDirectory, assertProjectStorage} from './project-location.mjs';
+const root = canonicalPath(process.cwd()),
+  dir = projectDirectory(root),
   media = resolve(dir, "media");
+const contentIdentity = assertProjectStorage(dir);
 await mkdir(media, { recursive: true });
 // A new project must start without reaching into another user's demo directory.
 // Legacy animation-lab assets are optional; imported project media remains explicit.
 let base: any = {words: [], wave: []};
 try { base = JSON.parse(await readFile(resolve(media, "props.json"), "utf8")); }
 catch (error: any) { if (error.code !== "ENOENT") throw error; }
-const store = await ProjectStore.open(dir, {
-    id: "accepted-sample",
-    name: "从口播到时间线",
-  }),
+const store = await ProjectStore.open(dir, contentIdentity ? {id:contentIdentity.contentId, name:contentIdentity.name} : undefined),
   token = randomBytes(24).toString("hex");
 const app = express(),
   port = Number(process.env.WORKBENCH_PORT || 4340);
 // Acquire exclusive ownership before recovering a previous process's task state.
 let ready = false, stopping = false;
 app.get("/api/health", (_req, res) => res.status(ready ? 200 : 503).json({
-  appId: "codex-local-video-workbench", root, pid: process.pid, ready,
+  appId: "codex-local-video-workbench", root, projectDir:dir, contentId:contentIdentity?.contentId??null, projectName:contentIdentity?.name??null, pid: process.pid, ready,
 }));
 app.use((_req, res, next) =>
   ready ? next() : res.status(503).json({ error: "工作台正在启动或停止，请稍后重新打开" }),
@@ -67,6 +66,13 @@ app.get("/api/bootstrap", async (_req, res) =>
 );
 let activeMutations=0;
 app.use("/api", (req, res, next) => {
+  const expectedProject = req.headers['x-workbench-project-dir'];
+  if (req.method !== 'GET' && expectedProject !== undefined) {
+    try {
+      if (typeof expectedProject !== 'string' || decodeURIComponent(expectedProject) !== dir)
+        return res.status(409).json({error:'当前工程与请求时读取的工程不同，请重新核对项目后操作'});
+    } catch { return res.status(400).json({error:'工程身份标记无效'}); }
+  }
   if (req.method !== "GET" && req.headers["x-workbench-token"] !== token) {
     res.status(403).json({ error: "Invalid token" });
     return;

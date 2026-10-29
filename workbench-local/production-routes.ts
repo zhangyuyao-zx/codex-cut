@@ -1,3 +1,5 @@
+import {z} from 'zod';
+import {importSoundtrack,verifySoundtrack,copySoundtrack,productionAudioArgs} from './production-soundtrack';
 import {activeMaterialRequests} from './active-material-requests';
 import {sceneEvents,eventTimingSchema} from './scene-event-timing';
 import {rendererSourceIdentity} from "./renderer-source-identity";
@@ -194,6 +196,16 @@ export async function productionRoutes(
       feedback:effectivePlan.feedback.filter(r=>r.sceneId===id)} : effectivePlan;
     const plan=transitionRenderPlan(effectivePlan,sceneId);
     const resolved=resolveProduction(plan,cut);
+    let soundtrackError='';
+    const durationFrames=Math.round(resolved.durationMs*30/1000);
+    if(originalPlan.soundtrack){events.observe(resolve(dir,'soundtracks',originalPlan.soundtrack.fileName),'assets');try{await verifySoundtrack(dir,originalPlan.soundtrack,cut.revision,durationFrames,contentDigest);}
+      catch(error){soundtrackError=(error as Error).message;}}
+    const soundtrackIdentity=originalPlan.soundtrack!==undefined||originalPlan.soundtrackRevision!==undefined?
+      {soundtrack:{binding:originalPlan.soundtrack??null,revision:originalPlan.soundtrackRevision??0,...(soundtrackError?{error:soundtrackError}:{})}}:{};
+    const soundtrackStatus={mode:originalPlan.soundtrack?'master':'source',ready:!soundtrackError,
+      ...(originalPlan.soundtrack?{...originalPlan.soundtrack,url:'/api/production/soundtrack/file/'+originalPlan.soundtrack.fileName}:{}),
+      ...(soundtrackError?{error:soundtrackError}:{})};
+
     const codeFiles = [
         "Scene.tsx",
         "ProductionProgram.tsx",
@@ -206,6 +218,7 @@ export async function productionRoutes(
         "scene-transition.ts",
         "scene-program-binding.ts",
         "scene-event-timing.ts",
+        "production-soundtrack.ts",
         "component-media.ts",
         "AppLibraryComponent.jsx",
         "../modules/legacy/components/component-runtime-identity.generated.ts",
@@ -272,6 +285,7 @@ export async function productionRoutes(
             segmentFrameRanges: ranges.filter((r) =>
               designPlan.scenes.some((s) => s.id === r.sceneId),
             ),
+            ...soundtrackIdentity,
             cutRevision: cut.revision,
             media: cut.preview,
             code,
@@ -316,7 +330,7 @@ export async function productionRoutes(
           audited[program.moduleId]===program.sourceHash?'window':'full-cut');
         const {modulePath:unusedPath,...programInput}=program;
         const layerInputs=layers.map(({modulePath:unusedLayerPath,...layer}:any)=>layer);
-        const hash=createHash('sha256').update(JSON.stringify({version:2,
+        const hash=createHash('sha256').update(JSON.stringify({version:2,...soundtrackIdentity,
           design:{scenes:single.scenes,requests:single.requests},range,program:programInput,layers:layerInputs,
           ...(layers.length?{componentCompositionDuration:Math.round(resolved.durationMs*30/1000)}:{}),
           ...(media.scope==='full-cut'?{globalRenderInputs:{duration:Math.round(resolved.durationMs*30/1000),
@@ -365,6 +379,7 @@ export async function productionRoutes(
       .map((r) => r.approved);
     let assemblyReady = false;
     try {
+      if(soundtrackError)throw Error(soundtrackError);
       if(componentSources.some(x=>x.error))throw Error('组件实现不可用');
       if(externalInputError)throw Error('补充素材不可用：'+externalInputError);
       assemblySegments(
@@ -379,6 +394,7 @@ export async function productionRoutes(
     let props: any = null,
       programError = "";
     try {
+      if(soundtrackError)throw Error(soundtrackError);
       assertTransitionPredecessors({scenes:plan.scenes});
       const componentError=componentSources.find(x=>x.error&&plan.scenes.some(s=>s.id===x.sceneId))?.error;
       if(componentError)throw Error('组件实现不可用：'+componentError);
@@ -427,6 +443,7 @@ export async function productionRoutes(
           }
         } catch {}
       }
+      if(originalPlan.soundtrack)props.audioSrc=soundtrackStatus.url;
       props.sceneEdits = resolved.scenes.map((s) => ({
         id: s.id,
         from: Math.round((s.startMs! * 30) / 1000),
@@ -452,7 +469,7 @@ export async function productionRoutes(
           const previous=previousTransitionScene(plan,input.id);
           const outgoing=previous && props.scenePrograms.find((s:any)=>s.id===previous.id);
           const exit=previous && ranges.find(r=>r.sceneId===previous.id);
-          return {...input,...(current.entryTransition?{entryTransition:current.entryTransition}:{}),
+          return {...input,...(originalPlan.soundtrack?{audioSrc:soundtrackStatus.url}:{}),...(current.entryTransition?{entryTransition:current.entryTransition}:{}),
             ...(ownRange?{transitionSpanFrames:ownRange.end-input.from}:{}),
             ...(outgoing&&exit?{transitionFromSceneId:outgoing.id,transitionOutgoingFrame:exit.end-1-outgoing.from}:{})};
         });
@@ -492,6 +509,7 @@ export async function productionRoutes(
       editorSnapshot:{hasCommands:editorState.hasCommands,revision:originalPlan.revision,cutRevision:cut.revision,modules:moduleCatalog.filter(m=>originalPlan.scenes.some(s=>s.program?.moduleId===m.id)).map(m=>({moduleId:m.id,sourceHash:m.sourceHash}))},
       editorEventsSequence:events.sequence,
       plan,
+      soundtrackStatus,
       stylePackInfo,
       cut,
       selection: await selectionStore.get(),
@@ -1031,6 +1049,32 @@ export async function productionRoutes(
   router.post('/editor/command',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorCommand(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
   router.post('/editor/undo',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorUndo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
   router.post('/editor/redo',async(req,res,next)=>{try{await protectEditorDraft(req.body);await store.editorRedo(req.body,editorDescriptor);res.json(await context());}catch(error){next(error);}});
+  router.get('/soundtrack/file/:fileName',async(req,res,next)=>{try{
+    const [plan,cut]=await Promise.all([store.get(),cutStore.get()]);
+    if(!plan.soundtrack||req.params.fileName!==plan.soundtrack.fileName)throw Error('当前完整混音不存在');
+    const file=await verifySoundtrack(dir,plan.soundtrack,cut.revision,Math.round(resolveProduction(plan,cut).durationMs*30/1000),contentDigest);
+    res.sendFile(file);
+  }catch(error){next(error);}});
+  router.post('/soundtrack',async(req,res,next)=>{
+    let ticket:ReturnType<RenderLane['reserve']>|undefined;
+    try{
+      const input=z.object({path:z.string().min(1).nullable(),expectedCutRevision:z.number().int().nonnegative().safe(),
+        expectedRevision:z.number().int().nonnegative().safe(),actor:z.enum(['user','codex']).optional()}).strict().parse(req.body);
+      await protectEditorDraft({actor:'codex'});
+      ticket=lane.reserve();
+      const [plan,cut]=await Promise.all([store.get(),cutStore.get()]);
+      if(plan.revision!==input.expectedRevision)throw Error('方案已更新，请刷新后重试');
+      if(cut.revision!==input.expectedCutRevision||cut.busy)throw Error('粗剪已更新或正在处理，请重新读取后绑定完整混音');
+      const durationFrames=Math.round(resolveProduction(plan,cut).durationMs*30/1000);
+      if(input.path!==null&&(!cut.asset||durationFrames<1))throw Error('请先准备有效粗剪，再绑定完整混音');
+      const soundtrack=input.path===null?null:await importSoundtrack(dir,input.path,cut.revision,durationFrames);
+      const latest=await cutStore.get();
+      if(latest.revision!==cut.revision||latest.busy)throw Error('粗剪在导入混音期间已变化，请重新绑定');
+      await protectEditorDraft({actor:'codex'});
+      await store.setSoundtrack(input.expectedRevision,soundtrack);
+      res.json(await context());
+    }catch(error){next(error);}finally{ticket?.release();}
+  });
   router.post("/selection", async (req, res, next) => {
     try {
       const input = editorSelectionInputSchema.parse(req.body);
@@ -1436,6 +1480,7 @@ export async function productionRoutes(
                 props: c.props,
                 renderInputs:c.renderInputs,
                 runtimeIdentity:c.runtimeIdentity,
+                soundtrack:c.plan.soundtrack??null,
                 key: c.key,
                 segments: clips,
               },
@@ -1449,6 +1494,7 @@ export async function productionRoutes(
             source: resolve(projectDir, "cut", basename(c.cut.preview!.provenance?.renderSource?.url||c.cut.preview!.url)),
             sourceHash: c.cut.preview!.provenance?.renderSource?.contentHash||c.cut.preview!.provenance?.contentHash,
             encodeSourceAudio:!!c.cut.preview!.provenance?.renderSource,
+            ...(c.plan.soundtrack?{soundtrack:{productionDir:dir,metadata:c.plan.soundtrack,cutRevision:c.cut.revision}}:{}),
             clips,
             duration: task.end,
             signal: owned.signal,
@@ -1603,6 +1649,8 @@ export async function productionRoutes(
     const sourceHash = renderSource?.contentHash||c.cut.preview!.provenance?.contentHash;
     if (sourceHash && await fileDigest(resolve(publicDir,sourceName)) !== sourceHash)
       throw Error("粗剪预览在准备渲染期间发生变化，请重新生成预览");
+    const audioName=c.plan.soundtrack?'soundtrack.'+c.plan.soundtrack.fileName.split('.').at(-1):sourceName;
+    if(c.plan.soundtrack)await copySoundtrack(dir,c.plan.soundtrack,resolve(publicDir,audioName),c.cut.revision,c.props.duration);
     const { stdout } = await runExec(
       runtimeCommand("ffmpeg"),
       [
@@ -1700,7 +1748,8 @@ export async function productionRoutes(
     const props = {
       ...c.props,
       mediaSrc: sourceName,
-      ...(c.props.scenePrograms?{scenePrograms:c.props.scenePrograms.map((s:any)=>({...s,mediaSrc:sourceName}))}:{}),
+      ...(c.plan.soundtrack?{audioSrc:audioName}:{}),
+      ...(c.props.scenePrograms?{scenePrograms:c.props.scenePrograms.map((s:any)=>({...s,mediaSrc:sourceName,...(c.plan.soundtrack?{audioSrc:audioName}:{})}))}:{}),
       componentLayers:c.props.componentLayers.map((l:any)=>({...l,
         mediaSrc:l.mediaSrc==='source.mp4'?sourceName:l.mediaSrc,
         mediaSources:l.mediaSources?.map((m:any)=>({...m,src:m.src==='source.mp4'?sourceName:m.src}))})),
@@ -1718,6 +1767,7 @@ export async function productionRoutes(
           props,
           renderInputs:c.renderInputs,
           runtimeIdentity:c.runtimeIdentity,
+          soundtrack:c.plan.soundtrack??null,
           key: task.key,
           from: task.from,
           end: task.end,
@@ -1838,27 +1888,16 @@ export async function productionRoutes(
       ticket.signal.removeEventListener("abort", abortRender);
     }
     ticket.check();
-    task.stage = "合成原声";
+    task.stage = c.plan.soundtrack?"合成完整混音":"合成原声";
     events.task(job,sampleJob);
-    const audioArgs = task.sceneId
-      ? [
-          "-filter:a",
-          `atrim=start=${task.from / 30}:end=${task.end / 30},asetpts=PTS-STARTPTS`,
-          "-c:v",
-          "copy",
-          "-c:a",
-          "aac",
-          "-b:a",
-          "192k",
-        ]
-      : renderSource ? ["-c:v","copy","-c:a","aac","-b:a","192k"] : ["-c", "copy"];
+    const audioArgs=productionAudioArgs(task.from,task.end,!!task.sceneId,!!renderSource||!!c.plan.soundtrack);
     await runExec(runtimeCommand("ffmpeg"), [
       "-v",
       "error",
       "-i",
       resolve(runDir, "picture.mp4"),
       "-i",
-      resolve(publicDir, sourceName),
+      resolve(publicDir, audioName),
       "-map",
       "0:v:0",
       "-map",

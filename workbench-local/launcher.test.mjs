@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, it } from "node:test";
+import {canonicalPath} from './project-location.mjs';
 
 import {
   APP_ID,
@@ -24,7 +25,7 @@ afterEach(async () => {
 async function temporaryRoot() {
   const directory = await mkdtemp(join(tmpdir(), "codex-local-workbench-launcher-"));
   tempDirs.push(directory);
-  return directory;
+  return canonicalPath(directory);
 }
 
 async function listen(server, port = 0) {
@@ -48,14 +49,15 @@ function json(response, status, body) {
   response.end(payload);
 }
 
-async function mockWorkbench({ root, ready = true, pid = process.pid, token = "test-token", port = 0 } = {}) {
-  const state = { ready, pid, root, token, shutdownHeaders: [], shutdowns: 0 };
+async function mockWorkbench({ root, projectDir=resolve(root,'projects/local-workbench'), ready = true, pid = process.pid, token = "test-token", port = 0 } = {}) {
+  const state = { ready, pid, root, projectDir, token, shutdownHeaders: [], shutdowns: 0 };
   let server;
   server = createServer((request, response) => {
     if (request.url === "/api/health" && request.method === "GET") {
       json(response, state.ready ? 200 : 503, {
         appId: APP_ID,
         root: state.root,
+        projectDir: state.projectDir,
         pid: state.pid,
         ready: state.ready,
       });
@@ -135,6 +137,19 @@ describe("local workbench launcher", () => {
     }
   });
 
+  it('refuses to reuse or stop a different project in the same repository', async () => {
+    const root=await temporaryRoot(), actual=resolve(root,'projects/old-project');
+    const mock=await mockWorkbench({root,projectDir:actual});
+    try {
+      const options={root,baseUrl:mock.baseUrl,noOpen:true,spawnImpl:()=>{throw Error('must not spawn');}};
+      await assert.rejects(startWorkbench(options), error=>error.code==='FOREIGN_SERVICE'&&error.message.includes(actual));
+      await assert.rejects(stopWorkbench(options), error=>error.code==='FOREIGN_SERVICE');
+      assert.equal(mock.state.shutdowns,0);
+      const explicit=await statusWorkbench({...options,env:{WORKBENCH_PROJECT_DIR:actual}});
+      assert.equal(explicit.health.projectDir,actual);
+    } finally {await close(mock.server);}
+  });
+
   it("starts through a detached local tsx command after acquiring its own lock", async () => {
     const root = await temporaryRoot();
     const runtimeDir = join(root, "projects/local-workbench/runtime");
@@ -171,6 +186,7 @@ describe("local workbench launcher", () => {
     assert.equal(spawnCall.executable, process.execPath);
     assert.deepEqual(spawnCall.args, [tsxPath, "workbench-local/server.ts"]);
     assert.equal(spawnCall.options.cwd, root);
+    assert.equal(spawnCall.options.env.WORKBENCH_PROJECT_DIR, resolve(root,'projects/local-workbench'));
     assert.equal(spawnCall.options.detached, true);
     assert.equal(spawnCall.options.stdio[0], "ignore");
     assert.equal(typeof spawnCall.options.stdio[1], "number");

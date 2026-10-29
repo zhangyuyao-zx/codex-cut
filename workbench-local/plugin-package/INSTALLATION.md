@@ -1,5 +1,12 @@
 # Codex Cut 插件安装记录
 
+## 0.3.1 · 2026-10-29
+
+- 源码及个人源版本更新为0.3.1，官方 `codex plugin add codex-cut@personal --json` 返回安装成功。9份公开插件文件与安装缓存字节一致，local-config 原字节保留。
+- 新版安装脚本实际读回 expectedProjectDir；默认4340保持未启动，隔离4347完成真实制作链验证。当前聊天的MCP仍返回旧状态结构，没有被声称热加载；当前可用新版同源脚本，后续宿主加载再核对。
+- 新增 projectDir/contentId 核对与 production/soundtrack 操作，保留7工具及原修订／草稿／锁／用户认可边界。
+- 代码、插件包与恢复说明见[本次交付记录](../../docs/implementation/2026-10-29-project-and-soundtrack.md)。私人工作稿、素材和工程不进入发布包。
+
 ## 0.3.0 · 2026-10-22
 
 - 源码 manifest/桥接/Skill/operations 与个人源同步，通过官方 `codex plugin add codex-cut@personal --json` 安装为 0.3.0。九份发布文件与安装缓存字节一致，已有 local-config.json 原字节保留。
