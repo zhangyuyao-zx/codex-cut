@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "title": "填写参考名称",
+  "source": {
+    "id": "填写源ID",
+    "path": "填写原始路径作为来源记录",
+    "sha256": "填写原片hash",
+    "width": 0,
+    "height": 0,
+    "timebase": "cfr",
+    "fps": 0,
+    "frameCount": 0,
+    "videoDuration": 0,
+    "language": "填写语言",
+    "localPlayback": "source.mp4"
+  },
+  "status": {
+    "visualStudy": "未开始",
+    "normalSpeedAudiovisual": false
+  },
+  "coverage": {},
+  "audio": {
+    "subjectiveVerified": false
+  },
+  "limits": [],
+  "scenes": [],
+  "sentences": [],
+  "elements": [],
+  "children": [],
+  "globals": [],
+  "events": [],
+  "transitions": [],
+  "refinedMotion": [],
+  "nativeWindows": []
+}

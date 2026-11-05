@@ -6,9 +6,9 @@ import {promisify} from 'node:util';
 import {createInterface} from 'node:readline';
 const exec = promisify(execFile);
 const pluginRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const config=JSON.parse(await readFile(resolve(pluginRoot,'local-config.json'),'utf8'));
+const configuredRoot=process.env.CODEX_CUT_ROOT || JSON.parse(await readFile(resolve(pluginRoot,'local-config.json'),'utf8')).workbenchRoot;
 const base='http://127.0.0.1:4340';
-const root=await realpath(process.env.CODEX_CUT_ROOT || config.workbenchRoot);
+const root=await realpath(configuredRoot);
 const {projectDirectory,canonicalPath}=await import(pathToFileURL(resolve(root,'workbench-local/project-location.mjs')).href);
 const productionOps=['scenes','parameters','rebase','request','feedback','resolve-feedback','undo','cancel-render','visual-asset','style-pack','follow-style','storyboard','visual-review','animation-templates/save','animation-templates/preview','animation-templates/apply','editor/command','editor/undo','editor/redo','event-edit','soundtrack'];
 const cutOps=['import','ranges','clips','split','transcript','transcribe','render','undo'];
@@ -133,7 +133,7 @@ async function respond(request){
  if(request.id===undefined)return;
  try{
   let result;
-  if(request.method==='initialize')result={protocolVersion:request.params?.protocolVersion||'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'codex-cut',version:'0.3.1'}};
+  if(request.method==='initialize')result={protocolVersion:request.params?.protocolVersion||'2024-11-05',capabilities:{tools:{}},serverInfo:{name:'codex-cut',version:'0.3.2'}};
   else if(request.method==='ping')result={};
   else if(request.method==='tools/list')result={tools};
   else if(request.method==='tools/call'){

@@ -1,13 +1,17 @@
-import {test} from 'node:test';
+import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdtemp,copyFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {invoke,tools} from './bridge.mjs';
 const plugin=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const {workbenchRoot:root}=JSON.parse(await readFile(resolve(plugin,'local-config.json'),'utf8'));
+const root=resolve(plugin,'../../..');
+const previousRoot=process.env.CODEX_CUT_ROOT;
+process.env.CODEX_CUT_ROOT=root;
+after(()=>{if(previousRoot===undefined)delete process.env.CODEX_CUT_ROOT;else process.env.CODEX_CUT_ROOT=previousRoot;});
+const {invoke,tools}=await import('./bridge.mjs');
 const {projectDirectory}=await import(pathToFileURL(resolve(root,'workbench-local/project-location.mjs')).href);
 const digest=async f=>createHash('sha256').update(await readFile(resolve(root,f))).digest('hex');
 test('seven discoverable tools and exact argument validation',async()=>{
@@ -17,8 +21,9 @@ test('seven discoverable tools and exact argument validation',async()=>{
  await assert.rejects(invoke('read_project',{url:'https://example.com'}),/不支持/);
 });
 test('real project read and stale mutation leave cut and production untouched',async t=>{
+ if(process.env.CODEX_CUT_LIVE_TESTS!=='1'){t.skip('Opt-in live project check: CODEX_CUT_LIVE_TESTS=1');return;}
  const status=await invoke('workbench_status');if(!status.running){t.skip('Configured workbench is offline; live read-only check requires its existing service');return;}
- const files=['projects/local-workbench/cut/roughcut.json','projects/local-workbench/production/production.json'];
+ const files=['cut/roughcut.json','production/production.json'].map(file=>resolve(status.projectDir,file));
  const before=await Promise.all(files.map(digest));
  const c=await invoke('read_project',{section:'summary'});assert.equal(c.workbenchRoot,root);assert(Array.isArray(c.scenes));assert(!Object.hasOwn(c,'token'));
  if(c.scenes[0]){const detail=await invoke('read_project',{section:'production',sceneId:c.scenes[0].id});assert.equal(detail.scene.id,c.scenes[0].id);}
@@ -40,6 +45,19 @@ test('stdio initialize, tool discovery and actual status response',async()=>{
  const exit=new Promise(r=>child.once('close',r));
  for(const msg of [{id:1,method:'initialize',params:{protocolVersion:'2024-11-05',capabilities:{},clientInfo:{name:'test',version:'1'}}},{method:'notifications/initialized'},{id:2,method:'tools/list'},{id:3,method:'tools/call',params:{name:'workbench_status',arguments:{}}}])child.stdin.write(JSON.stringify({jsonrpc:'2.0',...msg})+'\n');
  child.stdin.end();assert.equal(await exit,0,err);const replies=out.trim().split('\n').map(JSON.parse);assert.equal(replies.length,3);assert.equal(replies[0].result.serverInfo.name,'codex-cut');assert.equal(replies[1].result.tools.length,7);const status=JSON.parse(replies[2].result.content[0].text);assert.equal(typeof status.running,'boolean');assert.equal(status.workbenchRoot,root);if(!status.running)assert(status.message);
+});
+
+test('environment root works without a local configuration file',async t=>{
+ const folder=await mkdtemp(resolve(tmpdir(),'codex-cut-bridge-'));
+ t.after(()=>rm(folder,{recursive:true,force:true}));
+ const entry=resolve(folder,'bridge.mjs');await copyFile(resolve(plugin,'scripts/bridge.mjs'),entry);
+ const child=spawn(process.execPath,[entry,'--mcp'],{env:{...process.env,CODEX_CUT_ROOT:root},stdio:['pipe','pipe','pipe']});
+ let out='',err='';child.stdout.on('data',d=>out+=d);child.stderr.on('data',d=>err+=d);
+ const exit=new Promise(r=>child.once('close',r));
+ child.stdin.end(JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{}})+'\n');
+ assert.equal(await exit,0,err);
+ const metadata=JSON.parse(await readFile(resolve(plugin,'.codex-plugin/plugin.json'),'utf8'));
+ assert.equal(JSON.parse(out.trim()).result.serverInfo.version,metadata.version);
 });
 
 function mockService(t,{dirty=false,productionRevision=7,cutRevision=13,libraryRevision=40,library={}}={}){

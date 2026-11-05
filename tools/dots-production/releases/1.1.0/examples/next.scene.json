@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 2,
+  "contentId": "EXAMPLE-NOT-PRODUCT",
+  "kitVersion": "1.1.0",
+  "sceneId": "next-step",
+  "status": "technical-example",
+  "fps": 30,
+  "durationFrames": 120,
+  "relation": "已知和未知决定下一步",
+  "patternId": null,
+  "patternReason": "延续同一结论，把未知作为下一步要查的对象",
+  "explanation": {
+    "question": "接下来还需要查什么？",
+    "beforeUnderstanding": "知道准备完成但执行情况未知",
+    "afterUnderstanding": "下一步围绕尚未确认的执行情况取证",
+    "visualEvidence": "保留新判断，阅读重心移到执行情况未知",
+    "narrationRole": "说明下一步需要的材料"
+  },
+  "composition": {
+    "primaryObjectId": "judgment",
+    "layoutFamily": "结论与下一步的单主体",
+    "hierarchy": "已完成部分为参照，未知部分成为焦点",
+    "readingOrder": [
+      "judgment"
+    ],
+    "reason": "减少已经解释完的材料，把注意力交给下一步"
+  },
+  "objects": [
+    {
+      "id": "judgment",
+      "entityId": "judgment-01",
+      "parentId": null,
+      "role": "main",
+      "source": "工程验收的人工示例判断，非产品实测",
+      "container": "判断区位于右侧，与来源由引用关系连接",
+      "represents": "依据材料作出的当前判断",
+      "whyThisForm": "单独呈现结论正文及待核状态，让来源变化确实影响另一对象",
+      "atomic": false,
+      "parts": [
+        {
+          "id": "statement",
+          "form": "结论正文",
+          "role": "承载可修订的判断",
+          "reason": "让实际内容变化成为结果"
+        },
+        {
+          "id": "notice",
+          "form": "靠近正文的待核提醒",
+          "role": "暂停使用旧结论",
+          "reason": "复核期间不能仍把旧判断作为有效结果"
+        }
+      ],
+      "initialState": "revised",
+      "finalState": "revised",
+      "states": [
+        {
+          "id": "revised",
+          "data": {
+            "statement": "新判断：准备完成；执行情况未知",
+            "notice": null
+          }
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "read-unknown",
+      "kind": "handoff",
+      "objectId": "judgment",
+      "partIds": [],
+      "wordId": "next-fixture",
+      "offsetFrames": 0,
+      "durationFrames": 12,
+      "before": "修订后的判断可读",
+      "process": "阅读重心转到尚未知的执行情况",
+      "after": "未知成为下一步问题",
+      "meaning": "从已有结论交接到下一步",
+      "focus": "judgment",
+      "focusObjectId": "judgment",
+      "handoff": "变化完成后把阅读权交给受到影响的对象",
+      "changes": [],
+      "trackIds": []
+    }
+  ],
+  "tracks": [],
+  "holds": [
+    {
+      "from": 12,
+      "to": 120,
+      "objectIds": [
+        "judgment"
+      ],
+      "reason": "阅读尚未知部分与下一步的关系"
+    }
+  ],
+  "ambient": [],
+  "review": {
+    "actualRender": null,
+    "visualObserved": false,
+    "audioObserved": false,
+    "userAccepted": false
+  },
+  "fixtureNote": "本例词ID与时间均为人工测试数据，不得提交为真实旁白绑定。"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "dots-authoring-kit",
+  "version": "1.1.0",
+  "runtime": {
+    "react": "19.2.7",
+    "remotion": "4.0.489"
+  },
+  "scope": "versioned authoring source; no media or native visual-library approval included",
+  "files": {
+    "Scene.jsx": "aa8faff80031847cb13d1fec7b3f6b036587a87d9a3e3d797c3268af3e081695",
+    "components.jsx": "d46a8ed9f623bfcaea3deff01e34497bbfbf3f013bbb8fdee3dd2298377c374d",
+    "direction.mjs": "9174df7e40047b1954c67faa5712db64a6086067381a020241a52c4417423d00",
+    "example.jsx": "98c730a5b3c6af116f30237704d6782e793a8b0ca61eecf6b8524069efc072a4",
+    "examples/README.md": "5cb505d0239f03af14adcfecc861fde3d83ae9e182716d7ff533347b19c85d4f",
+    "examples/correction.scene.json": "7f3d671acc3f1eaf51a9c8a1b89048f49b04c8950039962a1fc25d61890e3593",
+    "examples/correction.words.json": "43bf24b3a2c6b3b70ed7ceebb108e7ddb2d2f6350ca72d4865c54347e4da97b4",
+    "examples/film.json": "467fb134427eb7d027e465ec44ca0b0312b4639bf37933d8a6e59d585d04033b",
+    "examples/next.scene.json": "35afed79639b9238f7ce2798e5b48fb70b3280b0bdc70a7031b8efcc79c50f9b",
+    "examples/next.words.json": "3b2825359cb3de3cf6201112942b26778e8c3585f242e8d063e61f580cb2f717",
+    "examples/pause.track.json": "754e0dbbbd18e67b76aa89c3dd35c2856730e5fd21afbcab075e59d5259784b3",
+    "motion.mjs": "05f2c806d5169ff3ca22dbbe388d9c7b7e33e335ce905c46a9b2db09562fdd72",
+    "state.mjs": "1d4fb1fdc523e29ec9eb13c4f694df2b6bd000dbb704fee3081ba1c9e698e98e",
+    "tokens.json": "fcc862b3de2edabb63762b708506ba77f289df8e3ecc4c7c462b36f78f311ac9",
+    "全片编排.json": "df066c6ad06268d80e96036fe3a3fd6cea76f910e66af418dd2b6732e950fe9d",
+    "画面动作脚本.json": "923383ec821a253fc71b37f665353c2ea92b37266e177d471ccdeb611ac0901f"
+  },
+  "templates": [
+    "画面动作脚本.json",
+    "全片编排.json",
+    "Scene.jsx"
+  ],
+  "sceneSchemaVersion": 2,
+  "filmSchemaVersion": 1
+}

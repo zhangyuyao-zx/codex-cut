@@ -1,0 +1,15 @@
+{
+  "id": "dots-authoring-kit",
+  "version": "1.0.0",
+  "runtime": {
+    "react": "19.2.7",
+    "remotion": "4.0.489"
+  },
+  "scope": "versioned authoring source; no media or native visual-library approval included",
+  "files": {
+    "components.jsx": "58c26b43b823a3ce078413522927af0e03790cba301aeeb7db0f5122d0b9ccdd",
+    "example.jsx": "98c730a5b3c6af116f30237704d6782e793a8b0ca61eecf6b8524069efc072a4",
+    "motion.mjs": "05f2c806d5169ff3ca22dbbe388d9c7b7e33e335ce905c46a9b2db09562fdd72",
+    "tokens.json": "fcc862b3de2edabb63762b708506ba77f289df8e3ecc4c7c462b36f78f311ac9"
+  }
+}

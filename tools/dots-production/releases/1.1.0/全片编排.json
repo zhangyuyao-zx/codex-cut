@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "contentId": "待填写现有内容编号",
+  "kitVersion": "1.1.0",
+  "viewerJourney": "待填写观众从什么问题出发，怎样一步步理解，最后带走什么",
+  "scenes": [
+    {"sceneId": "待填写第一段ID", "script": "待填写相对本文件的段落动作脚本路径"},
+    {"sceneId": "待填写第二段ID", "script": "待填写相对本文件的段落动作脚本路径"}
+  ],
+  "handoffs": [{
+    "fromSceneId": "待填写第一段ID", "toSceneId": "待填写第二段ID",
+    "relation": "new-task", "visualMode": "recompose",
+    "reason": "待说明为什么同场补充、重新排布或清场",
+    "nextQuestion": "待填写下一段接住什么问题",
+    "retainEntityIds": [], "stateBridgeReasons": {}
+  }],
+  "review": {"actualRenders": [], "comparedPairs": [], "wholeFilmObserved": false, "userAccepted": false}
+}

@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "title": "合成结构样例：进度如何表达暂停",
+  "source": {
+    "id": "synthetic-progress",
+    "path": "",
+    "sha256": null,
+    "width": 960,
+    "height": 540,
+    "timebase": "cfr",
+    "fps": 24,
+    "frameCount": 96,
+    "videoDuration": 4,
+    "language": "zh",
+    "localPlayback": "",
+    "audio": "none"
+  },
+  "status": {
+    "visualStudy": "人工编写的协议与浏览器样例，非真实参考视频拆解",
+    "normalSpeedAudiovisual": false
+  },
+  "coverage": {
+    "scope": "两张原创SVG状态示意；无真实运动或声音证据"
+  },
+  "audio": {
+    "subjectiveVerified": false
+  },
+  "limits": [
+    "不是实际视频，不据此推断原片动作速度、帧精度或导演意图。"
+  ],
+  "scenes": [
+    {
+      "id": "S1",
+      "title": "执行正在推进",
+      "start": 0,
+      "end": 2,
+      "task": "执行正在推进",
+      "main": "同一任务的进度条与数值",
+      "layout": "任务容器中，状态在左，数值在右，进度条在下",
+      "analysis": {
+        "question": "暂停在画面上改变了什么？",
+        "before": "知道任务有一个进度",
+        "after": "知道进度应停在当前位置，不能继续涨到完成",
+        "relation": "状态变化",
+        "direction": "保留对象和空间锚点，改变状态与填充，读者能比较两态",
+        "alternative": "只换标题不能证明数值停住",
+        "transfer": "适合有真实进度的过程；不用于无依据的能力评分"
+      },
+      "image": "running.svg",
+      "evidenceSheets": [
+        "running.svg"
+      ],
+      "uncertainties": [
+        "本例没有视频，未核对真实动作与声音。"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "暂停应保留当前位置",
+      "start": 2,
+      "end": 4,
+      "task": "暂停应保留当前位置",
+      "main": "同一任务的进度条与数值",
+      "layout": "任务容器中，状态在左，数值在右，进度条在下",
+      "analysis": {
+        "question": "暂停在画面上改变了什么？",
+        "before": "知道任务有一个进度",
+        "after": "知道进度应停在当前位置，不能继续涨到完成",
+        "relation": "状态变化",
+        "direction": "保留对象和空间锚点，改变状态与填充，读者能比较两态",
+        "alternative": "只换标题不能证明数值停住",
+        "transfer": "适合有真实进度的过程；不用于无依据的能力评分"
+      },
+      "image": "paused.svg",
+      "evidenceSheets": [
+        "paused.svg"
+      ],
+      "uncertainties": [
+        "本例没有视频，未核对真实动作与声音。"
+      ]
+    }
+  ],
+  "sentences": [
+    {
+      "id": "N1",
+      "start": 0.2,
+      "end": 1.8,
+      "segments": [
+        "S1"
+      ],
+      "elementIds": [
+        "E1"
+      ],
+      "textOriginal": "任务正在推进。",
+      "textMeaning": "执行正在推进",
+      "semantics": "状态与可见结果",
+      "divisionOfLabor": "文字说明动作，图形表达当前位置",
+      "timingStatus": "人工编排，无真实音频",
+      "timingAnalysis": "仅用于协议验证"
+    },
+    {
+      "id": "N2",
+      "start": 2.2,
+      "end": 3.8,
+      "segments": [
+        "S2"
+      ],
+      "elementIds": [
+        "E2"
+      ],
+      "textOriginal": "按下暂停，停在这里。",
+      "textMeaning": "暂停应保留当前位置",
+      "semantics": "状态与可见结果",
+      "divisionOfLabor": "文字说明动作，图形表达当前位置",
+      "timingStatus": "人工编排，无真实音频",
+      "timingAnalysis": "仅用于协议验证"
+    }
+  ],
+  "elements": [
+    {
+      "id": "E1",
+      "sceneId": "S1",
+      "label": "任务进度",
+      "children": [
+        "状态文字",
+        "数值",
+        "填充条"
+      ],
+      "text": "48%",
+      "frame": 24,
+      "time": 1,
+      "image": "running.svg",
+      "bbox": [
+        9.375,
+        18.52,
+        81.25,
+        62.96
+      ],
+      "position": "同一任务容器",
+      "change": "运行与暂停对应不同数据状态",
+      "analysis": "数值与填充共同说明任务进展；暂停需保持数值。",
+      "analysisType": "人工示例设计，不是原片作者意图",
+      "geometryStatus": "本例SVG坐标",
+      "relations": [
+        "数值与条长同属一个进度"
+      ]
+    },
+    {
+      "id": "E2",
+      "sceneId": "S2",
+      "label": "任务进度",
+      "children": [
+        "状态文字",
+        "数值",
+        "填充条"
+      ],
+      "text": "64%",
+      "frame": 60,
+      "time": 2.5,
+      "image": "paused.svg",
+      "bbox": [
+        9.375,
+        18.52,
+        81.25,
+        62.96
+      ],
+      "position": "同一任务容器",
+      "change": "运行与暂停对应不同数据状态",
+      "analysis": "数值与填充共同说明任务进展；暂停需保持数值。",
+      "analysisType": "人工示例设计，不是原片作者意图",
+      "geometryStatus": "本例SVG坐标",
+      "relations": [
+        "数值与条长同属一个进度"
+      ]
+    }
+  ],
+  "children": [
+    {
+      "id": "E1-C1",
+      "parentId": "E1",
+      "sceneId": "S1",
+      "name": "状态文字",
+      "reason": "标识当前任务状态或进展，与同一对象绑定"
+    },
+    {
+      "id": "E1-C2",
+      "parentId": "E1",
+      "sceneId": "S1",
+      "name": "数值",
+      "reason": "标识当前任务状态或进展，与同一对象绑定"
+    },
+    {
+      "id": "E1-C3",
+      "parentId": "E1",
+      "sceneId": "S1",
+      "name": "填充条",
+      "reason": "标识当前任务状态或进展，与同一对象绑定"
+    },
+    {
+      "id": "E2-C1",
+      "parentId": "E2",
+      "sceneId": "S2",
+      "name": "状态文字",
+      "reason": "标识当前任务状态或进展，与同一对象绑定"
+    },
+    {
+      "id": "E2-C2",
+      "parentId": "E2",
+      "sceneId": "S2",
+      "name": "数值",
+      "reason": "标识当前任务状态或进展，与同一对象绑定"
+    },
+    {
+      "id": "E2-C3",
+      "parentId": "E2",
+      "sceneId": "S2",
+      "name": "填充条",
+      "reason": "标识当前任务状态或进展，与同一对象绑定"
+    }
+  ],
+  "globals": [],
+  "events": [
+    {
+      "id": "A1",
+      "sceneId": "S1",
+      "time": 1,
+      "kind": "示意状态",
+      "description": "图示为48%状态；不代表测得真实起止帧。",
+      "elementIds": [
+        "E1"
+      ],
+      "image": "running.svg",
+      "timeStatus": "人工示例",
+      "evidenceScope": "静态SVG"
+    },
+    {
+      "id": "A2",
+      "sceneId": "S2",
+      "time": 2.5,
+      "kind": "示意状态",
+      "description": "图示为64%状态；不代表测得真实起止帧。",
+      "elementIds": [
+        "E2"
+      ],
+      "image": "paused.svg",
+      "timeStatus": "人工示例",
+      "evidenceScope": "静态SVG"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "T1",
+      "fromSceneId": "S1",
+      "toSceneId": "S2",
+      "start": 1.8,
+      "end": 2.2,
+      "kind": "同一对象换态",
+      "before": "运行状态",
+      "process": "示意状态替换，非已测量动画",
+      "retained": "任务、数值和进度条的身份",
+      "semanticReason": "从执行推进到暂停的可见后果"
+    }
+  ],
+  "refinedMotion": [],
+  "nativeWindows": []
+}

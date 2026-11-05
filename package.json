@@ -1,6 +1,6 @@
 {
   "name": "codex-cut-workbench",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -14,7 +14,10 @@
     "dev": "tsx workbench-local/server.ts",
     "render:readme-demo": "tsx scripts/render-readme-demo.ts",
     "typecheck": "tsc -p workbench-local/tsconfig.json",
-    "test": "vitest run --config workbench-local/vitest.config.ts"
+    "test": "vitest run --config workbench-local/vitest.config.ts",
+    "dots": "node tools/dots-production/cli.mjs",
+    "test:authoring": "node tools/dots-production/test.mjs && python3 -B -m unittest discover -s tools/reference-study -p 'test_*.py' -v",
+    "test:plugin": "node --test workbench-local/plugin-package/codex-cut/scripts/bridge.test.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "9.8.2",

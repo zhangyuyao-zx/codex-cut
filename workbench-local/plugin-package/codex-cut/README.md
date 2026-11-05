@@ -1,4 +1,6 @@
-# Codex Cut 插件 · 0.3.1
+# Codex Cut 插件 · 0.3.2
+
+0.3.2 接入配置仓库中的通用参考研究工具与 dots 固定版本制作源码：逐句、元素、动作证据与制作脚本分别维护。修复使用 CODEX_CUT_ROOT 时仍强制读取本机配置的问题；默认桥接测试无需私人配置，实际工程检查改为显式选择。工具入口见 Skill 的 references/operations.md。
 
 0.3.1 增加独立工程选择与真实目录核对，以及完整混音进入预览、逐段渲染和整片合成。录制交接与声音安排由 Codex 维护；参考分析优先学习表达思路，按实际需要再提炼资产。操作见 Skill 的 references/operations.md。
 
@@ -28,7 +30,7 @@
 - `.mcp.json`：以插件目录为 cwd 启动 `scripts/bridge.mjs --mcp`。
 - `skills/video-workbench/SKILL.md`：制作与审阅方法，详细接口按需读取。
 - `local-config.json`：已有工作台路径；支持 CODEX_CUT_ROOT 覆盖。
-- `local-config.example.json`：可提交的配置样例；首次从Git获取源码时先复制为`local-config.json`并填写实际仓库路径。本机配置不纳入Git；设置环境变量时也需保留这个配置文件。
+- `local-config.example.json`：可提交的配置样例；首次从Git获取源码时先复制为`local-config.json`并填写实际仓库路径。本机配置不纳入Git；设置有效的 CODEX_CUT_ROOT 时无需这个配置文件。
 - `scripts/bridge.mjs`：只连接 127.0.0.1:4340，核对 appId、根目录、实际工程目录、就绪状态；令牌在内部获取，不返回给模型。
 
 这是当前机器的连接版，需已有工作台仓库及其依赖。移动到其他机器后先配置路径和运行时，不是包含视频引擎的独立安装包。当前一个活动工程；先正常停止，再用仓库 select-project.mjs 选择独立工程，开启后核对 projectDir/contentId。不要直接导入新片覆盖正在制作的工程。
@@ -45,7 +47,7 @@
 
 修订号分属 cut、production、visual-library 三个域。库操作读库 revision，独立于生产 revision，并保留现有本地草稿；production 操作继续检查未保存选择和用户参数锁。`read_project` 可读取 visual-library、visual-asset、style-pack、references、animations 和 checkpoints；旧 library 仅返回新库可用资源，component 明确为历史兼容。checkpoints/create 可命名备份，verify/restore 用已有备份 ID；恢复始终创建新目录，不切换或覆盖活动工程。备份操作使用制作 revision 并检查草稿及任务。具体字段与允许的 update_project 操作见 Skill 的 `references/operations.md`。
 
-默认桥接测试使用模拟服务检查协议、修订隔离及用户确认边界；在线时另运行实际项目只读/旧版本拒绝检查，服务离线时明确跳过该项，不自动启动或改动用户工程。
+默认桥接测试使用模拟服务检查协议、修订隔离及用户确认边界，stdio 测试只读服务状态。只有显式设置 CODEX_CUT_LIVE_TESTS=1 才读取当前工程并尝试应被拒绝的过期版本请求；服务离线则跳过，不自动启动或选择工程。
 
 源码保存在工作台仓库 `workbench-local/plugin-package/codex-cut`；个人插件源安装到 `~/plugins/codex-cut`，由默认个人市场 `~/.agents/plugins/marketplace.json` 引用。安装和更新使用官方插件脚手架及 `codex plugin add`，不手改 Codex config.toml。
 

@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "currentVersion": "1.1.0",
+  "defaultEntry": "README.md",
+  "baselines": [],
+  "patterns": [
+    {
+      "id": "task-board",
+      "tags": [
+        "过程",
+        "条件",
+        "执行"
+      ],
+      "goodFor": "前提建立后依次执行、反馈和交接",
+      "avoidWhen": "同级分类、单个事实；不能把示意进度当产品实测",
+      "container": "一个外框包含不同职责的子框，旧对比对象降权",
+      "states": [
+        "目标建立",
+        "范围中的允许/排除对象进入",
+        "前提完成",
+        "进度推进",
+        "请求出现",
+        "操作后状态更新",
+        "结果落稳后交接"
+      ],
+      "microMotion": "靶心与状态点保持低幅运行感，主要变化接手时让位",
+      "components": [
+        "Panel",
+        "Enter",
+        "ProgressMeter",
+        "StateWipe",
+        "Icon"
+      ],
+      "check": "目标和范围是执行前提；询问与批准分开。进度到100%后询问只是一种示意时序，不能当通用系统规则。"
+    },
+    {
+      "id": "parallel-cases",
+      "tags": [
+        "并列",
+        "案例",
+        "比较"
+      ],
+      "goodFor": "同级例子共享尺度，各自有具体内部过程",
+      "avoidWhen": "因果链不可误画成互不关联的三项；无需强凑三卡",
+      "container": "对齐的三卡，各自内部形成小型演示",
+      "states": [
+        "第一卡材料变结果",
+        "第二卡提醒、切换、完成",
+        "第三卡波形持续、产物陆续出现"
+      ],
+      "microMotion": "第三卡持续波形，已完成的前卡保留供比较",
+      "components": [
+        "DocumentResult",
+        "ApprovalSwitch",
+        "WaveProducts",
+        "grid"
+      ],
+      "check": "三个框分别有内部对象和动作，不是三句标题依次出现"
+    },
+    {
+      "id": "mode-switch",
+      "tags": [
+        "模式切换",
+        "对话"
+      ],
+      "goodFor": "保持空间锚点，演示不同模式联动变化",
+      "avoidWhen": "只是同一模式的状态变化，无需另造多个入口",
+      "container": "稳定外框，选中标签、内容、状态、辅助对象一起切换",
+      "states": [
+        "当前模式",
+        "选中项移动",
+        "内容和状态同步替换",
+        "旧辅助图形退出，新模式图形建立"
+      ],
+      "components": [
+        "StateWipe",
+        "Panel",
+        "compileObjectStates",
+        "objectStateAt"
+      ],
+      "check": "选中标签、窗标题、内容、辅助图形和可用状态成组更新；旧状态提示应退出。"
+    },
+    {
+      "id": "classification",
+      "tags": [
+        "分类",
+        "条件",
+        "比较"
+      ],
+      "goodFor": "具有不同条件或归属的同级对象",
+      "avoidWhen": "不可把分类排成先后执行，也不能只用颜色表达条件",
+      "container": "同尺度容器明确分组，对象落入所属框",
+      "states": [
+        "分类边界建立",
+        "具体对象出现",
+        "对象归入对应框",
+        "保持比较阅读"
+      ],
+      "components": [
+        "Panel",
+        "Enter",
+        "grid"
+      ],
+      "check": "通过位置、边界和对象内容共同表达分类；不凭普通入场动作虚构拖拽或执行顺序。"
+    },
+    {
+      "id": "evidence-to-state",
+      "tags": [
+        "依据",
+        "学习",
+        "积累"
+      ],
+      "goodFor": "真实来源、处理过程与有边界的当前判断",
+      "avoidWhen": "没有来源不能虚构学习表现；不能把同一作答多次展示算多次独立表现",
+      "container": "完整产品页面与材料板形成整体，内部主次依过程交接",
+      "states": [
+        "原题建立",
+        "作答加入",
+        "错误与提示",
+        "订正",
+        "来源关联",
+        "当前认识和未知",
+        "下次行动"
+      ],
+      "components": [
+        "FullPage",
+        "Panel",
+        "StateWipe",
+        "TextReveal"
+      ],
+      "check": "保留帮助条件和未知；手机页不只充当空白摆件"
+    },
+    {
+      "id": "semantic-stop",
+      "tags": [
+        "暂停",
+        "停止",
+        "状态",
+        "过程"
+      ],
+      "goodFor": "先建立会继续的过程，再让停止成为可见结果",
+      "avoidWhen": "单一静态事实无需虚构运行；百分比须有真实或明确示意身份",
+      "container": "停止点、运行标签、警示和颜色由同一状态驱动",
+      "states": [
+        "先运行",
+        "在指定值停住",
+        "出现原因与暂停状态",
+        "保留停止供阅读"
+      ],
+      "components": [
+        "compileValueTrack",
+        "valueAt",
+        "compileObjectStates",
+        "objectStateAt"
+      ],
+      "check": "暂停后不能继续补到100%；灯仍动不等于主体仍执行。"
+    },
+    {
+      "id": "human-review",
+      "tags": [
+        "复核",
+        "确认",
+        "交接"
+      ],
+      "goodFor": "将产物生成、人的检查和确认分开",
+      "avoidWhen": "没有真实检查过程时不演成产品已自动校验",
+      "container": "结果对象和确认控件各承担不同职责",
+      "states": [
+        "产物生成",
+        "需要检查",
+        "人的触发",
+        "确认后清理旧待查提示"
+      ],
+      "components": [
+        "Panel",
+        "compileObjectStates",
+        "objectStateAt"
+      ],
+      "check": "确认后的提示、印章和按钮状态要一致；完成后清除不再有效的待确认信息。"
+    },
+    {
+      "id": "one-source-many-outputs",
+      "tags": [
+        "产物",
+        "分解",
+        "一源多产物"
+      ],
+      "goodFor": "同一素材生成多种明确产物",
+      "avoidWhen": "没有来源与生成依据时不能拿三个标签冒充实际结果",
+      "container": "输入持续可追踪，产物按与输入的关系出现",
+      "states": [
+        "输入建立",
+        "处理或选择",
+        "产物分别形成",
+        "保留同源关系"
+      ],
+      "components": [
+        "Panel",
+        "WaveProducts",
+        "compileObjectStates"
+      ],
+      "check": "产物内部要体现各自是什么；波形若未分析实际声音只能作为示意。"
+    },
+    {
+      "id": "attached-qualifier",
+      "tags": [
+        "限定",
+        "资格",
+        "条件"
+      ],
+      "goodFor": "让关键限定紧贴它约束的对象",
+      "avoidWhen": "不要把重要条件缩成无法阅读的装饰英文",
+      "container": "资格行、数量权益和地区状态各按含义选择形态",
+      "states": [
+        "主张建立",
+        "限定绑定",
+        "保持比较",
+        "在原有条件下追加查询动作"
+      ],
+      "components": [
+        "Panel",
+        "Type",
+        "StateWipe"
+      ],
+      "check": "可用与Beta、首个与全部、排除与未确认不能混读。"
+    },
+    {
+      "id": "concept-return",
+      "tags": [
+        "回访",
+        "首尾",
+        "概念"
+      ],
+      "goodFor": "用观众已经认识的对象回收理解变化",
+      "avoidWhen": "没有前文论述支撑时不能只复制开场动作",
+      "container": "重复形态保持身份，标签及控制对象表达新含义",
+      "states": [
+        "回到母题",
+        "前态重现",
+        "关键含义改变",
+        "给问题和终态留读"
+      ],
+      "components": [
+        "StateWipe",
+        "compileObjectStates",
+        "objectStateAt"
+      ],
+      "check": "重复必须带回新的理解；不把每一处圆形过场解释为真实物体连续变形。"
+    },
+    {
+      "id": "evidence-correction",
+      "tags": [
+        "来源更正",
+        "撤回",
+        "判断",
+        "依据",
+        "状态"
+      ],
+      "goodFor": "具体来源发生变化后，展示引用与当前判断如何修订",
+      "avoidWhen": "没有真实材料不能伪造产品操作；只是信息补充不应演成旧结论被撤回",
+      "container": "保留同一来源和判断的身份，真实页面与页外解释对应同一记录",
+      "states": [
+        "来源仍有效、当前判断有依据",
+        "指定来源被更正或撤回",
+        "关联判断转为待核",
+        "回查仍有效证据",
+        "判断内容具体修订，未知仍保留"
+      ],
+      "components": [
+        "FullPage",
+        "compileObjectStates",
+        "objectStateAt",
+        "StateWipe"
+      ],
+      "check": "不得仅换来源卡颜色再打勾；应在实际画面看到哪一句判断改变及原因。"
+    }
+  ]
+}

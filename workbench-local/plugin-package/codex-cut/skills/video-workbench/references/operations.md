@@ -2,7 +2,7 @@
 
 ## 工程位置
 
-插件根目录 `local-config.json` 的 `workbenchRoot` 指向已有仓库；可用进程环境变量 `CODEX_CUT_ROOT` 覆盖。`workbench_status` 返回有效根目录。插件是本机连接版，依赖该仓库及其现有 Node、FFmpeg、Chromium、Remotion 运行时，不包含用户视频或模型凭据，也不自动下载依赖。
+插件根目录 `local-config.json` 的 `workbenchRoot` 指向已有仓库；可用进程环境变量 `CODEX_CUT_ROOT` 覆盖，使用该变量时无需本机配置文件。`workbench_status` 返回有效根目录。插件是本机连接版，依赖该仓库及其现有 Node、FFmpeg、Chromium、Remotion 运行时，不包含用户视频或模型凭据，也不自动下载依赖。
 
 4340 同时只有一个活动工程。新内容先保存并正常停止服务，在配置仓库执行：
 
@@ -13,6 +13,15 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 将占位符换成已建内容项目的绝对路径与稳定编号。新目录须为空；命令只写入内容身份和 `projects/active-project.json`，不导入、不启动、不改旧工程。旧工程可只传 `--path`，保留原身份。选择与启动共用仓库端口锁；运行中须正常停止后再选，不自动终止陌生服务。`WORKBENCH_PROJECT_DIR` 优先于持久选择，必须为绝对路径；与选择目标冲突时命令拒绝。无覆盖／选择时继续用 `projects/local-workbench`。
 
 随后 `open_workbench`、`read_project summary`，核对实际 `projectDir`、`contentId` 与本期记录再导入。启动器和插件同时检查 appId、源码根、实际工程目录及就绪状态；同仓库另一工程也拒绝复用或写入。旧服务若没有 projectDir 健康字段，先用旧版本正常停止后再升级启动。日志位于 `projects/.launcher-runtime/4340/server.log`。不能把导入命令当作无损新建工程。
+
+## 研究与制作源码工具
+
+以下命令均在 `workbench_status` 返回的配置源码根运行，不能在插件缓存目录猜相对路径。研究输入和生成物放入独立研究/内容项目目录。
+
+- `tools/reference-study/README.md`：读取分类清单和数据协议，用 `python3 tools/reference-study/validate.py <study.json>` 校验，再用 `build_viewer.py` 与 `serve.py` 浏览证据。需要 Python 3.9+，不自动转写、观看或生成结论。
+- `tools/dots-production/README.md` 和 `DIRECTING.md`：`npm run dots -- list` 查询机制；`verify` 校验固定源码；`init --to <新目录>` 创建段落起点；`init-film --to <新文件>` 创建全片起点。两种初始化都拒绝覆盖，不选择工作台活动工程。
+- `npm run dots -- check <动作脚本> --words <当前实际词时间>`；`check-film <全片编排>` 检查记录及交接。作者仍需实现具体对象、字幕和媒体，接入原生 `design / beats / program` 并保留用户覆盖。
+- 研究结论和制作实现分开。计划中未解释的空档不等于成片静止，结构通过不等于视听或用户认可。公共套件没有私人原片、基准视频或字体；已有作品继续使用自己的固定版本。
 
 ## 工具
 

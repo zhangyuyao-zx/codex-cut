@@ -32,6 +32,8 @@ Codex 负责内容理解、画面设计、动画代码和执行；工作台用�
 
 ## 参考、资产与风格包
 
+配置的工作台源码根提供两套独立工具。系统拆解参考时先读 `tools/reference-study/README.md` 与分类清单，保存实际逐句、元素、动作及交接证据；采用 dots 时读 `tools/dots-production/README.md` 和 `DIRECTING.md`，按需复用固定版本状态/运动源码。已整理的方法不要求每期重新研究原片。工具目录在配置仓库，不在插件安装目录；使用方式见 [实现与操作](references/operations.md#研究与制作源码工具)。工具初始化与检查不创建工程、不设置 ready，也不代表作品验收。
+
 按任务需要读 [实现与操作](references/operations.md) 的新库接口。`read_project` 的 `visual-library` 包括候选与可用版本；`visual-asset`、`style-pack` 用 `{id,version}` 读固定版本；`references` 看真实参考进展。旧 `library` 只是新库 ready 资源的兼容入口，`component` 只读历史组件。
 
 - 只要求视频分析／学习思路时，遵守项目既有拉片规范：按内容、画面及声画配合说明证据、解释与适用条件；不自动制作、复刻或创建资产。可复用资产是后续按实际需要选择的工作。
