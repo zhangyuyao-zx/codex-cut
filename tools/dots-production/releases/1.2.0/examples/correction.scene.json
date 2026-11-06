@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 2,
+  "contentId": "EXAMPLE-NOT-PRODUCT",
+  "kitVersion": "1.1.0",
+  "sceneId": "correction",
+  "status": "technical-example",
+  "fps": 30,
+  "durationFrames": 210,
+  "relation": "来源更正影响判断",
+  "patternId": "evidence-correction",
+  "patternReason": "用同一来源和判断的状态链解释影响，技术示例尚未审美验收",
+  "explanation": {
+    "question": "资料改了，判断哪里跟着改？",
+    "beforeUnderstanding": "已有依据及对应结论",
+    "afterUnderstanding": "更正依据会暂停旧判断，并形成具体的新结论及未知项",
+    "visualEvidence": "原句被订正；旧判断暂停；新判断正文改变，待核提醒退出",
+    "narrationRole": "补充为何需要重新核对，而不重复念完全部文字"
+  },
+  "composition": {
+    "primaryObjectId": "judgment",
+    "layoutFamily": "来源与判断的关联双区",
+    "hierarchy": "材料为依据，判断为主体；当前变化的一侧接管注意",
+    "readingOrder": [
+      "source",
+      "judgment"
+    ],
+    "reason": "同时保留前因和后果，便于看到影响"
+  },
+  "objects": [
+    {
+      "id": "source",
+      "entityId": "source-01",
+      "parentId": null,
+      "role": "evidence",
+      "source": "工程验收的人工示例材料，非真实产品页面",
+      "container": "来源纸张和所属文字，位于左侧",
+      "represents": "支持结论的原始材料",
+      "whyThisForm": "保留可见原句和状态，使人知道被更正的是哪一条",
+      "atomic": false,
+      "parts": [
+        {
+          "id": "quote",
+          "form": "原句与订正句",
+          "role": "展示具体内容差异",
+          "reason": "仅变卡片颜色无法说明资料如何改正"
+        },
+        {
+          "id": "status",
+          "form": "紧贴材料的状态短签",
+          "role": "限定材料当前能否被引用",
+          "reason": "状态必须能找到所属对象"
+        }
+      ],
+      "initialState": "valid",
+      "finalState": "corrected",
+      "states": [
+        {
+          "id": "valid",
+          "data": {
+            "quote": "示例：任务已完成",
+            "status": "当前依据"
+          }
+        },
+        {
+          "id": "corrected",
+          "data": {
+            "quote": "更正：仅完成准备，尚未执行",
+            "status": "已更正"
+          }
+        }
+      ]
+    },
+    {
+      "id": "judgment",
+      "entityId": "judgment-01",
+      "parentId": null,
+      "role": "main",
+      "source": "工程验收的人工示例判断，非产品实测",
+      "container": "判断区位于右侧，与来源由引用关系连接",
+      "represents": "依据材料作出的当前判断",
+      "whyThisForm": "单独呈现结论正文及待核状态，让来源变化确实影响另一对象",
+      "atomic": false,
+      "parts": [
+        {
+          "id": "statement",
+          "form": "结论正文",
+          "role": "承载可修订的判断",
+          "reason": "让实际内容变化成为结果"
+        },
+        {
+          "id": "notice",
+          "form": "靠近正文的待核提醒",
+          "role": "暂停使用旧结论",
+          "reason": "复核期间不能仍把旧判断作为有效结果"
+        }
+      ],
+      "initialState": "supported",
+      "finalState": "revised",
+      "states": [
+        {
+          "id": "supported",
+          "data": {
+            "statement": "示例判断：任务已经完成",
+            "notice": null
+          }
+        },
+        {
+          "id": "pending",
+          "data": {
+            "statement": "旧判断暂停参考",
+            "notice": "依据改变，待核对"
+          }
+        },
+        {
+          "id": "revised",
+          "data": {
+            "statement": "新判断：准备完成；执行情况未知",
+            "notice": null
+          }
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "establish",
+      "kind": "establish",
+      "objectId": "source",
+      "partIds": [],
+      "wordId": "fixture-0",
+      "offsetFrames": 0,
+      "durationFrames": 12,
+      "before": "尚未建立材料",
+      "process": "建立来源与已有判断",
+      "after": "来源及判断可读",
+      "meaning": "建立共同对象",
+      "focus": "source",
+      "focusObjectId": "source",
+      "handoff": "变化完成后把阅读权交给受到影响的对象",
+      "changes": [],
+      "trackIds": []
+    },
+    {
+      "id": "correct",
+      "kind": "change",
+      "objectId": "source",
+      "partIds": [],
+      "wordId": "fixture-1",
+      "offsetFrames": 0,
+      "durationFrames": 12,
+      "before": "来源被当作有效",
+      "process": "原句被订正",
+      "after": "来源内容更正",
+      "meaning": "明确变化来自哪条材料",
+      "focus": "source",
+      "focusObjectId": "source",
+      "handoff": "变化完成后把阅读权交给受到影响的对象",
+      "changes": [
+        {
+          "objectId": "source",
+          "from": "valid",
+          "to": "corrected",
+          "at": "end"
+        }
+      ],
+      "trackIds": []
+    },
+    {
+      "id": "recheck",
+      "kind": "change",
+      "objectId": "judgment",
+      "partIds": [],
+      "wordId": "fixture-2",
+      "offsetFrames": 0,
+      "durationFrames": 12,
+      "before": "判断有支持",
+      "process": "暂停旧判断并提示复核",
+      "after": "判断待核",
+      "meaning": "依据改变后停止沿用旧结论",
+      "focus": "judgment",
+      "focusObjectId": "judgment",
+      "handoff": "变化完成后把阅读权交给受到影响的对象",
+      "changes": [
+        {
+          "objectId": "judgment",
+          "from": "supported",
+          "to": "pending",
+          "at": "start"
+        }
+      ],
+      "trackIds": []
+    },
+    {
+      "id": "revise",
+      "kind": "change",
+      "objectId": "judgment",
+      "partIds": [],
+      "wordId": "fixture-3",
+      "offsetFrames": 0,
+      "durationFrames": 12,
+      "before": "旧判断待核",
+      "process": "替换判断正文并移除待核提醒",
+      "after": "修订后的判断及未知可读",
+      "meaning": "结果是具体内容变了",
+      "focus": "judgment",
+      "focusObjectId": "judgment",
+      "handoff": "变化完成后把阅读权交给受到影响的对象",
+      "changes": [
+        {
+          "objectId": "judgment",
+          "from": "pending",
+          "to": "revised",
+          "at": "end"
+        }
+      ],
+      "trackIds": []
+    }
+  ],
+  "tracks": [],
+  "holds": [
+    {
+      "from": 12,
+      "to": 60,
+      "objectIds": [
+        "source",
+        "judgment"
+      ],
+      "reason": "先读到原依据和旧判断的对应关系"
+    },
+    {
+      "from": 72,
+      "to": 84,
+      "objectIds": [
+        "source"
+      ],
+      "reason": "辨认更正后的原句"
+    },
+    {
+      "from": 96,
+      "to": 150,
+      "objectIds": [
+        "judgment"
+      ],
+      "reason": "读出旧判断已暂停，复核结果随后揭示"
+    },
+    {
+      "from": 162,
+      "to": 210,
+      "objectIds": [
+        "source",
+        "judgment"
+      ],
+      "reason": "对照具体修订及仍未确定的部分"
+    }
+  ],
+  "ambient": [],
+  "review": {
+    "actualRender": null,
+    "visualObserved": false,
+    "audioObserved": false,
+    "userAccepted": false
+  },
+  "fixtureNote": "本例词ID与时间均为人工测试数据，不得提交为真实旁白绑定。"
+}

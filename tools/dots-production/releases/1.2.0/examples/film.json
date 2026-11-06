@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "contentId": "EXAMPLE-NOT-PRODUCT",
+  "kitVersion": "1.1.0",
+  "viewerJourney": "先看见来源改正如何修订判断，再把未知交给下一步",
+  "scenes": [
+    {
+      "sceneId": "correction",
+      "script": "correction.scene.json"
+    },
+    {
+      "sceneId": "next-step",
+      "script": "next.scene.json"
+    }
+  ],
+  "handoffs": [
+    {
+      "fromSceneId": "correction",
+      "toSceneId": "next-step",
+      "relation": "continuation",
+      "visualMode": "recompose",
+      "reason": "保留修订后的判断，来源已完成解释责任，下一段集中未知",
+      "nextQuestion": "下一步还需要查什么？",
+      "retainEntityIds": [
+        "judgment-01"
+      ],
+      "stateBridgeReasons": {}
+    }
+  ],
+  "review": {
+    "actualRenders": [],
+    "comparedPairs": [],
+    "wholeFilmObserved": false,
+    "userAccepted": false
+  }
+}

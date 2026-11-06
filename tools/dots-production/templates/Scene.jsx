@@ -1,8 +1,8 @@
 import React from 'react';
 import {useCurrentFrame} from 'remotion';
-import {Canvas} from './dots/1.1.0/components';
-import {cuesFromBeats} from './dots/1.1.0/motion.mjs';
-import {compileObjectStates,objectStateAt,compileValueTrack,valueAt} from './dots/1.1.0/state.mjs';
+import {Canvas} from './dots/1.2.0/components';
+import {cuesFromBeats} from './dots/1.2.0/motion.mjs';
+import {compileObjectStates,objectStateAt,compileValueTrack,valueAt} from './dots/1.2.0/state.mjs';
 import script from './画面动作脚本.json';
 
 // Author the actual objects after completing the content decision.

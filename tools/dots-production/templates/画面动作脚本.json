@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "contentId": "待填写现有内容编号",
-  "kitVersion": "1.1.0",
+  "kitVersion": "1.2.0",
   "sceneId": "待填写现有段落ID",
   "status": "draft",
   "fps": 30,
@@ -20,30 +20,100 @@
     "primaryObjectId": "main",
     "layoutFamily": "待填写由内容决定的构图描述",
     "hierarchy": "待填写主体、辅助和所属关系",
-    "readingOrder": ["main"],
+    "readingOrder": [
+      "main"
+    ],
     "reason": "待说明为什么采用这样的空间关系"
   },
-  "objects": [{
-    "id": "main", "entityId": null, "parentId": null, "role": "main",
-    "source": "待填写真实材料出处或明确示意身份",
-    "container": "待设计外框与内部对象的关系，也可不使用框",
-    "represents": "待填写这个具体对象代表什么",
-    "whyThisForm": "待说明为什么是这个物件、形态和内部构成",
-    "atomic": false,
-    "parts": [{"id": "part", "form": "待填写具体子部件", "role": "待填写承担什么作用", "reason": "待说明为什么用这种表现"}],
-    "initialState": "before", "finalState": "after",
-    "states": [{"id": "before", "data": {"label": "待填写实际初态"}}, {"id": "after", "data": {"label": "待填写实际终态"}}]
-  }],
-  "actions": [{
-    "id": "change", "kind": "change", "objectId": "main", "partIds": ["part"],
-    "wordId": null, "offsetFrames": 0, "durationFrames": null,
-    "before": "待填写初态", "process": "待填写对象内部发生的事", "after": "待填写终态",
-    "meaning": "待填写这次变化让人理解了什么",
-    "focus": "待填写此时读哪一部分", "focusObjectId": "main", "handoff": "待填写接下来谁接手或为何停留",
-    "changes": [{"objectId": "main", "from": "before", "to": "after", "at": "end"}], "trackIds": []
-  }],
+  "objects": [
+    {
+      "id": "main",
+      "entityId": null,
+      "parentId": null,
+      "role": "main",
+      "source": "待填写真实材料出处或明确示意身份",
+      "container": "待设计外框与内部对象的关系，也可不使用框",
+      "represents": "待填写这个具体对象代表什么",
+      "whyThisForm": "待说明为什么是这个物件、形态和内部构成",
+      "atomic": false,
+      "parts": [
+        {
+          "id": "part",
+          "form": "待填写具体子部件",
+          "role": "待填写承担什么作用",
+          "reason": "待说明为什么用这种表现"
+        }
+      ],
+      "initialState": "before",
+      "finalState": "after",
+      "states": [
+        {
+          "id": "before",
+          "data": {
+            "label": "待填写实际初态"
+          }
+        },
+        {
+          "id": "after",
+          "data": {
+            "label": "待填写实际终态"
+          }
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "change",
+      "kind": "change",
+      "objectId": "main",
+      "partIds": [
+        "part"
+      ],
+      "wordId": null,
+      "offsetFrames": 0,
+      "durationFrames": null,
+      "before": "待填写初态",
+      "process": "待填写对象内部发生的事",
+      "after": "待填写终态",
+      "meaning": "待填写这次变化让人理解了什么",
+      "focus": "待填写此时读哪一部分",
+      "focusObjectId": "main",
+      "handoff": "待填写接下来谁接手或为何停留",
+      "changes": [
+        {
+          "objectId": "main",
+          "from": "before",
+          "to": "after",
+          "at": "end"
+        }
+      ],
+      "trackIds": []
+    }
+  ],
   "tracks": [],
-  "holds": [{"from": null, "to": null, "objectIds": ["main"], "reason": "待填写在读、比较或确认什么；没有停留则删除"}],
+  "holds": [],
   "ambient": [],
-  "review": {"baselineIds": [], "checkpoints": [], "actualRender": null, "visualObserved": false, "audioObserved": false, "userAccepted": false}
+  "review": {
+    "baselineIds": [],
+    "checkpoints": [],
+    "actualRender": null,
+    "visualObserved": false,
+    "audioObserved": false,
+    "userAccepted": false
+  },
+  "rhythm": {
+    "version": 1,
+    "inspectionRegions": [
+      {
+        "id": "main",
+        "x": 0.04,
+        "y": 0.14,
+        "w": 0.92,
+        "h": 0.68,
+        "role": "semantic"
+      }
+    ],
+    "exclusions": []
+  }
 }

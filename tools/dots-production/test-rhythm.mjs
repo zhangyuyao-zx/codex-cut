@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {actionGaps,inspectHolds,reviewRender} from './releases/1.2.0/direction.mjs';
+import {scanFrames} from './audit-render.mjs';
+const results=[];const test=(name,fn)=>{try{fn();results.push({name,passed:true})}catch(e){results.push({name,passed:false,error:e.message})}};
+const h={id:'stop',kind:'semantic-stop',from:15,to:150,objectIds:['progress'],reason:'The operation stops pending permission',readableContent:['64%','Waiting for permission'],viewerTask:'Notice that 64% remains fixed while permission is outstanding',exitCondition:'Permission granted in the following action'};
+test('Action gaps survive declared reading holds',()=>assert.deepEqual(actionGaps({a:{start:0,duration:15},b:{start:150,duration:10}},180),[{from:15,to:150},{from:160,to:180}]));
+test('Former automatic hold boilerplate is rejected',()=>assert.ok(inspectHolds({holds:[{...h,reason:'阅读上一变化的结果，并听旁白补充它的条件和意义'}]}).length));
+test('Renaming a hold without content is rejected',()=>assert.ok(inspectHolds({holds:[{...h,readableContent:[]}]}).length));
+test('Legitimate semantic stop remains legal',()=>assert.deepEqual(inspectHolds({holds:[h]}),[]));
+const report={schemaVersion:1,videoSha256:'video',sceneSha256:'scene',durationSeconds:6,stillWindows:[{id:'w',fromSeconds:.5,toSeconds:5}]};
+const review={videoSha256:'video',sceneSha256:'scene',playbackRanges:[{fromSeconds:0,toSeconds:6,rate:1,observation:'Synthetic test fixture, not a real visual review'}],windows:[{id:'w',holdId:'stop',observationMethod:'normal-speed-playback',observed:'Progress stays at 64% next to permission message',readingTask:'Understand that execution has actually stopped',decision:'retain-purposeful-hold'}]};
+test('Unobserved movie cannot pass on playback ended flag',()=>assert.equal(reviewRender(report,{fps:30,holds:[h]},{...review,playbackRanges:[],ended:true}).ok,false));
+test('Unreviewed actual still interval blocks delivery',()=>assert.equal(reviewRender(report,{fps:30,holds:[h]},{...review,windows:[]}).ok,false));
+test('Stale render receipt blocks delivery',()=>assert.equal(reviewRender(report,{fps:30,holds:[h]},{...review,videoSha256:'other'}).ok,false));
+test('Observed specific stop can pass without deleting its interval',()=>{const r=reviewRender(report,{fps:30,holds:[h]},review);assert.equal(r.ok,true);assert.equal(r.stillWindows.length,1);assert.equal(r.userAccepted,false)});
+const width=80,height=45,frames=[];
+for(let i=0;i<48;i++){const b=Buffer.alloc(width*height,80);for(let y=40;y<45;y++)for(let x=0;x<80;x++)b[y*width+x]=(i%2)*255;b[3]=(i%2)*255;frames.push(b);}
+test('Moving subtitles and tiny pulse cannot hide static subject',()=>{const r=scanFrames(frames,width,height,{regions:[{x:0,y:0,w:1,h:.85}]});assert.equal(r.length,1);assert.equal(r[0].durationSeconds,8)});
+test('Real moving object breaks still interval',()=>{const frames=Array.from({length:36},(_,i)=>{const b=Buffer.alloc(width*height);for(let y=10;y<25;y++)for(let x=i;x<i+20;x++)b[y*width+x]=255;return b});assert.equal(scanFrames(frames,width,height).length,0)});
+test('Token-sized audit ROI is rejected',()=>assert.throws(()=>scanFrames(frames,width,height,{regions:[{x:0,y:0,w:.02,h:.02}]}),/less than 10%/));
+console.log(JSON.stringify({passed:results.every(r=>r.passed),checks:results.length,results},null,2));if(results.some(r=>!r.passed))process.exitCode=1;

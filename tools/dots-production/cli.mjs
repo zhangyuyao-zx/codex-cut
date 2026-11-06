@@ -51,6 +51,20 @@ try {
     await fs.mkdir(path.dirname(target),{recursive:true});
     await fs.writeFile(target,await fs.readFile(path.join(root,'releases',catalog.currentVersion,'全片编排.json')),{flag:'wx'});
     console.log(JSON.stringify({ok:true,target,next:'Reference existing scene scripts by path; write the question chain and adjacent handoffs'}));
+  } else if(command==='audit-render') {
+    const {auditRender}=await import('./audit-render.mjs');
+    const report=await auditRender({video:path.resolve(value('--video')),sceneFile:path.resolve(value('--scene'))});
+    const out=path.resolve(value('--out'));await fs.writeFile(out,JSON.stringify(report,null,2)+'\n');
+    console.log(JSON.stringify({out,sceneId:report.sceneId,stillWindows:report.stillWindows,deliveryReady:false}));
+  } else if(command==='gate-render') {
+    await verifyRelease(catalog.currentVersion);
+    const {reviewRender}=await import(pathToFileURL(path.join(root,'releases',catalog.currentVersion,'direction.mjs')).href);
+    const sceneFile=path.resolve(value('--scene')),video=path.resolve(value('--video'));
+    const report=await read(path.resolve(value('--audit'))),review=await read(path.resolve(value('--review')));
+    if(hash(await fs.readFile(sceneFile))!==report.sceneSha256||hash(await fs.readFile(video))!==report.videoSha256)throw new Error('Stale audit: video or authored scene has changed');
+    const result=reviewRender(report,await read(sceneFile),review);
+    if(args.includes('--out'))await fs.writeFile(path.resolve(value('--out')),JSON.stringify(result,null,2)+'\n');
+    console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
   } else if(command==='check' || command==='check-film') {
     if(!args[0]||args[0].startsWith('--'))throw new Error(`${command} requires a JSON path`);
     // Import only the fixed installed checker; user JSON cannot supply executable module paths.
@@ -72,5 +86,5 @@ try {
       result=checkFilm(input,scripts);
     }
     console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
-  } else throw new Error('Commands: list [--relation TAG] | verify [--version X.Y.Z] | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON');
+  } else throw new Error('Commands: list | verify | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
 }catch(e){console.error(e.message);process.exitCode=1;}
