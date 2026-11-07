@@ -51,6 +51,9 @@ try {
     await fs.mkdir(path.dirname(target),{recursive:true});
     await fs.writeFile(target,await fs.readFile(path.join(root,'releases',catalog.currentVersion,'全片编排.json')),{flag:'wx'});
     console.log(JSON.stringify({ok:true,target,next:'Reference existing scene scripts by path; write the question chain and adjacent handoffs'}));
+  } else if(command==='compare-frames') {
+    const {compareFrames}=await import('./compare-frames.mjs');
+    console.log(JSON.stringify(await compareFrames({specFile:value('--spec'),outputDir:value('--out')}),null,2));
   } else if(command==='audit-render') {
     const {auditRender}=await import('./audit-render.mjs');
     const report=await auditRender({video:path.resolve(value('--video')),sceneFile:path.resolve(value('--scene'))});
@@ -86,5 +89,5 @@ try {
       result=checkFilm(input,scripts);
     }
     console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
-  } else throw new Error('Commands: list | verify | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
+  } else throw new Error('Commands: list | verify | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | compare-frames --spec JSON --out NEW_DIR | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
 }catch(e){console.error(e.message);process.exitCode=1;}

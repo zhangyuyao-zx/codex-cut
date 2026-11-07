@@ -1,7 +1,7 @@
 > 2026-11-06：制作检查升级为 **1.2.0**。旧版保持固定；新项目采用新版本。动作间隙始终保留，不因填写停留理由而消失。新停留必须写具体可读内容、观众任务和结束条件，禁止批量补通用理由。
 > 渲染后必须运行 `audit-render`，只检查主体区域，字幕、时间尺和装饰不作有效推进。全部检测窗口永久保留；`gate-render` 验证当前视频、当前脚本哈希及正常速度实际观察记录。存在未处理窗口或过期证据时退出失败，不可交付。2.5秒只是筛查起点，不是审美规则；有理由的停留经具体观察可保留。播放器 ended=true 不代替观察，像素运动不证明语义或美感。
 
-# dots 制作工具 · 源码套件 1.1.0
+# dots 制作工具 · 源码套件 1.2.0
 
 将已经整理出的 dots 表达方法落到可复用的制作代码、段落脚本和全片编排中。每段从当前文案的理解任务出发，设计具体对象、内部变化和前后交接；构图不固定为同一套卡片。
 
@@ -30,13 +30,13 @@ npm run dots -- init-film --to .cache/dots-film-demo.json
 | 全片编排 schema 1 | 问题链、已有段落脚本路径、相邻交接、保留实体和状态衔接理由 | 相邻关系、实体起终态接续，以及需人工复看的相似构图 |
 
 ```bash
-npm run dots -- check tools/dots-production/releases/1.1.0/examples/correction.scene.json --words tools/dots-production/releases/1.1.0/examples/correction.words.json
-npm run dots -- check-film tools/dots-production/releases/1.1.0/examples/film.json
+npm run dots -- check tools/dots-production/releases/1.2.0/examples/correction.scene.json --words tools/dots-production/releases/1.2.0/examples/correction.words.json
+npm run dots -- check-film tools/dots-production/releases/1.2.0/examples/film.json
 ```
 
 上述是人工技术例子。正式制作必须用当前工程的真实词 ID 与实际词时间，不能把示例时间套进新音轨。段落脚本的动作与场景代码都消费同一时间依据，已解析的偏移不能再重复加一次。
 
-`inspectionGaps` 表示动作计划中尚无动作或阅读理由覆盖的区间，供作者检查。它不是成片静止检测，也不代表必须加动画。构图相似提醒同样不等于应该换布局：同一对象的连续解释、共同尺度比较和有意义的回访可以保留。
+`inspectionGaps` 保留动作计划中动作之间的间隙，已声明的阅读保持也不会消除它；供作者结合 `declaredHolds` 检查。它不是成片静止检测，也不代表必须加动画。构图相似提醒同样不等于应该换布局：同一对象的连续解释、共同尺度比较和有意义的回访可以保留。
 
 ## 代码能力
 
@@ -50,13 +50,39 @@ npm run dots -- check-film tools/dots-production/releases/1.1.0/examples/film.js
 
 ## 版本与复用
 
-`releases/1.0.0` 和 `releases/1.1.0` 分开保留，每版 manifest 固定文件 SHA-256；`verify` 检查源码及当前模板是否一致。新项目默认采用 1.1.0，已有作品继续使用自己复制的版本；更新仓库不批量改写既有作品。
+`releases/1.0.0`、`releases/1.1.0` 和 `releases/1.2.0` 分开保留，每版 manifest 固定文件 SHA-256；`verify` 检查源码及当前模板是否一致。新项目默认采用 `catalog.currentVersion`（当前 1.2.0），已有作品继续使用自己复制的版本；更新仓库不批量改写既有作品。
 
 公共版不附参考原片、私人重建基准、产品页面、音轨或字体。`catalog.baselines` 因此为空，技术示例不代表已获审美认可。实际项目需要自己的材料、渲染与审阅证据。
 
 参考研究和制作能力分别维护。研究任意新参考可用 [reference-study](../reference-study/README.md)；做新视频时直接调用已整理的适用方法和代码，不要求重新分析整条参考。只有出现新问题或现有依据不够时，才补查相关片段。
 
 ## 验证
+
+### 实际画面对照
+
+代表样片使用[精致度校准方法](DIRECTING.md#用真实样片校准精致度)。先写本期需要比较的问题和实际时间，再生成证据。规格中的视频路径相对于规格文件，也可使用绝对本地路径：
+
+```json
+{
+  "schemaVersion": 1,
+  "pairs": [{
+    "id": "detail",
+    "question": "关键控件的部件、字级和当前焦点是否足够清楚？",
+    "reference": {"video": "reference.mp4", "timeSeconds": 30.5},
+    "current": {"video": "sample.mp4", "timeSeconds": 5.2}
+  }]
+}
+```
+
+```bash
+npm run dots -- compare-frames --spec /path/to/comparison-spec.json --out /path/to/new-comparison-directory
+```
+
+需要现有 `ffmpeg`/`ffprobe`。命令只读取本地媒体，拒绝覆盖输出目录，核对取帧时间，生成同尺度1280×720完整画面（保留比例）、可切换390px窄幅的浏览页和来源/图片哈希。原始素材不修改，也不上传。输出明确为 `visualJudgment: not-performed`；静帧不能证明动作、声音或美术达标。窄幅辅助可读性检查，不冒充真实设备审阅。
+
+在实际观察记录中指出差距及处理，再回看对应运动和相邻段。`gate-render` 仍只核验节奏证据；返回 `deliveryReady` 不等于视觉目标已达到或用户已认可。对照工具是现有样片审阅的辅助，不新增审批关卡、不改变固定release。
+
+### 源码检查
 
 ```bash
 node tools/dots-production/test.mjs
