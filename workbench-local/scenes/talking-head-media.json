@@ -1,0 +1,376 @@
+{
+  "id": "talking-head-media",
+  "label": "真人与真实素材",
+  "entry": "TalkingHeadMedia.tsx",
+  "exportName": "TalkingHeadMedia",
+  "controls": [
+    {
+      "key": "treatment",
+      "label": "素材任务",
+      "type": "select",
+      "options": [
+        "handoff",
+        "evidence",
+        "backdrop"
+      ],
+      "default": "handoff"
+    },
+    {
+      "key": "headline",
+      "label": "段落标题",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "sourceLabel",
+      "label": "出处／使用说明",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "focusLabel",
+      "label": "重点说明",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "focusText",
+      "label": "背景上的重点",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "focusDetail",
+      "label": "背景上的补充解释",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "key": "materialId",
+      "label": "绑定素材 ID",
+      "type": "text",
+      "default": "evidence"
+    },
+    {
+      "key": "personDurationFrames",
+      "label": "口播源总帧数",
+      "type": "number",
+      "required": true,
+      "min": 1
+    },
+    {
+      "key": "materialWidth",
+      "label": "素材实际宽度",
+      "type": "number",
+      "required": true,
+      "min": 1
+    },
+    {
+      "key": "materialHeight",
+      "label": "素材实际高度",
+      "type": "number",
+      "required": true,
+      "min": 1
+    },
+    {
+      "key": "materialDurationFrames",
+      "label": "视频素材总帧数",
+      "type": "number",
+      "min": 0,
+      "default": 0
+    },
+    {
+      "key": "materialTrimBefore",
+      "label": "视频素材起点帧",
+      "type": "number",
+      "min": 0,
+      "default": 0
+    },
+    {
+      "key": "materialFit",
+      "label": "素材填充方式",
+      "type": "select",
+      "options": [
+        "contain",
+        "cover"
+      ],
+      "default": "contain"
+    },
+    {
+      "key": "revealCue",
+      "label": "素材进入词锚点",
+      "type": "text",
+      "default": "material-in"
+    },
+    {
+      "key": "focusCue",
+      "label": "素材重点词锚点",
+      "type": "text",
+      "default": "material-focus"
+    },
+    {
+      "key": "returnCue",
+      "label": "回到人物词锚点",
+      "type": "text",
+      "default": "return-person"
+    },
+    {
+      "key": "transitionFrames",
+      "label": "无明确动作时长时的帧数",
+      "type": "number",
+      "min": 1,
+      "max": 120,
+      "default": 18
+    },
+    {
+      "key": "focusPerson",
+      "label": "重点阶段人物状态",
+      "type": "select",
+      "options": [
+        "pip",
+        "hidden"
+      ],
+      "default": "pip"
+    },
+    {
+      "key": "personRadius",
+      "label": "重点阶段人像圆角",
+      "type": "number",
+      "min": 0,
+      "max": 150,
+      "default": 150
+    },
+    {
+      "key": "personFocalX",
+      "label": "人物水平焦点",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.5
+    },
+    {
+      "key": "personFocalY",
+      "label": "人物垂直焦点",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.5
+    },
+    {
+      "key": "materialFocalX",
+      "label": "素材水平焦点",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.5
+    },
+    {
+      "key": "materialFocalY",
+      "label": "素材垂直焦点",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.5
+    },
+    {
+      "key": "cropX",
+      "label": "原文区域 X",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.1
+    },
+    {
+      "key": "cropY",
+      "label": "原文区域 Y",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.25
+    },
+    {
+      "key": "cropWidth",
+      "label": "原文区域宽",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.8
+    },
+    {
+      "key": "cropHeight",
+      "label": "原文区域高",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.25
+    },
+    {
+      "key": "backgroundBrightness",
+      "label": "退为背景的亮度",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "default": 0.32
+    },
+    {
+      "key": "backgroundSaturation",
+      "label": "退为背景的饱和度",
+      "type": "number",
+      "min": 0,
+      "max": 2,
+      "step": 0.01,
+      "default": 0.2
+    },
+    {
+      "key": "backgroundBlur",
+      "label": "退为背景的模糊",
+      "type": "number",
+      "min": 0,
+      "max": 30,
+      "default": 5
+    },
+    {
+      "key": "background",
+      "label": "底色",
+      "type": "color",
+      "default": "#18252b"
+    },
+    {
+      "key": "textColor",
+      "label": "文字颜色",
+      "type": "color",
+      "default": "#f5f2ed"
+    },
+    {
+      "key": "accent",
+      "label": "强调色",
+      "type": "color",
+      "default": "#ffcb69"
+    },
+    {
+      "key": "titleSize",
+      "label": "标题字号",
+      "type": "number",
+      "min": 28,
+      "max": 100,
+      "default": 62
+    },
+    {
+      "key": "focusSize",
+      "label": "重点字号",
+      "type": "number",
+      "min": 36,
+      "max": 140,
+      "default": 90
+    }
+  ],
+  "objects": [
+    {
+      "id": "person",
+      "label": "连续人物画面",
+      "parameters": [
+        "personDurationFrames",
+        "personFocalX",
+        "personFocalY",
+        "focusPerson",
+        "personRadius"
+      ],
+      "kind": "video",
+      "canvas": {
+        "transform": true,
+        "visibility": true,
+        "reorder": true
+      }
+    },
+    {
+      "id": "material",
+      "label": "真实素材",
+      "parameters": [
+        "treatment",
+        "materialId",
+        "materialWidth",
+        "materialHeight",
+        "materialDurationFrames",
+        "materialTrimBefore",
+        "materialFit",
+        "materialFocalX",
+        "materialFocalY",
+        "backgroundBrightness",
+        "backgroundSaturation",
+        "backgroundBlur"
+      ],
+      "kind": "group",
+      "canvas": {
+        "transform": true,
+        "visibility": true,
+        "reorder": true
+      }
+    },
+    {
+      "id": "focus",
+      "label": "原文抽取／重点解释",
+      "parameters": [
+        "cropX",
+        "cropY",
+        "cropWidth",
+        "cropHeight",
+        "focusLabel",
+        "focusText",
+        "focusDetail",
+        "focusSize",
+        "accent"
+      ],
+      "kind": "group",
+      "canvas": {
+        "transform": true,
+        "visibility": true,
+        "reorder": true
+      }
+    },
+    {
+      "id": "headline",
+      "label": "段落标题",
+      "parameters": [
+        "headline",
+        "titleSize",
+        "textColor",
+        "background",
+        "revealCue",
+        "focusCue",
+        "returnCue",
+        "transitionFrames"
+      ],
+      "kind": "text",
+      "canvas": {
+        "transform": true,
+        "visibility": true,
+        "reorder": true,
+        "text": "headline"
+      }
+    },
+    {
+      "id": "source",
+      "label": "素材出处",
+      "parameters": [
+        "sourceLabel"
+      ],
+      "kind": "text",
+      "canvas": {
+        "transform": true,
+        "visibility": true,
+        "reorder": true,
+        "text": "sourceLabel"
+      }
+    }
+  ],
+  "acceptsMaterials": true
+}
