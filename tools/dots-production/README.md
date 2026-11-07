@@ -1,7 +1,7 @@
-> 2026-11-06：制作检查升级为 **1.2.0**。旧版保持固定；新项目采用新版本。动作间隙始终保留，不因填写停留理由而消失。新停留必须写具体可读内容、观众任务和结束条件，禁止批量补通用理由。
-> 渲染后必须运行 `audit-render`，只检查主体区域，字幕、时间尺和装饰不作有效推进。全部检测窗口永久保留；`gate-render` 验证当前视频、当前脚本哈希及正常速度实际观察记录。存在未处理窗口或过期证据时退出失败，不可交付。2.5秒只是筛查起点，不是审美规则；有理由的停留经具体观察可保留。播放器 ended=true 不代替观察，像素运动不证明语义或美感。
+> 2026-11-07：制作入口升级为 **1.3.0**。`prepare` 将选中的实际参考片段、适用理由、失败例子和固定源码带入本期；可组合的物件由同一实体的内容和位姿直接驱动画面。渲染后用 `review-pack` 先观察实际输出，再展开设计意图与参考。工具不自动作美术判断，也不写用户认可。
+> 1.2.0 的节奏审片继续保留：`audit-render` 只检查主体区域，字幕、时间尺和装饰不作有效推进；所有检测窗口保留。`gate-render` 按场景锁定版本运行，核验当前视频、脚本与实际观察。1.3.0 返回 `rhythmEvidenceComplete`，`deliveryReady` 始终为 false。2.5秒只是复看筛查起点，播放器 ended 或像素变化都不能证明语义与美感。
 
-# dots 制作工具 · 源码套件 1.2.0
+# dots 制作工具 · 源码套件 1.3.0
 
 将已经整理出的 dots 表达方法落到可复用的制作代码、段落脚本和全片编排中。每段从当前文案的理解任务出发，设计具体对象、内部变化和前后交接；构图不固定为同一套卡片。
 
@@ -14,11 +14,15 @@
 ```bash
 npm run dots -- list
 npm run dots -- verify
-npm run dots -- init --to .cache/dots-scene-demo
+npm run dots -- prepare --brief /path/to/制作任务.json --references /path/to/本机参考注册表.json --to /path/to/新制作目录
 npm run dots -- init-film --to .cache/dots-film-demo.json
 ```
 
-`init` 只接受不存在的新目录；它复制固定版本源码、段落起点和 `dots-lock.json`，拒绝合并或覆盖已有作品。全片起点也拒绝覆盖。实际制作应将输出放进对应内容项目的制作目录。
+制作任务和本机注册表的起点在 `templates/制作任务.json`、`templates/本机参考注册表示例.json`。注册表绑定已有本地视频的真实 SHA-256 与具体区间；按当前理解任务选一两组适用依据，需要时附相关失败样例。认可重建只代表它本身获认可，不转移给新作品。`sourceCode` 可记录原实现的本机位置。
+
+`prepare` 校验身份并截取可播放参考、生成入口页，复制固定源码与 `dots-lock.json`。所有参考和本机路径只留在项目制作目录，不提交公共仓库。需要现有 `ffmpeg`/`ffprobe`。只接受不存在的新目录，拒绝合并或覆盖；失败后的不完整目录也保留，排除原因后另建输出。
+
+`init` 仍可用作底层源码起点，但会明确返回 `referencePackMissing:true`；常规制作使用 `prepare`。全片起点同样拒绝覆盖。二者都不选择或改写活动工程。
 
 生成的 `Scene.jsx` 需要作者完成 `AuthoredObjects`，未实现时会明确报错。先填好本段理解目标、具体物件、子部件的职责与理由、空间关系和状态链，再编写画面。它不提供可误认成成片的通用默认布局。
 
@@ -45,18 +49,36 @@ npm run dots -- check-film tools/dots-production/releases/1.2.0/examples/film.js
 - `state.mjs`：编译完整对象状态和有限数值轨道。更正判断时切换完整状态，清除旧提示；进度可按真实事件暂停、保持、继续，不靠循环假装持续推进。
 - `direction.mjs`：段落及全片结构检查，保留 schema 1 旧段落读取；不把结构有效、视觉观察和用户认可混成一个状态。
 - `catalog.json`：11 类表达机制的适用关系、避用条件和检查点。按表达关系查询；它不是每期都必须使用的布局清单。
+- `objects.jsx`：可改造的材料条目、真实图片容器、步骤槽、局部焦点和资源部件。`Board` 不强制固定顶标题；整幅构图由本段内容决定。`RecordCard` 的正文、字段和旧值来自实际快照，不仅变颜色或补一个勾。
+- `objects.mjs`：`viewAt` 同时返回持久 `entityId`、完整内容快照和当前位姿；同一材料迁移时仍读同一实体。建立、迁移和内部修订独立定时，回退与重渲染可重复。`activityAt` 提供有起止的次要活动，不能拿循环掩盖信息空档。
+- `recipes.json`：注意力交接、材料试跑、决策后果和字段订正的适用条件。它们是可组合行为，不是固定场景分镜。
+
+最小运行示例见 [record-demo.jsx](releases/1.3.0/examples/record-demo.jsx)。字体由调用方提供；业务内容是示意。新物件仍须按原生场景 manifest 声明可编辑内容和参数，不能把 DOM 上的实体标记误当成工作台已自动支持编辑。
 
 更具体的选用方法见 [导演与画面设计](DIRECTING.md)，原生接入读 [场景协议](../../workbench-local/SCENE_MODULES.md) 和 [非真人讲解方法](../../workbench-local/methods/FACELESS.md)。
 
 ## 版本与复用
 
-`releases/1.0.0`、`releases/1.1.0` 和 `releases/1.2.0` 分开保留，每版 manifest 固定文件 SHA-256；`verify` 检查源码及当前模板是否一致。新项目默认采用 `catalog.currentVersion`（当前 1.2.0），已有作品继续使用自己复制的版本；更新仓库不批量改写既有作品。
+`releases/1.0.0` 至 `releases/1.3.0` 分开保留，每版 manifest 固定文件 SHA-256；`verify` 检查源码及当前模板是否一致。新项目默认采用 `catalog.currentVersion`（当前 1.3.0），已有作品继续使用自己复制的版本；更新仓库不批量改写既有作品。
 
 公共版不附参考原片、私人重建基准、产品页面、音轨或字体。`catalog.baselines` 因此为空，技术示例不代表已获审美认可。实际项目需要自己的材料、渲染与审阅证据。
 
 参考研究和制作能力分别维护。研究任意新参考可用 [reference-study](../reference-study/README.md)；做新视频时直接调用已整理的适用方法和代码，不要求重新分析整条参考。只有出现新问题或现有依据不够时，才补查相关片段。
 
 ## 验证
+
+### 先看实际输出，再看自己的解释
+
+代表样片渲染后，用 `templates/审片规格.json` 记录实际视频、起态/过程/终态时间和适用参考。不要只取一张好看的终态：同一对象移动的两端、字段修改前后、旧提示退出和下一主体接手都应有证据。
+
+```bash
+npm run dots -- review-pack --spec /path/to/审片规格.json --out /path/to/新审片目录
+npm run dots -- check-review --evidence /path/to/新审片目录/evidence.json --observation /path/to/新审片目录/observation.json
+```
+
+浏览页先显示实际视频与检查帧，设计意图及参考折叠在第二遍。先记下看见的对象、内容、变化和疑点，随后对照参考的造型与行为；不能用自己的方案替画面补全。正常速度播放和静帧分别记录，未听辨不得评价声音。`observation.json` 初始为空，不自动填“通过”。它可承载本期现有观察，无需用户另外填表。
+
+`check-review` 核验原视频、播放副本、参考、实际帧、规格与观察的身份，以及事实/差距处理是否填写完整。修改素材后旧观察失效；未处理差距不能标成候选已完成。它无法判断观察是否准确、内容是否好看，返回 `visualQuality:not-automatically-assessed` 和 `userAccepted:false`。实际视觉判断与原有用户审阅继续由人完成。
 
 ### 实际画面对照
 
@@ -80,12 +102,14 @@ npm run dots -- compare-frames --spec /path/to/comparison-spec.json --out /path/
 
 需要现有 `ffmpeg`/`ffprobe`。命令只读取本地媒体，拒绝覆盖输出目录，核对取帧时间，生成同尺度1280×720完整画面（保留比例）、可切换390px窄幅的浏览页和来源/图片哈希。原始素材不修改，也不上传。输出明确为 `visualJudgment: not-performed`；静帧不能证明动作、声音或美术达标。窄幅辅助可读性检查，不冒充真实设备审阅。
 
-在实际观察记录中指出差距及处理，再回看对应运动和相邻段。`gate-render` 仍只核验节奏证据；返回 `deliveryReady` 不等于视觉目标已达到或用户已认可。对照工具是现有样片审阅的辅助，不新增审批关卡、不改变固定release。
+在实际观察记录中指出差距及处理，再回看对应运动和相邻段。`gate-render` 只核验节奏证据；旧 1.2.0 的 `deliveryReady` 不等于视觉目标已达到或用户已认可，新 1.3.0 不再把它设为 true。对照工具辅助现有样片审阅，不新增用户审批关卡。
 
 ### 源码检查
 
 ```bash
 node tools/dots-production/test.mjs
+node tools/dots-production/test-rhythm.mjs
+node tools/dots-production/test-production-pack.mjs
 ```
 
-覆盖确定性状态、暂停与继续、词偏移、子部件、实体连续性、旧格式、组件编译、固定版本校验及初始化保护。测试通过后，仍需检查实际起态—过程—终态、目标尺寸可读性、相邻画面及带声整片。
+分别覆盖旧版兼容与状态、节奏证据、新物件的实际内容/位姿和准备/审片入口。按改动运行受影响检查，不因日常文案微调重跑全部。测试通过后，仍需检查实际起态—过程—终态、目标尺寸可读性、相邻画面及带声整片。

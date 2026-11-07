@@ -1,0 +1,39 @@
+{
+  "id": "dots-authoring-kit",
+  "version": "1.3.0",
+  "runtime": {
+    "react": "19.2.7",
+    "remotion": "4.0.489"
+  },
+  "scope": "versioned authoring source with visible object bindings; actual media and user acceptance remain local",
+  "files": {
+    "Scene.jsx": "c364d860444af63e0214f79d274519a6228acb8fa67cd724ed681788d80f0a94",
+    "components.jsx": "d46a8ed9f623bfcaea3deff01e34497bbfbf3f013bbb8fdee3dd2298377c374d",
+    "direction.mjs": "c898c3ab08b2ca3550ef9a940570e225b28a851877665c18b29d65f0fac54b22",
+    "example.jsx": "98c730a5b3c6af116f30237704d6782e793a8b0ca61eecf6b8524069efc072a4",
+    "examples/README.md": "5cb505d0239f03af14adcfecc861fde3d83ae9e182716d7ff533347b19c85d4f",
+    "examples/correction.scene.json": "56441da2a485660cd36df0499c2cca958b206f1ee7c060761007c627bc702e59",
+    "examples/correction.words.json": "43bf24b3a2c6b3b70ed7ceebb108e7ddb2d2f6350ca72d4865c54347e4da97b4",
+    "examples/film.json": "467fb134427eb7d027e465ec44ca0b0312b4639bf37933d8a6e59d585d04033b",
+    "examples/next.scene.json": "205a9999b683724a7531b702f5aa13ee4cdf305dd0b2fbf07032722d3613f550",
+    "examples/next.words.json": "3b2825359cb3de3cf6201112942b26778e8c3585f242e8d063e61f580cb2f717",
+    "examples/pause.track.json": "754e0dbbbd18e67b76aa89c3dd35c2856730e5fd21afbcab075e59d5259784b3",
+    "examples/record-demo.jsx": "a57cf4abe6658ea321b404cb87d4b0a40779d8842f2982a14ad154fe6bc6315e",
+    "motion.mjs": "05f2c806d5169ff3ca22dbbe388d9c7b7e33e335ce905c46a9b2db09562fdd72",
+    "objects.jsx": "385bd5910ced8176beb45f460b0ee72e58296f0e94111443bf141efc799d9634",
+    "objects.mjs": "7cd613dad98b061a4317031bae63cd07a5c2f89d89b6383757ea05bb27c737be",
+    "recipes.json": "f7a52dc6c803f3616b7e447cbbe16a651221454ec99dc6801d8b3808dc0e58d1",
+    "state.mjs": "1d4fb1fdc523e29ec9eb13c4f694df2b6bd000dbb704fee3081ba1c9e698e98e",
+    "structure.mjs": "9174df7e40047b1954c67faa5712db64a6086067381a020241a52c4417423d00",
+    "tokens.json": "fcc862b3de2edabb63762b708506ba77f289df8e3ecc4c7c462b36f78f311ac9",
+    "全片编排.json": "51b1bbb448505e1991c93095d1e8d42bb8936cfcb80be7f199e94d2de37c46e0",
+    "画面动作脚本.json": "de0747565ef2f8cdbba923c49b49dc391753da34a2ecb1425d9b20e9f37788c9"
+  },
+  "templates": [
+    "画面动作脚本.json",
+    "全片编排.json",
+    "Scene.jsx"
+  ],
+  "sceneSchemaVersion": 2,
+  "filmSchemaVersion": 1
+}

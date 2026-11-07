@@ -33,6 +33,17 @@ try {
       if(hash(await fs.readFile(path.join(root,'templates',name)))!==release.files[name])throw new Error(`Current template differs from release: ${name}`);
     }
     console.log(JSON.stringify({ok:true,version,codeFiles:Object.keys(release.files).length,approvedBaselines:catalog.baselines.length}));
+  } else if(command==='prepare') {
+    const version=catalog.currentVersion,release=await verifyRelease(version);
+    const {preparePack}=await import('./production-pack.mjs');
+    console.log(JSON.stringify(await preparePack({briefFile:path.resolve(value('--brief')),registryFile:path.resolve(value('--references')),target:path.resolve(value('--to')),kitRoot:root,version,release}),null,2));
+  } else if(command==='review-pack') {
+    const {reviewPack}=await import('./production-pack.mjs');
+    console.log(JSON.stringify(await reviewPack({specFile:path.resolve(value('--spec')),target:path.resolve(value('--out'))}),null,2));
+  } else if(command==='check-review') {
+    const {checkReview}=await import('./production-pack.mjs');
+    const result=await checkReview({evidenceFile:path.resolve(value('--evidence')),observationFile:path.resolve(value('--observation'))});
+    console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
   } else if(command==='init') {
     const target=path.resolve(value('--to'));
     if(await exists(target))throw new Error('Target exists; refusing to overwrite or merge user work');
@@ -43,7 +54,7 @@ try {
     for(const name of ['画面动作脚本.json','Scene.jsx'])await fs.copyFile(path.join(root,'releases',version,name),path.join(target,name));
     await fs.writeFile(path.join(target,'dots-lock.json'),JSON.stringify({version,source:root,files:release.files,sceneSchemaVersion:2,baselineIds:catalog.baselines.map(b=>b.id),status:'authoring-starter-not-user-approved'},null,2));
     await fs.writeFile(path.join(target,'README.md'),`# dots 制作起点\n\n固定版本 ${version}。先完成画面动作脚本中的理解目标、具体对象及子部件、布局和状态变化，再绑定当前工程真实词ID，编写Scene.jsx的AuthoredObjects。起点故意不提供可冒充完成画面的默认布局，未完成时会拒绝渲染。\n\n通过cuesFromBeats消费已含偏移的原生beats，state.mjs在同一时间轴给出完整对象状态及可暂停的数值；把值实际用于文字、图形和页面标注。\n\n调用：node '${path.join(root,'cli.mjs')}' check '${path.join(target,'画面动作脚本.json')}' --words '/当前段真实words.json'\n\n方法：${path.join(root,'README.md')}\n导演判断：${path.join(root,'DIRECTING.md')}\n\n本目录仅准备制作源码，不创建或切换Codex Cut工程，不生成声音，不写用户认可。原生参数/锁及逐段审阅继续沿用。\n`);
-    console.log(JSON.stringify({ok:true,target,version,next:'Complete content-specific design and objects, bind real words, implement and render in the owning project'}));
+    console.log(JSON.stringify({ok:true,target,version,referencePackMissing:true,next:'Low-level starter only. Use prepare for production with selected reference clips; complete content-specific objects, real word bindings and actual render review.'}));
   } else if(command==='init-film') {
     const target=path.resolve(value('--to'));
     if(await exists(target))throw new Error('Target exists; refusing to overwrite film plan');
@@ -60,12 +71,13 @@ try {
     const out=path.resolve(value('--out'));await fs.writeFile(out,JSON.stringify(report,null,2)+'\n');
     console.log(JSON.stringify({out,sceneId:report.sceneId,stillWindows:report.stillWindows,deliveryReady:false}));
   } else if(command==='gate-render') {
-    await verifyRelease(catalog.currentVersion);
-    const {reviewRender}=await import(pathToFileURL(path.join(root,'releases',catalog.currentVersion,'direction.mjs')).href);
     const sceneFile=path.resolve(value('--scene')),video=path.resolve(value('--video'));
+    const scene=await read(sceneFile),version=scene.kitVersion;
+    await verifyRelease(version);
+    const {reviewRender}=await import(pathToFileURL(path.join(root,'releases',version,'direction.mjs')).href);
     const report=await read(path.resolve(value('--audit'))),review=await read(path.resolve(value('--review')));
     if(hash(await fs.readFile(sceneFile))!==report.sceneSha256||hash(await fs.readFile(video))!==report.videoSha256)throw new Error('Stale audit: video or authored scene has changed');
-    const result=reviewRender(report,await read(sceneFile),review);
+    const result=reviewRender(report,scene,review);
     if(args.includes('--out'))await fs.writeFile(path.resolve(value('--out')),JSON.stringify(result,null,2)+'\n');
     console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
   } else if(command==='check' || command==='check-film') {
@@ -89,5 +101,5 @@ try {
       result=checkFilm(input,scripts);
     }
     console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
-  } else throw new Error('Commands: list | verify | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | compare-frames --spec JSON --out NEW_DIR | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
+  } else throw new Error('Commands: list | verify | prepare --brief JSON --references LOCAL_REGISTRY --to NEW_DIR | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | compare-frames --spec JSON --out NEW_DIR | review-pack --spec JSON --out NEW_DIR | check-review --evidence JSON --observation JSON | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
 }catch(e){console.error(e.message);process.exitCode=1;}

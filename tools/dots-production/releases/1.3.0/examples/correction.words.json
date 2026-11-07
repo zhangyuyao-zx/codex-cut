@@ -1,0 +1,26 @@
+[
+  {
+    "id": "fixture-0",
+    "text": "先看依据",
+    "start": 0,
+    "end": 8
+  },
+  {
+    "id": "fixture-1",
+    "text": "更正",
+    "start": 60,
+    "end": 68
+  },
+  {
+    "id": "fixture-2",
+    "text": "重新核对",
+    "start": 84,
+    "end": 92
+  },
+  {
+    "id": "fixture-3",
+    "text": "修订判断",
+    "start": 150,
+    "end": 158
+  }
+]

@@ -41,6 +41,8 @@
 
 **v0.3.2：把参考研究和 dots 制作分别工程化。** 新增通用参考研究记录、189 项分类核查、证据浏览与结构校验；另提供 dots 1.1.0 固定版本源码、对象状态和可暂停进度、段落动作脚本及全片交接检查。已整理的方法可直接复用，布局仍由当前内容决定。入口见[研究与制作工具](#研究与制作工具)，验证范围见[本次更新记录](docs/implementation/2026-11-05-reference-and-dots-tools.md)。
 
+**制作套件后续更新：dots 1.3.0。** 常规入口带入实际参考片段与失败样例；可组合物件由同一实体的内容和位姿驱动。审片先看实际输出，再展开设计与参考；证据完整不自动宣布美术或交付通过。旧作品锁定版本不变，详见[本次实现与验证](docs/implementation/2026-11-07-dots-reuse-1.3.md)。
+
 **2026-11-07 真人制作升级：** 新增人物与真实素材的连续交接、原图重点抽取、素材退为背景，以及原生可编辑场景；沿用现有工程与声音轨。见[制作入口](tools/talking-head-production/README.md)和[验证范围](docs/implementation/2026-11-07-talking-head-media.md)。
 
 **v0.3.1：独立工程与完整混音。** 启动前选择独立目录，插件核对实际工程路径与内容编号；同源码目录内的另一工程也不会被误用。完整混音包含口播、音乐和音效，并进入原生预览、逐段样片与整片合成；更换声音会使旧确认失效。见[交接与验证记录](docs/implementation/2026-10-29-project-and-soundtrack.md)。
@@ -184,7 +186,7 @@ flowchart TB
 | 工具 | 输入与输出 | 入口 |
 |---|---|---|
 | 参考视频研究 | 原片及实际观察 → 逐句、元素、动作、转场记录 → 证据浏览页与结构检查 | [reference-study](tools/reference-study/README.md) |
-| dots 制作 | 当前文稿、真实词时间、素材 → 对象及状态设计 → 固定源码和段落/全片检查 | [dots-production](tools/dots-production/README.md) |
+| dots 制作 | 当前文稿、真实词时间、素材与选定参考 → 可组合物件及状态 → 实际输出与对照审片 | [dots-production](tools/dots-production/README.md) |
 | 真人与真实素材 | 真实口播与材料 → 人物交接、原图局部、背景加工 → 原生可编辑场景与固定源码 | [talking-head-production 1.0.0](tools/talking-head-production/README.md) |
 
 研究示例是明确标注的合成图示；dots 公共套件不附私人参考原片、产品页面、音轨或字体，也不自动进入工作台可用视觉库。它们帮助记录与实现，完整运动、声音和审美仍需实际审阅。

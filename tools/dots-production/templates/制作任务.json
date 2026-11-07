@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "contentId": "本期内容编号",
+  "sceneId": "scene-01",
+  "task": "本段具体解释任务",
+  "referenceIds": ["从本机注册表选择适用ID"],
+  "adopt": "本期采用哪些造型或行为，为什么适用",
+  "adapt": "本期内容需要改变哪些对象、构图或动作",
+  "observableResult": "观众实际会看见哪项具体改变"
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "entries": [{
+    "id": "local-example",
+    "kind": "reference",
+    "label": "适用参考的具体片段",
+    "media": {"file":"相对注册表的本机视频路径.mp4","sha256":"实际文件哈希","fromSeconds":0,"toSeconds":5},
+    "learn": "可观察、可迁移的造型或行为",
+    "avoid": "适用边界及不可照搬部分",
+    "sourceCode": "可选：已认可重建的本机实现路径"
+  }]
+}

@@ -1,9 +1,13 @@
 import React from 'react';
 import {useCurrentFrame} from 'remotion';
-import {Canvas} from './dots/1.2.0/components';
-import {cuesFromBeats} from './dots/1.2.0/motion.mjs';
-import {compileObjectStates,objectStateAt,compileValueTrack,valueAt} from './dots/1.2.0/state.mjs';
+import {Canvas} from './dots/1.3.0/components';
+import {cuesFromBeats} from './dots/1.3.0/motion.mjs';
+import {compileObjectStates,objectStateAt,compileValueTrack,valueAt} from './dots/1.3.0/state.mjs';
 import script from './画面动作脚本.json';
+// Prefer the verified visual parts, while authoring this scene's composition.
+// import {Entity, RecordCard, ImageCard, StepSlots, RevealText} from './dots/1.3.0/objects.jsx';
+// import {viewAt} from './dots/1.3.0/objects.mjs';
+// RecordCard consumes complete content snapshots. Use one entityId through movement and revision.
 
 // Author the actual objects after completing the content decision.
 // states[id].data supplies the full current content; tracks[id] supplies a continuous value.

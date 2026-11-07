@@ -19,8 +19,9 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 以下命令均在 `workbench_status` 返回的配置源码根运行，不能在插件缓存目录猜相对路径。研究输入和生成物放入独立研究/内容项目目录。
 
 - `tools/reference-study/README.md`：读取分类清单和数据协议，用 `python3 tools/reference-study/validate.py <study.json>` 校验，再用 `build_viewer.py` 与 `serve.py` 浏览证据。需要 Python 3.9+，不自动转写、观看或生成结论。
-- `tools/dots-production/README.md` 和 `DIRECTING.md`：`npm run dots -- list` 查询机制；`verify` 校验固定源码；`init --to <新目录>` 创建段落起点；`init-film --to <新文件>` 创建全片起点。两种初始化都拒绝覆盖，不选择工作台活动工程。
+- `tools/dots-production/README.md` 和 `DIRECTING.md`：`npm run dots -- list` 查询机制；`verify` 校验固定源码；常规制作用 `prepare --brief <制作任务JSON> --references <本机参考注册表JSON> --to <新目录>`，携带实际参考片段、失败例子与固定物件源码；`init` 仅作底层起点，缺少参考会明确提示。`init-film --to <新文件>` 创建全片起点。各入口拒绝覆盖，不选择活动工程。
 - `npm run dots -- check <动作脚本> --words <当前实际词时间>`；`check-film <全片编排>` 检查记录及交接。作者仍需实现具体对象、字幕和媒体，接入原生 `design / beats / program` 并保留用户覆盖。
+- 渲染后用 `review-pack --spec <审片规格JSON> --out <新目录>` 先观察实际画面，再展开设计和参考；`check-review --evidence <证据JSON> --observation <观察JSON>` 绑定当前视频、实际取帧与观察。工具不自动作美术判断，也不生成用户认可。1.3.0 的 `objects.jsx/objects.mjs` 让同一实体的内容与位姿进入画面，仍需相应 manifest 适配原生编辑。
 - 研究结论和制作实现分开。计划中未解释的空档不等于成片静止，结构通过不等于视听或用户认可。公共套件没有私人原片、基准视频或字体；已有作品继续使用自己的固定版本。
 
 ## 工具

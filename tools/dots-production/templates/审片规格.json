@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "scene-01",
+  "video": "当前实际样片.mp4",
+  "checkpoints": [{"id":"before","seconds":0.5},{"id":"process","seconds":2},{"id":"after","seconds":4}],
+  "intent": "计划中的具体变化；第一次观察时折叠",
+  "comparisonQuestion": "与适用基准比较哪个细节；不要求相同构图",
+  "reference": {"file":"本机参考.mp4","sha256":"实际文件哈希","fromSeconds":0,"toSeconds":5}
+}
