@@ -39,11 +39,9 @@
 
 演示仅使用原创几何和通用内容，不含私人参考画面、人物、逐字稿或音乐。它是静音技术演示；资产入库选择与用户影片的原声审阅分别进行。新安装的视觉库为空，示例需明确导入。
 
-**v0.3.2：把参考研究和 dots 制作分别工程化。** 新增通用参考研究记录、189 项分类核查、证据浏览与结构校验；另提供 dots 1.1.0 固定版本源码、对象状态和可暂停进度、段落动作脚本及全片交接检查。已整理的方法可直接复用，布局仍由当前内容决定。入口见[研究与制作工具](#研究与制作工具)，验证范围见[本次更新记录](docs/implementation/2026-11-05-reference-and-dots-tools.md)。
+**Dots 当前制作入口：材料与代表样片先行。** 新工程使用 [WORKFLOW](tools/dots-production/WORKFLOW.md)：全片简排、真实选材、代表样片、实际比较、扩展与整片审阅。原生分镜和代码负责实现，一份制作记录保存选材与观察；不用多套动作脚本证明同一件事。新工具提供真实媒体选区、标注、原生样片捕获以及[部件与实例索引](tools/dots-production/studio/CRAFT.md)。技术有效、作者观察和用户认可分别报告；[架构与验证范围](docs/implementation/2026-11-08-artifact-first-direction.md)说明具体边界。
 
-**制作套件后续更新：dots 1.3.0。** 常规入口带入实际参考片段与失败样例；可组合物件由同一实体的内容和位姿驱动。审片先看实际输出，再展开设计与参考；证据完整不自动宣布美术或交付通过。旧作品锁定版本不变，详见[本次实现与验证](docs/implementation/2026-11-07-dots-reuse-1.3.md)。
-
-**2026-11-08 制作入口补缺：** Dots 的设计、当前样片观察、相邻对照和整片视听要求接入原生渲染/确认/合成，新工程可自动带制作绑定；缺项和过期证据不能沿用旧确认。检查不代替美术判断，详见[接入协议](tools/dots-production/NATIVE_AUTHORING.md)和[实现范围](docs/implementation/2026-11-08-native-authoring-gates.md)。
+参考拆解仍独立使用 [reference-study](tools/reference-study/README.md)。已保存作品继续读取其协议，1.0—1.3 固定源码和[历史接入协议](tools/dots-production/legacy/NATIVE_AUTHORING_V1.md)保留；更新公共入口不会强迁移在途影片。
 
 **2026-11-07 真人制作升级：** 新增人物与真实素材的连续交接、原图重点抽取、素材退为背景，以及原生可编辑场景；沿用现有工程与声音轨。见[制作入口](tools/talking-head-production/README.md)和[验证范围](docs/implementation/2026-11-07-talking-head-media.md)。
 

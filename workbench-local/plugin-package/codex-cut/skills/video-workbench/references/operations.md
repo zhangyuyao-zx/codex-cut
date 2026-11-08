@@ -19,12 +19,11 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 以下命令均在 `workbench_status` 返回的配置源码根运行，不能在插件缓存目录猜相对路径。研究输入和生成物放入独立研究/内容项目目录。
 
 - `tools/reference-study/README.md`：读取分类清单和数据协议，用 `python3 tools/reference-study/validate.py <study.json>` 校验，再用 `build_viewer.py` 与 `serve.py` 浏览证据。需要 Python 3.9+，不自动转写、观看或生成结论。
-- `tools/dots-production/README.md` 和 `DIRECTING.md`：`npm run dots -- list` 查询机制；`verify` 校验固定源码；常规制作用 `prepare --brief <制作任务JSON> --references <本机参考注册表JSON> --to <新目录>`，携带实际参考片段、失败例子与固定物件源码；`init` 仅作底层起点，缺少参考会明确提示。`init-film --to <新文件>` 创建全片起点。各入口拒绝覆盖，不选择活动工程。
-- `npm run dots -- check <动作脚本> --words <当前实际词时间>`；`check-film <全片编排>` 检查记录及交接。作者仍需实现具体对象、字幕和媒体，接入原生 `design / beats / program` 并保留用户覆盖。
-- 渲染后用 `review-pack --spec <审片规格JSON> --out <新目录>` 先观察实际画面，再展开设计和参考；`check-review --evidence <证据JSON> --observation <观察JSON>` 绑定当前视频、实际取帧与观察。工具不自动作美术判断，也不生成用户认可。1.3.0 的 `objects.jsx/objects.mjs` 让同一实体的内容与位姿进入画面，仍需相应 manifest 适配原生编辑。
-- 研究结论和制作实现分开。计划中未解释的空档不等于成片静止，结构通过不等于视听或用户认可。公共套件没有私人原片、基准视频或字体；已有作品继续使用自己的固定版本。
+- `tools/dots-production/WORKFLOW.md`：新工程唯一制作流程；原生分镜 + 一份选材/观察记录。`npm run dots -- studio sync --project <工程>` 同步全片简表；`studio reference/asset` 登记实际参考和素材；`studio capture` 从原生渲染生成实际证据和空白观察；`studio resume` 接续当前依据。字段和具体命令只在 WORKFLOW 维护。
+- `tools/dots-production/studio/CRAFT.md`：具体观看任务对应的实现部件和真实实例；`media.jsx` 的页面取景、焦点和注意力部件不带默认整场布局。固定 1.3 源码仍可组合复用。
+- `production.authoring` 的 technicalValidation 仅表示技术条件，nextAction 指当前缺口；authoringReviews/authoringDelivery 分别绑定当前样片及整片实际观察。新工程服务需 `productionAuthoringGateVersion:2`；已有 schema 1 工程按 `tools/dots-production/legacy/NATIVE_AUTHORING_V1.md` 保持兼容，不自动迁移。
+- 旧 `prepare/bind-native/check-film/review-pack` 是历史工程接口及可选底层工具，不叠加成新工程的必填材料。旧源码版本与对应作品继续固定；代码检查不代替实际视觉与声音检查。
 
-Dots 原生接入见 `tools/dots-production/NATIVE_AUTHORING.md`：先完成全片设计再 `bind-native --project <原生工程> --film <全片编排> --preparation <制作依据>`，按 `production.authoring.errors` 补齐后渲染。`authoringReviews` 核对当前样片的实际观察；`authoringDelivery` 核对最终合成片的完整视听。旧素材/设计/参考不能沿用旧检查结论，新工程自动带空绑定。安装插件后核对工作台 `/api/health` 的 `productionAuthoringGateVersion:1`，更新文件不代表运行进程已换新。具体身份字段与观察格式以上述唯一协议为准，不由插件另造一套。
 
 ## 工具
 

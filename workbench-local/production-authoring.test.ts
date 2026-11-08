@@ -24,7 +24,7 @@ it('workspace policy covers unidentified/current/future projects; accepted legac
   expect((await authoringRequirement(root,project)).required).toBe(true);
  }
  const starter=await initializeProductionAuthoring(root,project);
- expect(await json(starter.file)).toMatchObject({contentId:'C20261109-001',film:'',scenes:[]});
+ expect(await json(starter.file)).toMatchObject({schemaVersion:2,contentId:'C20261109-001',assets:{},references:{},scenes:[]});
  await write(starter.file,{schemaVersion:1,method:'dots',film:'preserved',scenes:[]});
  await initializeProductionAuthoring(root,project);
  expect((await json(starter.file)).film).toBe('preserved');

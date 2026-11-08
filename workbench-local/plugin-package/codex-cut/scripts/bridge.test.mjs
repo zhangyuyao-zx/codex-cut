@@ -11,9 +11,14 @@ const root=resolve(plugin,'../../..');
 const previousRoot=process.env.CODEX_CUT_ROOT;
 process.env.CODEX_CUT_ROOT=root;
 after(()=>{if(previousRoot===undefined)delete process.env.CODEX_CUT_ROOT;else process.env.CODEX_CUT_ROOT=previousRoot;});
-const {invoke,tools}=await import('./bridge.mjs');
+const {invoke,tools,productionRuntimeStatus}=await import('./bridge.mjs');
 const {projectDirectory}=await import(pathToFileURL(resolve(root,'workbench-local/project-location.mjs')).href);
 const digest=async f=>createHash('sha256').update(await readFile(resolve(root,f))).digest('hex');
+test('runtime mismatch is explicit without restarting or claiming new capability',()=>{
+ assert.equal(productionRuntimeStatus({productionAuthoringGateVersion:1}).compatibleWithNewWorkflow,false);
+ assert.equal(productionRuntimeStatus({productionAuthoringGateVersion:2}).compatibleWithNewWorkflow,true);
+ assert.equal(productionRuntimeStatus({}).actual,0);
+});
 test('seven discoverable tools and exact argument validation',async()=>{
  assert.equal(tools.length,7);assert.equal(new Set(tools.map(t=>t.name)).size,7);
  await assert.rejects(invoke('approve_segment',{sceneId:'x',key:'x',renderId:'x',userConfirmed:false}),/明确认可/);

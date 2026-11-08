@@ -1,0 +1,96 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {digest,probe,freshDirectory,html} from './production-pack.mjs';
+const read=async p=>JSON.parse(await fs.readFile(p,'utf8'));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const run=args=>execFileSync('ffmpeg',['-v','error','-nostdin',...args],{stdio:'pipe'});
+const bookPath=project=>path.join(project,'production/authoring.json');
+export async function loadBook(project){const p=bookPath(project),bytes=await fs.readFile(p,'utf8'),book=JSON.parse(bytes);if(book.schemaVersion!==2)throw Error('旧工程继续按保存的 v1 协议运行；本工具不自动迁移已在制作的影片');return {p,bytes,book};}
+async function saveBook(state){
+ // Preserve user edits and the previous version. This is not a replacement for native project locking.
+ if(await fs.readFile(state.p,'utf8')!==state.bytes)throw Error('制作记录已被修改，重新读取后再更新');
+ await fs.mkdir(path.join(path.dirname(state.p),'direction-history'),{recursive:true});
+ const backup=path.join(path.dirname(state.p),'direction-history',`${Date.now()}-${process.pid}.json`);
+ await fs.writeFile(backup,state.bytes,{flag:'wx'});
+ const temporary=state.p+'.'+process.pid+'.tmp';
+ await fs.writeFile(temporary,JSON.stringify(state.book,null,2)+'\n',{flag:'wx'});
+ if(await fs.readFile(state.p,'utf8')!==state.bytes){await fs.unlink(temporary);throw Error('制作记录在写入前发生变化，保留新编辑');}
+ await fs.rename(temporary,state.p);
+ return {file:state.p,backup,userAccepted:false};
+}
+export async function syncBook(project){
+ const state=await loadBook(project),plan=(await read(path.join(project,'production/production.json'))).state;
+ const ids=new Set(plan.scenes.map(s=>s.id));
+ const removed=state.book.scenes.filter(s=>!ids.has(s.sceneId));
+ state.book.retiredScenes=[...(state.book.retiredScenes??[]),...removed];
+ state.book.scenes=plan.scenes.map(s=>state.book.scenes.find(x=>x.sceneId===s.id)??{sceneId:s.id,visualTask:'',mediaMode:null,selectionReason:'',assetIds:[],referenceIds:[],prototypeSceneId:null});
+ return saveBook(state);
+}
+export async function registerAsset({project,id,file,source,supports}){
+ if(!id||!source||!supports)throw Error('素材需要稳定 id、出处及其能说明的内容');
+ const state=await loadBook(project);
+ if(state.book.assets[id])throw Error('素材 id 已存在；更新需显式检查受影响画面，不能静默覆盖');
+ state.book.assets[id]={file:path.resolve(file),sha256:await digest(file),source,supports};
+ return saveBook(state);
+}
+export async function importReference({project,registry,id}){
+ const state=await loadBook(project),r=(await read(registry)).entries.find(r=>r.id===id);
+ if(!r?.media||!r.learn||!r.avoid)throw Error('参考注册项不存在或没有适用边界');
+ const file=path.resolve(path.dirname(registry),r.media.file);
+ if(await digest(file)!==r.media.sha256)throw Error('参考身份已变化');
+ if(state.book.references[id])throw Error('参考 id 已存在，不静默替换');
+ state.book.references[id]={file,sha256:r.media.sha256,from:r.media.fromSeconds,to:r.media.toSeconds,learn:r.learn,avoid:r.avoid};
+ return saveBook(state);
+}
+export async function captureReview({project,sceneId,renderId,out,times}){
+ const {book}=await loadBook(project),root=path.join(project,'production');
+ const render=sceneId==='film'?await read(path.join(root,'last-render.json')):(await read(path.join(root,'segment-reviews.json'))).renders.find(r=>r.id===renderId&&r.sceneId===sceneId);
+ if(!render||render.id!==renderId||render.status!=='done'||!render.authoringDesign||!/^\/production-media\/renders\/[\w-]+\/review\.mp4$/.test(render.url))throw Error('需要完成且绑定制作依据的原生样片');
+ const video=path.join(root,render.url.slice('/production-media/'.length)),videoSha256=await digest(video);
+ const duration=Number(probe(video).format.duration);
+ if(Math.abs(duration-(render.end-render.from)/30)>.15)throw Error('实际视频与原生记录时长不符');
+ const chosen=times??[0,Math.min(duration/2,duration-1/30),Math.max(0,duration-1/30)];
+ if(new Set(chosen).size<3||chosen.some(t=>!Number.isFinite(t)||t<0||t>=duration))throw Error('至少选择三个不同的有效时点，检查起态/过程/终态');
+ const shot=book.scenes.find(s=>s.sceneId===sceneId);
+ const references=sceneId==='film'?[]:(shot?.referenceIds??[]).map(id=>({id,...book.references[id]}));
+ await freshDirectory(out);
+ await fs.copyFile(video,path.join(out,'current.mp4'));
+ const frames=[];
+ for(let i=0;i<chosen.length;i++){
+  const file=path.resolve(out,`frame-${i}.png`);
+  run(['-ss',String(chosen[i]),'-i',video,'-frames:v','1','-update','1',file]);
+  frames.push({at:chosen[i],file,sha256:await digest(file)});
+ }
+ const referenceCopies=[];
+ for(let i=0;i<references.length;i++){
+  const ref=references[i],file=path.resolve(root,ref.file);
+  if(await digest(file)!==ref.sha256)throw Error('参考文件已变化 '+ref.id);
+  const copied=path.resolve(out,`reference-${i}.mp4`);
+  run(['-ss',String(ref.from),'-i',file,'-t',String(ref.to-ref.from),'-an','-c:v','libx264','-preset','fast','-crf','19',copied]);
+  referenceCopies.push({id:ref.id,file:copied,sha256:await digest(copied)});
+ }
+ if(await digest(video)!==videoSha256)throw Error('原生视频在采集期间变化，产物仅供排查');
+ const capture={schemaVersion:2,sceneId,renderId,key:render.key,design:sceneId==='film'?render.authoringDesign:{[sceneId]:render.authoringDesign[sceneId]},video,videoSha256,duration,frames,references,referenceCopies,viewedCopy:{file:path.resolve(out,'current.mp4'),sha256:videoSha256}};
+ await fs.writeFile(path.join(out,'capture.json'),JSON.stringify(capture,null,2)+'\n');
+ const observation={capture:path.resolve(out,'capture.json'),verdict:'unreviewed',playback:null,targetWidth:null,findings:[],referenceComparisons:[],audio:{status:'not-listened',observed:'尚未听辨'},userAccepted:false};
+ await fs.writeFile(path.join(out,'review-draft.json'),JSON.stringify(observation,null,2)+'\n');
+ await fs.writeFile(path.join(out,'index.html'),html('实际样片与参考',`<p>先看完整动态与观看尺寸，再记录具体差距。文件生成不代表审阅完成。</p><video src="current.mp4" controls></video><div class="grid">${frames.map((f,i)=>`<figure><img src="frame-${i}.png"><figcaption>${f.at.toFixed(2)}s</figcaption></figure>`).join('')}</div><details><summary>展开参考对照</summary>${references.map((r,i)=>`<section><p>${esc(r.learn)}</p><video src="reference-${i}.mp4" controls></video><p>${esc(r.avoid)}</p></section>`).join('')}</details>`));
+ return {capture:path.join(out,'capture.json'),reviewDraft:path.join(out,'review-draft.json'),visualJudgment:'unreviewed',userAccepted:false};
+}
+
+export async function studioCommand(args){
+ const [action,...rest]=args;
+ const value=key=>{const n=rest.indexOf(key);if(n<0||!rest[n+1])throw Error('Missing '+key);return rest[n+1];};
+ const project=path.resolve(value('--project'));
+ if(action==='sync')return syncBook(project);
+ if(action==='asset')return registerAsset({project,id:value('--id'),file:path.resolve(value('--file')),source:value('--source'),supports:value('--supports')});
+ if(action==='reference')return importReference({project,registry:path.resolve(value('--registry')),id:value('--id')});
+ if(action==='capture')return captureReview({project,sceneId:value('--scene'),renderId:value('--render'),out:path.resolve(value('--out')),times:rest.includes('--times')?value('--times').split(',').map(Number):undefined});
+ if(action==='resume'){
+  const {book,p}=await loadBook(project);
+  const plan=(await read(path.join(project,'production/production.json'))).state;
+  return {entry:'tools/dots-production/WORKFLOW.md',record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes:book.scenes.map(s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,review:book.reviews?.[s.sceneId]??null})),note:'观察记录不自动等于当前有效；用 read_project 的 authoring 返回验证结果。'};
+ }
+ throw Error('studio supports sync, asset, reference, capture, resume');
+}

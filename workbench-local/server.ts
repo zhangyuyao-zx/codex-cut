@@ -1,4 +1,5 @@
 import {remotionRuntime, runtimeCommand} from "./runtime-paths";
+import {AUTHORING_GATE_VERSION} from './production-authoring';
 import express from "express";
 import { createServer } from "vite";
 import { resolve } from "node:path";
@@ -32,7 +33,7 @@ const app = express(),
 // Acquire exclusive ownership before recovering a previous process's task state.
 let ready = false, stopping = false;
 app.get("/api/health", (_req, res) => res.status(ready ? 200 : 503).json({
-  appId: "codex-local-video-workbench", root, projectDir:dir, contentId:contentIdentity?.contentId??null, projectName:contentIdentity?.name??null, pid: process.pid, ready, productionAuthoringGateVersion: 1,
+  appId: "codex-local-video-workbench", root, projectDir:dir, contentId:contentIdentity?.contentId??null, projectName:contentIdentity?.name??null, pid: process.pid, ready, productionAuthoringGateVersion: AUTHORING_GATE_VERSION,
 }));
 app.use((_req, res, next) =>
   ready ? next() : res.status(503).json({ error: "工作台正在启动或停止，请稍后重新打开" }),

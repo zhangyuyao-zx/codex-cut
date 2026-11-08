@@ -2,7 +2,7 @@ import {readFile, access, mkdir, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 const exists=async file=>{try{await access(file);return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}};
-const AUTHORING_GATE_VERSION=1;
+export const AUTHORING_GATE_VERSION=2;
 
 /** Local workspace policy is private. A missing binding cannot opt a required project out. */
 export async function authoringRequirement(root,projectDir){
@@ -34,6 +34,6 @@ export async function authoringRequirement(root,projectDir){
 
 export async function initializeProductionAuthoring(root,projectDir){
  const r=await authoringRequirement(root,projectDir);
- if(r.required&&!r.configured){await mkdir(path.dirname(r.file),{recursive:true});await writeFile(r.file,JSON.stringify({schemaVersion:1,method:'dots',contentId:r.contentId,film:'',scenes:[]},null,2)+'\n',{flag:'wx'});}
+ if(r.required&&!r.configured){await mkdir(path.dirname(r.file),{recursive:true});await writeFile(r.file,JSON.stringify({schemaVersion:2,method:'dots',contentId:r.contentId,assets:{},references:{},scenes:[],reviews:{},comparisons:[]},null,2)+'\n',{flag:'wx'});}
  return {...r,configured:r.configured||r.required};
 }

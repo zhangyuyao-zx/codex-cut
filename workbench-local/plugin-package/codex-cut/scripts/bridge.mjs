@@ -10,6 +10,12 @@ const configuredRoot=process.env.CODEX_CUT_ROOT || JSON.parse(await readFile(res
 const base='http://127.0.0.1:4340';
 const root=await realpath(configuredRoot);
 const {projectDirectory,canonicalPath}=await import(pathToFileURL(resolve(root,'workbench-local/project-location.mjs')).href);
+const {AUTHORING_GATE_VERSION}=await import(pathToFileURL(resolve(root,'workbench-local/production-policy.mjs')).href);
+export function productionRuntimeStatus(health){
+ const actual=health.productionAuthoringGateVersion??0,expected=AUTHORING_GATE_VERSION;
+ return {actual,expected,compatibleWithNewWorkflow:actual>=expected,
+  nextAction:actual>=expected?'按当前工程保存的协议继续。':'运行进程尚未加载新版制作入口；当前旧工程可继续。新建制作前在任务停止且编辑已保存后更新服务，勿打断在途影片。'};
+}
 const productionOps=['scenes','parameters','rebase','request','feedback','resolve-feedback','undo','cancel-render','visual-asset','style-pack','follow-style','storyboard','visual-review','animation-templates/save','animation-templates/preview','animation-templates/apply','editor/command','editor/undo','editor/redo','event-edit','soundtrack'];
 const cutOps=['import','ranges','clips','split','transcript','transcribe','render','undo'];
 const checkpointOps=['create','verify','restore'];
@@ -42,7 +48,7 @@ async function healthy(){
  if(typeof h.projectDir!=='string'||canonicalPath(h.projectDir)!==expected)throw Error('当前工程与所选目录不一致：实际 '+(h.projectDir||'未知（旧服务需更新）')+'，预期 '+expected+'；未执行操作');
  return h;
 }
-function summary(c,h){return {workbenchRoot:root,projectDir:h.projectDir,contentId:h.contentId??null,projectName:h.projectName??null,url:base,revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,capabilities:c.capabilities,soundtrackStatus:c.soundtrackStatus,editorSnapshot:c.editorSnapshot,editorHistory:c.editorHistory,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,timelineEvents:c.timelineEvents,assemblyReady:c.assemblyReady,authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
+function summary(c,h){return {workbenchRoot:root,projectDir:h.projectDir,contentId:h.contentId??null,projectName:h.projectName??null,url:base,productionRuntime:productionRuntimeStatus(h),revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,capabilities:c.capabilities,soundtrackStatus:c.soundtrackStatus,editorSnapshot:c.editorSnapshot,editorHistory:c.editorHistory,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,timelineEvents:c.timelineEvents,assemblyReady:c.assemblyReady,authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
 async function context(sceneId){return json(sceneId?'/api/production/context?sceneId='+encodeURIComponent(sceneId):'/api/production');}
 async function mutate(path,data,{domain='production'}={}){
  const identity=await healthy();
@@ -90,12 +96,12 @@ export async function invoke(name,args={}){
  validate(name,args);
  if(name==='workbench_status'){
   await access(resolve(root,'workbench-local/launcher.mjs'));
-  try {const health=await healthy();return {running:true,url:base,workbenchRoot:root,projectDir:health.projectDir,contentId:health.contentId??null,health};}catch(e){return {running:false,url:base,workbenchRoot:root,expectedProjectDir:projectDirectory(root),message:e.message};}
+  try {const health=await healthy();return {running:true,url:base,workbenchRoot:root,projectDir:health.projectDir,contentId:health.contentId??null,health,productionRuntime:productionRuntimeStatus(health)};}catch(e){return {running:false,url:base,workbenchRoot:root,expectedProjectDir:projectDirectory(root),message:e.message};}
  }
  if(name==='open_workbench'){
   await access(resolve(root,'workbench-local/launcher.mjs'));
   await exec(process.execPath,[resolve(root,'workbench-local/launcher.mjs'),'start','--no-open'],{cwd:root,timeout:50000,maxBuffer:1024*1024});
-  const health=await healthy();return {url:base,workbenchRoot:root,projectDir:health.projectDir,contentId:health.contentId??null,health,next:'在 Codex 浏览器面板打开 url；先核对工程目录和内容编号，不自动导入新素材。'};
+  const health=await healthy();return {url:base,workbenchRoot:root,projectDir:health.projectDir,contentId:health.contentId??null,health,productionRuntime:productionRuntimeStatus(health),next:'在 Codex 浏览器面板打开 url；先核对工程目录和内容编号，不自动导入新素材。'};
  }
  const identity=await healthy();
  if(name==='read_project'){

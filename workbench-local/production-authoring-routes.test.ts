@@ -11,13 +11,13 @@ import {productionRoutes} from './production-routes';
 import {createProductionStore} from './production-store';
 import {SegmentReviewStore} from './segment-reviews';
 
-it('native API refuses render, approval and assembly when the authoring package is incomplete',async()=>{
+it.each([1,2])('native API refuses render, approval and assembly for an incomplete schema %i project',async(schemaVersion)=>{
  const project=await mkdtemp(path.join(tmpdir(),'authoring-api-'));
  let routes:Awaited<ReturnType<typeof productionRoutes>>|undefined;
  try{
   await writeFile(path.join(project,'content-project.json'),JSON.stringify({version:1,contentId:'C20261108-001',name:'Isolated fixture'}));
   await mkdir(path.join(project,'production'));
-  await writeFile(path.join(project,'production/authoring.json'),JSON.stringify({schemaVersion:1,method:'dots',contentId:'C20261108-001',film:'',scenes:[]}));
+  await writeFile(path.join(project,'production/authoring.json'),JSON.stringify({schemaVersion,method:'dots',contentId:'C20261108-001',film:'',scenes:[]}));
   fixture.cut={revision:3,asset:{url:'/cut-media/source.mp4',name:'fixture',durationMs:1000},words:[{id:'a',text:'开始',startMs:0,endMs:500},{id:'b',text:'结尾',startMs:500,endMs:1000}],ranges:[{startMs:0,endMs:1000}],busy:false,preview:{url:'/cut-media/preview.mp4',revision:3}};
   const store=await createProductionStore(path.join(project,'production'));
   await store.setScenes(0,{assetUrl:fixture.cut.asset.url,cutRevision:3},[{id:'scene',title:'Test',intent:'Test',startWordId:'a',endWordId:'b',beats:[],program:{moduleId:'editable-title',parameters:{}}}]);

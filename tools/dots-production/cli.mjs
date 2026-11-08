@@ -22,7 +22,10 @@ async function verifyRelease(version) {
 
 try {
   const catalog=await read(path.join(root,'catalog.json'));
-  if(command==='list') {
+  if(command==='studio') {
+    const {studioCommand}=await import('./studio.mjs');
+    console.log(JSON.stringify(await studioCommand(args),null,2));
+  } else if(command==='list') {
     const relation=args.includes('--relation')?value('--relation'):null;
     console.log(JSON.stringify(catalog.patterns.filter(p=>!relation||p.tags.includes(relation)),null,2));
   } else if(command==='verify') {
