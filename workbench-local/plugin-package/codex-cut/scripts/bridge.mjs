@@ -43,7 +43,7 @@ async function healthy(){
  return h;
 }
 function summary(c,h){return {workbenchRoot:root,projectDir:h.projectDir,contentId:h.contentId??null,projectName:h.projectName??null,url:base,revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,capabilities:c.capabilities,soundtrackStatus:c.soundtrackStatus,editorSnapshot:c.editorSnapshot,editorHistory:c.editorHistory,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,timelineEvents:c.timelineEvents,assemblyReady:c.assemblyReady,authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
-async function context(){return json('/api/production');}
+async function context(sceneId){return json(sceneId?'/api/production/context?sceneId='+encodeURIComponent(sceneId):'/api/production');}
 async function mutate(path,data,{domain='production'}={}){
  const identity=await healthy();
  const c=await context();
@@ -117,8 +117,8 @@ export async function invoke(name,args={}){
    return {...d,assets:(d.assets??[]).filter(matches),packs:(d.packs??[]).filter(matches),references:(d.references??[]).filter(matches)};
   }
   if(args.section==='component'){if(!args.componentId)throw Error('请提供 componentId');return {...await json('/api/library/detail/'+encodeURIComponent(args.componentId)),legacyCompatibility:true};}
-  const c=await context();
-  if(args.section==='production'&&args.sceneId){const scene=c.plan.scenes.find(s=>s.id===args.sceneId);if(!scene)throw Error('段落不存在');return {revision:c.plan.revision,cutRevision:c.cut.revision,selection:c.selection,source:c.plan.source,stylePackInfo:c.stylePackInfo,scene,resolved:c.resolved.scenes.find(s=>s.id===args.sceneId),editor:c.sceneEditors[args.sceneId],review:c.segmentReviews.find(s=>s.sceneId===args.sceneId),requests:c.plan.requests.filter(s=>s.sceneId===args.sceneId),feedback:c.plan.feedback.filter(s=>s.sceneId===args.sceneId)};}
+  const c=await context(args.section==='production'?args.sceneId:undefined);
+  if(args.section==='production'&&args.sceneId){const scene=c.plan.scenes.find(s=>s.id===args.sceneId);if(!scene)throw Error('段落不存在');return {revision:c.plan.revision,cutRevision:c.cut.revision,selection:c.selection,source:c.plan.source,stylePackInfo:c.stylePackInfo,scene,resolved:c.resolved.scenes.find(s=>s.id===args.sceneId),editor:c.sceneEditors[args.sceneId],review:c.segmentReviews.find(s=>s.sceneId===args.sceneId),authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,requests:c.plan.requests.filter(s=>s.sceneId===args.sceneId),feedback:c.plan.feedback.filter(s=>s.sceneId===args.sceneId)};}
   return args.section==='production'?{...c,projectDir:identity.projectDir,contentId:identity.contentId??null}:summary(c,identity);
  }
  if(name==='update_project'){

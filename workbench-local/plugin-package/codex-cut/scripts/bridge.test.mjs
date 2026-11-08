@@ -60,13 +60,14 @@ test('environment root works without a local configuration file',async t=>{
  assert.equal(JSON.parse(out.trim()).result.serverInfo.version,metadata.version);
 });
 
-function mockService(t,{dirty=false,productionRevision=7,cutRevision=13,libraryRevision=40,library={}}={}){
+function mockService(t,{dirty=false,productionRevision=7,cutRevision=13,libraryRevision=40,library={},production={},scopedProduction=production}={}){
  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original;});const calls=[];
  const state={revision:libraryRevision,assets:[],packs:[],references:[],favorites:[],active:null,...library};
  globalThis.fetch=async(url,options={})=>{
-  const pathname=new URL(url).pathname,body=options.body?JSON.parse(options.body):undefined;calls.push({path:pathname,method:options.method??'GET',body,headers:options.headers});
+  const pathname=new URL(url).pathname,body=options.body?JSON.parse(options.body):undefined;calls.push({path:pathname,query:new URL(url).search,method:options.method??'GET',body,headers:options.headers});
   const output=pathname==='/api/health'?{appId:'codex-local-video-workbench',ready:true,root,projectDir:projectDirectory(root)}:
-   pathname==='/api/production'?{plan:{revision:productionRevision},selection:{hasUnsavedChanges:dirty,sceneId:'existing-scene'}}:
+   pathname==='/api/production'?{plan:{revision:productionRevision},selection:{hasUnsavedChanges:dirty,sceneId:'existing-scene'},...production}:
+   pathname==='/api/production/context'?scopedProduction:
    pathname==='/api/cut'&&options.method!=='POST'?{revision:cutRevision}:
    pathname==='/api/visual-library'&&options.method!=='POST'?state:
    pathname==='/api/bootstrap'?{token:'test-only-token'}:{path:pathname,updated:options.method==='POST'};
@@ -74,6 +75,20 @@ function mockService(t,{dirty=false,productionRevision=7,cutRevision=13,libraryR
  };
  return {calls,state};
 }
+
+test('production reads preserve authoring gates and scope single-scene checks to the native context',async t=>{
+ const production={plan:{revision:7,scenes:[{id:'s01'}],requests:[],feedback:[]},cut:{revision:13},resolved:{scenes:[{id:'s01'}]},sceneEditors:{s01:{}},designStatus:{s01:{}},segmentReviews:[],authoring:{ok:false,errors:['s02 missing']},authoringReviews:{s01:{ok:true}},authoringDelivery:{ok:false}};
+ const scopedProduction={...production,authoring:{ok:true,errors:[]}};
+ const {calls}=mockService(t,{production,scopedProduction});
+ for(const section of ['summary','production']){
+  const all=await invoke('read_project',{section});
+  assert.deepEqual(all.authoring,production.authoring);assert.deepEqual(all.authoringReviews,production.authoringReviews);assert.deepEqual(all.authoringDelivery,production.authoringDelivery);
+ }
+ const detail=await invoke('read_project',{section:'production',sceneId:'s01'});
+ assert.equal(detail.scene.id,'s01');assert.deepEqual(detail.authoring,scopedProduction.authoring);assert.deepEqual(detail.authoringReviews,scopedProduction.authoringReviews);assert.deepEqual(detail.authoringDelivery,scopedProduction.authoringDelivery);
+ assert(calls.some(call=>call.path==='/api/production/context'&&call.query==='?sceneId=s01'));
+ assert(!calls.some(call=>call.method!=='GET'));
+});
 
 test('same repository with a different active project is rejected before reads or mutations',async t=>{
  const original=globalThis.fetch;t.after(()=>{globalThis.fetch=original;});const calls=[];
