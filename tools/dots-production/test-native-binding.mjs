@@ -1,0 +1,25 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import {bindNative} from './bind-native.mjs';
+test('native binding selects per-scene references, preserves authored files, never approves',async t=>{
+ const projectDir=await fs.mkdtemp(path.join(os.tmpdir(),'dots-bind-'));
+ t.after(()=>fs.rm(projectDir,{recursive:true,force:true}));
+ const save=(name,x)=>fs.writeFile(path.join(projectDir,name),JSON.stringify(x));
+ const read=name=>fs.readFile(path.join(projectDir,name),'utf8');
+ await save('content-project.json',{contentId:'C20261108-001'});
+ await save('scene.json',{sceneId:'s1'});
+ const film={contentId:'C20261108-001',scenes:[{sceneId:'s1',script:'scene.json',referenceIds:['a']}]};
+ await save('film.json',film);await save('prep.json',{version:'1.3.0',brief:{contentId:'C20261108-001'},referenceSources:[{id:'a'},{id:'b'}]});
+ const args={projectDir,filmFile:path.join(projectDir,'film.json'),preparationFile:path.join(projectDir,'prep.json')};
+ await save('film.json',{...film,scenes:[{sceneId:'s1',script:'scene.json'}]});
+ await assert.rejects(bindNative(args),/referenceIds/);
+ await save('film.json',film);
+ const result=await bindNative(args);assert.equal(result.checked,false);assert.equal(result.userAccepted,false);
+ const original=await read('production/authoring.json');
+ assert.deepEqual(JSON.parse(original).scenes[0].referenceIds,['a']);
+ await assert.rejects(bindNative(args),/populated/);
+ assert.equal(await read('production/authoring.json'),original);
+});

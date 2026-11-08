@@ -4,6 +4,7 @@ import {existsSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
+import {initializeProductionAuthoring} from './production-policy.mjs';
 import {inspectService, withProjectSelectionLock} from './launcher.mjs';
 import {canonicalPath, selectionFile, contentProjectIdentity, assertProjectPath, assertProjectStorage} from './project-location.mjs';
 
@@ -23,6 +24,7 @@ export async function selectProject({root, path, contentId, name, env=process.en
     await mkdir(directory, {recursive:true});
     await writeFile(resolve(directory,'content-project.json'),JSON.stringify({version:1,contentId,name},null,2)+'\n',{flag:'wx'});
     identity = {contentId,name};
+    await initializeProductionAuthoring(root,directory);
   } else if (identity) {
     assertProjectStorage(directory);
     if (contentId && contentId !== identity.contentId) throw Error('已有工程属于另一个内容编号，未改写');

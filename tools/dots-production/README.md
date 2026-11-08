@@ -1,3 +1,4 @@
+> 2026-11-08：原生制作入口已接入设计、样片、相邻对照和最终整片审阅检查。先读 [原生接入协议](NATIVE_AUTHORING.md)；`prepare` 完成不等于可以渲染，结构检查不等于实际画面合格。
 > 2026-11-07：制作入口升级为 **1.3.0**。`prepare` 将选中的实际参考片段、适用理由、失败例子和固定源码带入本期；可组合的物件由同一实体的内容和位姿直接驱动画面。渲染后用 `review-pack` 先观察实际输出，再展开设计意图与参考。工具不自动作美术判断，也不写用户认可。
 > 1.2.0 的节奏审片继续保留：`audit-render` 只检查主体区域，字幕、时间尺和装饰不作有效推进；所有检测窗口保留。`gate-render` 按场景锁定版本运行，核验当前视频、脚本与实际观察。1.3.0 返回 `rhythmEvidenceComplete`，`deliveryReady` 始终为 false。2.5秒只是复看筛查起点，播放器 ended 或像素变化都不能证明语义与美感。
 
@@ -34,11 +35,11 @@ npm run dots -- init-film --to .cache/dots-film-demo.json
 | 全片编排 schema 1 | 问题链、已有段落脚本路径、相邻交接、保留实体和状态衔接理由 | 相邻关系、实体起终态接续，以及需人工复看的相似构图 |
 
 ```bash
-npm run dots -- check tools/dots-production/releases/1.2.0/examples/correction.scene.json --words tools/dots-production/releases/1.2.0/examples/correction.words.json
-npm run dots -- check-film tools/dots-production/releases/1.2.0/examples/film.json
+npm run dots -- check /path/to/当前段动作脚本.json --words /path/to/当前段局部词时间.json
+npm run dots -- check-film /path/to/全片编排.json
 ```
 
-上述是人工技术例子。正式制作必须用当前工程的真实词 ID 与实际词时间，不能把示例时间套进新音轨。段落脚本的动作与场景代码都消费同一时间依据，已解析的偏移不能再重复加一次。
+固定源码中的 examples 只演示对象机制，不能当作已完成的正式制作包；当前节奏字段、真实素材和审阅记录仍需本期补齐。正式制作必须用当前工程的真实词 ID 与实际词时间，不能把示例时间套进新音轨。段落脚本的动作与场景代码都消费同一时间依据，已解析的偏移不能再重复加一次。
 
 `inspectionGaps` 保留动作计划中动作之间的间隙，已声明的阅读保持也不会消除它；供作者结合 `declaredHolds` 检查。它不是成片静止检测，也不代表必须加动画。构图相似提醒同样不等于应该换布局：同一对象的连续解释、共同尺度比较和有意义的回访可以保留。
 

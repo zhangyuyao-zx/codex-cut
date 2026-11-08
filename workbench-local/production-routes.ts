@@ -1,3 +1,4 @@
+import {createProductionAuthoringGate} from './production-authoring';
 import {z} from 'zod';
 import {importSoundtrack,verifySoundtrack,copySoundtrack,productionAudioArgs} from './production-soundtrack';
 import {activeMaterialRequests} from './active-material-requests';
@@ -104,6 +105,7 @@ export async function productionRoutes(
   const lane = new RenderLane();
   const filmReview=createFilmReviewStore({directory:dir,ffmpeg:runtimeCommand('ffmpeg')});
   const digestFile=createContentDigester();
+  const authoringGate=createProductionAuthoringGate(root,projectDir,file=>events.observe(file,'production'));
   const contentDigest=async(file:string)=>{events.observe(file, 'assets');return digestFile(file);};
   const segmentStore = new SegmentReviewStore(
     resolve(dir, "segment-reviews.json"),
@@ -572,7 +574,42 @@ export async function productionRoutes(
       job: job ? { ...job, current: job.key === key } : null,
       approval: approval?.key === key ? approval : null,
     };
-    return Object.defineProperties(result,{renderInputs:{value:externalInputs},runtimeIdentity:{value:runtimeHash}}) as typeof result&{renderInputs:typeof externalInputs;runtimeIdentity:string|null};
+    const authoring=await authoringGate.inspect({plan:originalPlan,cut,modules:moduleCatalog,reviews:segmentReviews,stage:'design',sceneId});
+    const authoringReviews:Record<string,any>={};
+    if(authoring.required)for(const review of segmentReviews){
+      const designCurrent=(r:any)=>r.current&&!!authoring.sceneHashes[review.sceneId]&&r.authoringDesign?.[review.sceneId]===authoring.sceneHashes[review.sceneId];
+      for(const r of review.history)r.current=designCurrent(r);
+      if(review.latest)review.latest.current=designCurrent(review.latest);
+      if(review.status==='pending'&&!review.latest?.current)review.status='changes';
+      if(review.latest?.current&&review.latest.status==='done')authoringReviews[review.sceneId]=await authoringGate.inspect({plan:originalPlan,cut,modules:moduleCatalog,reviews:segmentReviews,stage:'review',sceneId:review.sceneId,renderId:review.latest.id});
+      else authoringReviews[review.sceneId]={ok:false,errors:authoring.errors.length?authoring.errors:['需要按当前制作依据生成样片']};
+      if(review.approved){
+        review.approved.current=designCurrent(review.approved);
+        if(review.approved.current){
+          const checked=review.approved.id===review.latest?.id?authoringReviews[review.sceneId]:await authoringGate.inspect({plan:originalPlan,cut,modules:moduleCatalog,reviews:segmentReviews,stage:'review',sceneId:review.sceneId,renderId:review.approved.id});
+          review.approved.current=checked.ok;
+        }
+        if(!review.approved.current&&review.status==='approved')review.status='changes';
+      }
+    }
+    if(result.assemblyReady&&authoring.required){
+      const assembled=await authoringGate.inspect({plan:originalPlan,cut,modules:moduleCatalog,reviews:segmentReviews,stage:'assembly'});
+      result.assemblyReady=assembled.ok;
+      (authoring as any).assemblyErrors=assembled.errors;
+    }
+    if(authoring.required){
+      result.approvedSamples=segmentReviews.filter(r=>r.status==='approved').map(r=>r.approved);
+      if(!result.assemblyReady)result.approval=null;
+      if(result.sample)result.sample.current=result.sample.current&&!!authoring.sceneHashes[sampleJob.sceneId]&&sampleJob?.authoringDesign?.[sampleJob.sceneId]===authoring.sceneHashes[sampleJob.sceneId];
+      if(result.job)result.job.current=result.job.current&&authoring.ok&&JSON.stringify(job?.authoringDesign)===JSON.stringify(authoring.sceneHashes)&&(job?.kind!=='assembly'||result.assemblyReady);
+    }
+    const authoringDelivery=authoring.required?await authoringGate.inspect({plan:originalPlan,cut,modules:moduleCatalog,reviews:segmentReviews,stage:'delivery',job:result.job}):null;
+    if(authoringDelivery&&!authoringDelivery.ok)result.approval=null;
+    const gated=Object.assign(result,{authoring,authoringReviews,authoringDelivery});
+    return Object.defineProperties(gated,{renderInputs:{value:externalInputs},runtimeIdentity:{value:runtimeHash}}) as typeof gated&{renderInputs:typeof externalInputs;runtimeIdentity:string|null};
+  }
+  async function enforceAuthoring(c:any,stage:'design'|'review'|'assembly'|'delivery',sceneId?:string,renderId?:string){
+    return authoringGate.assert({plan:await store.get(),cut:c.cut,modules:c.sceneModules,reviews:c.segmentReviews,stage,sceneId,renderId,job:c.job});
   }
   async function context(sceneId?:string){
     for(let attempt=0;attempt<3;attempt++){
@@ -584,7 +621,9 @@ export async function productionRoutes(
   }
   async function assertTaskCurrent(task:any){
     const latest=await context(task.sceneId);
+    const authoringCurrent=task.sceneId?latest.authoring.sceneHashes[task.sceneId]===task.authoringDesign?.[task.sceneId]:JSON.stringify(latest.authoring.sceneHashes)===JSON.stringify(task.authoringDesign);
     if(latest.key!==task.key||!latest.props||latest.resolved.stale||latest.resolved.issues.length||
+      (latest.authoring.required&&(!latest.authoring.ok||!authoringCurrent))||
       (task.kind==='assembly'&&!latest.assemblyReady))
       throw Error('制作内容已更新，本次结果未发布，请生成当前版本');
   }
@@ -1376,6 +1415,7 @@ export async function productionRoutes(
       if (!c.props || c.resolved.stale || c.resolved.issues.length || !c.job?.current || c.job.status !== "done" || c.job.pendingMaterials)
         throw Error("请先补齐素材并观看当前版本的渲染");
       if (req.body.key !== c.key) throw Error("画面已变化，请重新审阅");
+      await enforceAuthoring(c,'delivery');
       approval = {
         key: c.key,
         revision: c.plan.revision,
@@ -1391,6 +1431,7 @@ export async function productionRoutes(
     try {
       if(typeof req.body.sceneId!=="string"||!req.body.sceneId)throw Error("段落标识无效");
       const c = await context(req.body.sceneId);
+      if(c.authoring.required&&!c.authoring.ok)await enforceAuthoring(c,'review',req.body.sceneId,req.body.renderId);
       const review = c.segmentReviews.find(
         (r) => r.sceneId === req.body.sceneId,
       );
@@ -1405,6 +1446,7 @@ export async function productionRoutes(
         throw Error("段落已修改或还有反馈待处理，请重新审阅当前版本");
       const selected = review.history.find((r) => r.id === req.body.renderId);
       if (!selected?.current) throw Error("请选择当前段落的完整渲染版本");
+      await enforceAuthoring(c,'review',review.sceneId,selected.id);
       await segmentStore.approve(review.sceneId, selected.id, review.key);
       res.json(await context());
     } catch (e) {
@@ -1432,6 +1474,7 @@ export async function productionRoutes(
       const c = await context();
       if (req.body.expectedRevision !== c.plan.revision)
         throw Error("方案已更新，请刷新后再合成");
+      await enforceAuthoring(c,'assembly');
       if (
         !c.assemblyReady ||
         !c.cut.preview ||
@@ -1455,6 +1498,7 @@ export async function productionRoutes(
         end: Math.round((c.resolved.durationMs * 30) / 1000),
         pendingMaterials: false,
         kind: "assembly",
+        authoringDesign:c.authoring.required?c.authoring.sceneHashes:undefined,
         segments: clips.map((a) => ({
           sceneId: a.sceneId,
           renderId: a.id,
@@ -1550,6 +1594,7 @@ export async function productionRoutes(
       if (c.resolved.stale || c.resolved.issues.length)
         throw Error(c.resolved.issues.join("\n") || "请先同步剪辑时间");
       if (!c.plan.scenes.length) throw Error("请先设计段落");
+      await enforceAuthoring(c,'design',sceneId);
       if (!c.props) throw Error(c.programError);
       if (
         !sceneId &&
@@ -1578,6 +1623,7 @@ export async function productionRoutes(
         revision: c.plan.revision,
         progress: 0,
         segmentReview: !!sceneId,
+        authoringDesign:c.authoring.required?c.authoring.sceneHashes:undefined,
         sceneId,
         from: range?.from ?? 0,
         end: range?.end ?? c.props.duration,

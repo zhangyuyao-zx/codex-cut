@@ -10,7 +10,7 @@
 node workbench-local/select-project.mjs --path "/absolute/content-project/video/Codex-Cut" --content-id CYYYYMMDD-NNN --name "实际选题名称"
 ```
 
-将占位符换成已建内容项目的绝对路径与稳定编号。新目录须为空；命令只写入内容身份和 `projects/active-project.json`，不导入、不启动、不改旧工程。旧工程可只传 `--path`，保留原身份。选择与启动共用仓库端口锁；运行中须正常停止后再选，不自动终止陌生服务。`WORKBENCH_PROJECT_DIR` 优先于持久选择，必须为绝对路径；与选择目标冲突时命令拒绝。无覆盖／选择时继续用 `projects/local-workbench`。
+将占位符换成已建内容项目的绝对路径与稳定编号。新目录须为空；命令写入内容身份和 `projects/active-project.json`，启用本机 Dots 默认时还生成空 `production/authoring.json`，不导入、不启动、不改旧工程。旧工程可只传 `--path`，保留原身份。选择与启动共用仓库端口锁；运行中须正常停止后再选，不自动终止陌生服务。`WORKBENCH_PROJECT_DIR` 优先于持久选择，必须为绝对路径；与选择目标冲突时命令拒绝。无覆盖／选择时继续用 `projects/local-workbench`。
 
 随后 `open_workbench`、`read_project summary`，核对实际 `projectDir`、`contentId` 与本期记录再导入。启动器和插件同时检查 appId、源码根、实际工程目录及就绪状态；同仓库另一工程也拒绝复用或写入。旧服务若没有 projectDir 健康字段，先用旧版本正常停止后再升级启动。日志位于 `projects/.launcher-runtime/4340/server.log`。不能把导入命令当作无损新建工程。
 
@@ -23,6 +23,8 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 - `npm run dots -- check <动作脚本> --words <当前实际词时间>`；`check-film <全片编排>` 检查记录及交接。作者仍需实现具体对象、字幕和媒体，接入原生 `design / beats / program` 并保留用户覆盖。
 - 渲染后用 `review-pack --spec <审片规格JSON> --out <新目录>` 先观察实际画面，再展开设计和参考；`check-review --evidence <证据JSON> --observation <观察JSON>` 绑定当前视频、实际取帧与观察。工具不自动作美术判断，也不生成用户认可。1.3.0 的 `objects.jsx/objects.mjs` 让同一实体的内容与位姿进入画面，仍需相应 manifest 适配原生编辑。
 - 研究结论和制作实现分开。计划中未解释的空档不等于成片静止，结构通过不等于视听或用户认可。公共套件没有私人原片、基准视频或字体；已有作品继续使用自己的固定版本。
+
+Dots 原生接入见 `tools/dots-production/NATIVE_AUTHORING.md`：先完成全片设计再 `bind-native --project <原生工程> --film <全片编排> --preparation <制作依据>`，按 `production.authoring.errors` 补齐后渲染。`authoringReviews` 核对当前样片的实际观察；`authoringDelivery` 核对最终合成片的完整视听。旧素材/设计/参考不能沿用旧检查结论，新工程自动带空绑定。安装插件后核对工作台 `/api/health` 的 `productionAuthoringGateVersion:1`，更新文件不代表运行进程已换新。具体身份字段与观察格式以上述唯一协议为准，不由插件另造一套。
 
 ## 工具
 

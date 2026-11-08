@@ -32,7 +32,7 @@ const app = express(),
 // Acquire exclusive ownership before recovering a previous process's task state.
 let ready = false, stopping = false;
 app.get("/api/health", (_req, res) => res.status(ready ? 200 : 503).json({
-  appId: "codex-local-video-workbench", root, projectDir:dir, contentId:contentIdentity?.contentId??null, projectName:contentIdentity?.name??null, pid: process.pid, ready,
+  appId: "codex-local-video-workbench", root, projectDir:dir, contentId:contentIdentity?.contentId??null, projectName:contentIdentity?.name??null, pid: process.pid, ready, productionAuthoringGateVersion: 1,
 }));
 app.use((_req, res, next) =>
   ready ? next() : res.status(503).json({ error: "工作台正在启动或停止，请稍后重新打开" }),

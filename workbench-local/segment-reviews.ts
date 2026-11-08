@@ -24,6 +24,8 @@ export type SegmentRender = SegmentRange & {
   id: string; key: string; status: string; url?: string; pictureHash?: string;
   revision: number; pendingMaterials: boolean; progress: number;
   stage?: string; error?: string; sourceAssetUrl?: string;
+  /** Design identity captured by the native render entry, never supplied by an approval request. */
+  authoringDesign?: Record<string,string>;
 };
 export type SegmentApproval = SegmentRender & {at: string};
 type Ledger = {version: 1; renders: SegmentRender[]; approvals: SegmentApproval[]};

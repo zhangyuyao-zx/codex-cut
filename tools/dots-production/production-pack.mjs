@@ -67,13 +67,13 @@ export async function reviewPack({specFile,target}) {
   return {target,evidence:path.join(target,'evidence.json'),visualQuality:'unreviewed',userAccepted:false};
 }
 
-export async function checkReview({evidenceFile,observationFile}) {
+export async function checkReview({evidenceFile,observationFile,digestFile=digest}) {
   const e=await read(evidenceFile),o=await read(observationFile),errors=[];
-  if(await digest(e.video)!==e.videoSha256||await digest(e.specFile)!==e.specSha256)errors.push('Current video/spec changed; this observation is stale');
-  if(!e.viewedCopy||await digest(path.join(path.dirname(evidenceFile),e.viewedCopy.file))!==e.viewedCopy.sha256)errors.push('The viewed video copy changed');
-  if(e.reference&&(await digest(e.reference.file)!==e.reference.sha256||!e.reference.viewedCopy||await digest(path.join(path.dirname(evidenceFile),e.reference.viewedCopy.file))!==e.reference.viewedCopy.sha256))errors.push('The compared reference changed');
-  if(await digest(evidenceFile)!==o.evidenceSha256||o.videoSha256!==e.videoSha256||o.id!==e.id)errors.push('Observation identity mismatch');
-  for(const f of e.frames)if(await digest(path.join(path.dirname(evidenceFile),f.file))!==f.sha256)errors.push(`Evidence frame changed: ${f.id}`);
+  if(await digestFile(e.video)!==e.videoSha256||await digestFile(e.specFile)!==e.specSha256)errors.push('Current video/spec changed; this observation is stale');
+  if(!e.viewedCopy||await digestFile(path.join(path.dirname(evidenceFile),e.viewedCopy.file))!==e.viewedCopy.sha256)errors.push('The viewed video copy changed');
+  if(e.reference&&(await digestFile(e.reference.file)!==e.reference.sha256||!e.reference.viewedCopy||await digestFile(path.join(path.dirname(evidenceFile),e.reference.viewedCopy.file))!==e.reference.viewedCopy.sha256))errors.push('The compared reference changed');
+  if(await digestFile(evidenceFile)!==o.evidenceSha256||o.videoSha256!==e.videoSha256||o.id!==e.id)errors.push('Observation identity mismatch');
+  for(const f of e.frames)if(await digestFile(path.join(path.dirname(evidenceFile),f.file))!==f.sha256)errors.push(`Evidence frame changed: ${f.id}`);
   const observed=Array.isArray(o.observations)?o.observations:[];
   for(const f of e.frames){const hit=observed.find(x=>x.checkpointId===f.id);if(!hit||typeof hit.visibleFact!=='string'||!hit.visibleFact.trim())errors.push(`Missing visible fact for ${f.id}`);}
   if(!Array.isArray(o.differences)||!o.differences.length)errors.push('Record comparison differences, including limitations');

@@ -26,6 +26,17 @@ test('selection creates a separate empty identity, persists path and does not im
   await assert.rejects(selectProject({...f,path:f.target,contentId:'C20261029-002'}),/另一个内容编号/);
 });
 
+test('new content selection inherits the private authoring policy without filling or approving design',async t=>{
+  const f=await fixture(t);await mkdir(resolve(f.root,'projects'),{recursive:true});
+  await writeFile(resolve(f.root,'projects/production-policy.json'),JSON.stringify({schemaVersion:1,method:'dots',requiredFromContentId:'C20261029-001'}));
+  await selectProject({...f,path:f.target,contentId:'C20261029-001',name:'独立技术验证'});
+  const file=resolve(f.target,'production/authoring.json');
+  assert.deepEqual(JSON.parse(await readFile(file,'utf8')),{schemaVersion:1,method:'dots',contentId:'C20261029-001',film:'',scenes:[]});
+  await writeFile(file,'{"preserve":"user edits"}');
+  await selectProject({...f,path:f.target});
+  assert.equal(await readFile(file,'utf8'),'{"preserve":"user edits"}');
+});
+
 test('running or unknown service blocks selection before creating files',async t=>{
   const f=await fixture(t);
   for(const kind of ['ready','starting','foreign','unreachable'])

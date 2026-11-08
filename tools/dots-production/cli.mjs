@@ -37,6 +37,9 @@ try {
     const version=catalog.currentVersion,release=await verifyRelease(version);
     const {preparePack}=await import('./production-pack.mjs');
     console.log(JSON.stringify(await preparePack({briefFile:path.resolve(value('--brief')),registryFile:path.resolve(value('--references')),target:path.resolve(value('--to')),kitRoot:root,version,release}),null,2));
+  } else if(command==='bind-native') {
+    const {bindNative}=await import('./bind-native.mjs');
+    console.log(JSON.stringify(await bindNative({projectDir:path.resolve(value('--project')),filmFile:path.resolve(value('--film')),preparationFile:path.resolve(value('--preparation'))}),null,2));
   } else if(command==='review-pack') {
     const {reviewPack}=await import('./production-pack.mjs');
     console.log(JSON.stringify(await reviewPack({specFile:path.resolve(value('--spec')),target:path.resolve(value('--out'))}),null,2));
@@ -101,5 +104,5 @@ try {
       result=checkFilm(input,scripts);
     }
     console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
-  } else throw new Error('Commands: list | verify | prepare --brief JSON --references LOCAL_REGISTRY --to NEW_DIR | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | compare-frames --spec JSON --out NEW_DIR | review-pack --spec JSON --out NEW_DIR | check-review --evidence JSON --observation JSON | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
+  } else throw new Error('Commands: list | verify | prepare --brief JSON --references LOCAL_REGISTRY --to NEW_DIR | bind-native --project PROJECT_DIR --film FILM_JSON --preparation PREPARATION_JSON | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | compare-frames --spec JSON --out NEW_DIR | review-pack --spec JSON --out NEW_DIR | check-review --evidence JSON --observation JSON | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
 }catch(e){console.error(e.message);process.exitCode=1;}

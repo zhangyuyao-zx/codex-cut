@@ -16,7 +16,7 @@
     "typecheck": "tsc -p workbench-local/tsconfig.json",
     "test": "vitest run --config workbench-local/vitest.config.ts",
     "dots": "node tools/dots-production/cli.mjs",
-    "test:dots": "node tools/dots-production/test.mjs && node tools/dots-production/test-rhythm.mjs && node tools/dots-production/test-production-pack.mjs",
+    "test:dots": "node tools/dots-production/test.mjs && node tools/dots-production/test-rhythm.mjs && node tools/dots-production/test-production-pack.mjs && node --test tools/dots-production/test-native-binding.mjs",
     "test:authoring": "npm run test:dots && python3 -B -m unittest discover -s tools/reference-study -p 'test_*.py' -v",
     "test:plugin": "node --test workbench-local/plugin-package/codex-cut/scripts/bridge.test.mjs"
   },

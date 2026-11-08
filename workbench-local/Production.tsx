@@ -743,7 +743,10 @@ export function Production({
     restoreVideoTime.current = (selectedReview?.from || 0) / 30;
     setSamplePlayback("latest"); setView("sample"); setViewedSampleId("");
   }
-  const canApprove = scopedLoaded && !scopedProgramError && !scopedError && !busy && !dirty && !!currentLatest && view === "sample" &&
+  const authoringRequired=!!(scopedCandidate?.authoring?.required??data.authoring?.required);
+  const authoringReview=(scopedCandidate?.authoringReviews??data.authoringReviews)?.[selected];
+  const authoringReady=!authoringRequired||authoringReview?.ok===true;
+  const canApprove = authoringReady && scopedLoaded && !scopedProgramError && !scopedError && !busy && !dirty && !!currentLatest && view === "sample" &&
     playbackKind === "latest" && currentLatestViewed && !currentLatest.pendingMaterials && feedbackOpen === 0 && !approvedCurrent;
   const renderSegment = () => {
     if (!scopedLoaded || scopedProgramError || scopedError) return;
@@ -845,7 +848,7 @@ export function Production({
             <a href={data.job.url} download>
               {data.job.pendingMaterials
                 ? "下载带待补标记的草稿"
-                : "下载包装 MP4"}
+                : data.authoring?.required&&!data.authoringDelivery?.ok?"下载整片预览（待自检）":"下载包装 MP4"}
             </a>
           )}
         </div>
@@ -1117,6 +1120,7 @@ export function Production({
              <button className="primary" disabled={busy || rendering || !scene} onClick={renderSegment}>{selectedLatest?.status === "failed" ? "重试生成样片" : "生成本段样片"}</button>}
           </div>
         </div>
+        {authoringRequired && !authoringReady && <p className="notice" role="status">本段仍在制作与自检中，完成实际画面对照后再确认。</p>}
         {notice && <p className="notice" role="status">{notice}</p>}
         {selectedLatest?.status === "done" && !selectedLatest.current && (
           <p className="hint">
