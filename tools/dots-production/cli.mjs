@@ -6,7 +6,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'.');
 const read=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const exists=async p=>{try{await fs.lstat(p);return true}catch(e){if(e.code==='ENOENT')return false;throw e}};
-const [command,...args]=process.argv.slice(2);
+const [requested,...rest]=process.argv.slice(2);
+const legacy=requested==='legacy';
+const [command,...args]=legacy?rest:[requested,...rest];
+const legacyCreators=new Set(['prepare','bind-native','init','init-film']);
 const value=key=>{const i=args.indexOf(key);if(i<0||!args[i+1]||args[i+1].startsWith('--'))throw new Error(`Missing value for ${key}`);return args[i+1]};
 
 async function verifyRelease(version) {
@@ -21,8 +24,11 @@ async function verifyRelease(version) {
 }
 
 try {
+  if(legacyCreators.has(command)&&!legacy)throw Error('历史创建命令已移入 legacy；新工程从 WORKFLOW.md 和 studio 开始。仅恢复旧协议时显式使用 legacy '+command+'。');
   const catalog=await read(path.join(root,'catalog.json'));
-  if(command==='studio') {
+  if(!command||command==='help'||command==='--help') {
+    console.log('Dots 当前制作入口：tools/dots-production/WORKFLOW.md\n命令：studio standards | studio sync/reference/asset/resume/capture --project PROJECT_DIR\n素材与参考实例：studio/CRAFT.md\n可选诊断：list | verify | compare-frames\n已有 schema 1 工程：legacy/NATIVE_AUTHORING_V1.md；历史创建工具只在 legacy 命名空间。');
+  } else if(command==='studio') {
     const {studioCommand}=await import('./studio.mjs');
     console.log(JSON.stringify(await studioCommand(args),null,2));
   } else if(command==='list') {
@@ -59,8 +65,8 @@ try {
     await fs.cp(path.join(root,'releases',version),path.join(target,'dots',version),{recursive:true,errorOnExist:true,force:false});
     for(const name of ['画面动作脚本.json','Scene.jsx'])await fs.copyFile(path.join(root,'releases',version,name),path.join(target,name));
     await fs.writeFile(path.join(target,'dots-lock.json'),JSON.stringify({version,source:root,files:release.files,sceneSchemaVersion:2,baselineIds:catalog.baselines.map(b=>b.id),status:'authoring-starter-not-user-approved'},null,2));
-    await fs.writeFile(path.join(target,'README.md'),`# dots 制作起点\n\n固定版本 ${version}。先完成画面动作脚本中的理解目标、具体对象及子部件、布局和状态变化，再绑定当前工程真实词ID，编写Scene.jsx的AuthoredObjects。起点故意不提供可冒充完成画面的默认布局，未完成时会拒绝渲染。\n\n通过cuesFromBeats消费已含偏移的原生beats，state.mjs在同一时间轴给出完整对象状态及可暂停的数值；把值实际用于文字、图形和页面标注。\n\n调用：node '${path.join(root,'cli.mjs')}' check '${path.join(target,'画面动作脚本.json')}' --words '/当前段真实words.json'\n\n方法：${path.join(root,'README.md')}\n导演判断：${path.join(root,'DIRECTING.md')}\n\n本目录仅准备制作源码，不创建或切换Codex Cut工程，不生成声音，不写用户认可。原生参数/锁及逐段审阅继续沿用。\n`);
-    console.log(JSON.stringify({ok:true,target,version,referencePackMissing:true,next:'Low-level starter only. Use prepare for production with selected reference clips; complete content-specific objects, real word bindings and actual render review.'}));
+    await fs.writeFile(path.join(target,'README.md'),`# Dots 历史协议开发副本\n\n固定视觉源码 ${version}。本副本仅用于已有 schema 1 工程的恢复或显式选择的历史技术开发，不是新视频制作入口。历史操作见 ${path.join(root,'legacy/NATIVE_AUTHORING_V1.md')}；新工程统一从 ${path.join(root,'WORKFLOW.md')} 开始。\n\n已有脚本以本期真实词ID驱动自定义对象及完整状态，原生参数、锁、声音和具体版本验收继续保留。\n`);
+    console.log(JSON.stringify({ok:true,target,version,referencePackMissing:true,next:'Legacy source copy only; new video projects use WORKFLOW.md and studio.'}));
   } else if(command==='init-film') {
     const target=path.resolve(value('--to'));
     if(await exists(target))throw new Error('Target exists; refusing to overwrite film plan');
@@ -107,5 +113,5 @@ try {
       result=checkFilm(input,scripts);
     }
     console.log(JSON.stringify(result,null,2));if(!result.ok)process.exitCode=1;
-  } else throw new Error('Commands: list | verify | prepare --brief JSON --references LOCAL_REGISTRY --to NEW_DIR | bind-native --project PROJECT_DIR --film FILM_JSON --preparation PREPARATION_JSON | init --to NEW_DIR | init-film --to NEW_JSON | check SCRIPT --words ACTUAL_WORDS | check-film FILM_JSON | compare-frames --spec JSON --out NEW_DIR | review-pack --spec JSON --out NEW_DIR | check-review --evidence JSON --observation JSON | audit-render --video VIDEO --scene SCENE --out JSON | gate-render --video VIDEO --scene SCENE --audit AUDIT --review REVIEW [--out JSON]');
+  } else throw new Error('未知命令；运行 help 查看当前 studio 入口。旧协议命令说明只在 legacy/NATIVE_AUTHORING_V1.md 和 legacy/SOURCE_TOOLS_1_3.md。');
 }catch(e){console.error(e.message);process.exitCode=1;}

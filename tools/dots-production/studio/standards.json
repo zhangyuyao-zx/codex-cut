@@ -1,0 +1,57 @@
+{
+  "id": "dots-craft",
+  "version": 1,
+  "scope": "Dots 方向的制作与实际审阅；不改变其他风格，也不追溯改写已验收作品",
+  "topics": [
+    {"id":"understanding","title":"导演与声画分工","question":"观众多懂了什么？旁白、主字、字幕与可见事件各承担什么？前提、依据、动作和结果是否一致？","film":true},
+    {"id":"composition","title":"整幅构图与框的排布","question":"同尺度比较整体重心、色块面积、框的大小组合、对齐、留白和读序；是否有无意义空区或固定顶标题套壳？","reference":true,"film":true},
+    {"id":"typography","title":"字块与观看尺度","question":"比较主字墨量、字号、断行、行距、正文与辅助字层级；在目标观看尺寸，字形有力度且关键条件可读吗？","reference":true},
+    {"id":"objects","title":"框内物件与美术细部","question":"比较具体物件、内外轮廓、圆角层级、内边距、线宽端点、光学对齐、贴附状态、局部阴影与质感；是否仍只是图标加词条？","reference":true},
+    {"id":"motion-rhythm","title":"内部动作、触感与节奏","question":"看建立、触发、执行、反馈和落稳；是否有整卡慢淡入、文字抢跑、无效等待、重复推拉或过快整屏切换？有关联的内容能否同屏推进？","reference":true,"film":true},
+    {"id":"attention-continuity","title":"注意力、转场与整片变化","question":"当前重点、旧对象退让、同一物件的身份与终态是否可追踪？前段末态怎样接后段初态？相似段落是继续解释还是只换文字？","film":true},
+    {"id":"materials","title":"真实材料与画面融合","question":"真实对象、年代或产品版本是否对应？页面先有完整视口身份，裁切和标注保留关键条件吗？照片、原文、界面是否以合适边界、留白和面积融入整体，而非裸放或缩成角标？","realOnly":true,"film":true}
+  ],
+  "directorLessons": [
+    {"id":"D01","title":"沿观众的问题组织解释顺序","topics":["understanding"]},
+    {"id":"D02","title":"把文案转成可观察的具体事件","topics":["understanding","objects"]},
+    {"id":"D03","title":"分配旁白、主字、字幕和图形的职责","topics":["understanding","typography"]},
+    {"id":"D04","title":"用排布、包围、并列与边界表达关系","topics":["composition"]},
+    {"id":"D05","title":"每个框内形成有具体物件的小演示","topics":["objects"]},
+    {"id":"D06","title":"让字体和字块参与构图","topics":["typography","composition"]},
+    {"id":"D07","title":"选择有识别与表达作用的颜色和细节","topics":["objects","composition"]},
+    {"id":"D08","title":"同一对象经历完整的状态变化","topics":["motion-rhythm","attention-continuity"]},
+    {"id":"D09","title":"分开建立对象、执行过程与操作反馈","topics":["motion-rhythm"]},
+    {"id":"D10","title":"节奏来自信息接力并保留有意义的阅读","topics":["motion-rhythm"]},
+    {"id":"D11","title":"让主副对象与注意力有明确交接","topics":["attention-continuity"]},
+    {"id":"D12","title":"按同场补充、重排、章节清场设计转场","topics":["attention-continuity"]},
+    {"id":"D13","title":"全片共用视觉语言并按理解任务改变构图","topics":["composition","attention-continuity"]}
+  ],
+  "artDirection": [
+    {"id":"A01","title":"完整的平面构图","detail":"字块、色块和物件共同安排；比较主次体量、共同边缘、视觉重心及空白。三列、嵌套窗口、非对称成果页都只是可选表达。","topics":["composition"]},
+    {"id":"A02","title":"协调而分层的形状","detail":"大圆角外板、小圆角内卡、胶囊、圆形图标底盘、虚线槽位与纸张各有作用；框内外共同设计，不能所有对象共用一种矩形。","topics":["composition","objects"]},
+    {"id":"A03","title":"厚实字形与变化的字级","detail":"中文选用已加载的 HarmonyOS Sans SC Black/Bold，辅助英文数字用 IBM Plex Mono SemiBold；这些是复刻选型，不冒称原片字体。按内容选择标题为主体、侧栏或定位字，不固定所有段落的字号和顶栏。","topics":["typography"]},
+    {"id":"A04","title":"明确的色块秩序","detail":"复刻色值起点为纸色 #f2eee4、近黑 #0b0b0d、橙红 #ff4e25、荧绿 #d1f84c、黄 #ffde4b、灰蓝黑 #1d222c。控制面积与反差，局部蓝紫粉服务类别或状态；颜色不单独证明完成或审批。","topics":["composition","objects"]},
+    {"id":"A05","title":"完整的框内物件","detail":"日历有日期网格与选中态，表盘有轨道刻度端点，文档有内容和修改区域，开关有轨道旋钮反馈。每个卡片内部按具体内容形成小场景；不要只留标题、图标和绿勾。","topics":["objects"]},
+    {"id":"A06","title":"细部之间协调","detail":"统一边缘、标签和标题基线；检查圆角层级、线宽端点、内外留白、图标光学中心、状态徽章贴附与关键动作面积。实际画面检查，不能只凭数值相同。","topics":["objects","typography"]},
+    {"id":"A07","title":"克制的底纹和深度","detail":"低对比规则点阵、清楚的深浅面板；投影用于旋钮、纸张、动作条等局部的抬起和叠放。大色块保持干净，不给所有框加重阴影。","topics":["objects","composition"]},
+    {"id":"A08","title":"动态的美术完成度","detail":"主字与容器及时清楚建立，内部再执行；开关拨动、印章落下、材料归位、波形和进度使用各自的运动形态与反馈。避免长淡入使字和颜色发虚。","topics":["motion-rhythm"]},
+    {"id":"A09","title":"变化的体量和观看距离","detail":"允许整幅并列、一个大窗口或单个控件特写，按讲述放大局部；保持共同字体、色彩与细部语言，真实页面参与整体排布。","topics":["composition","attention-continuity","materials"]}
+  ],
+  "userDecisions": [
+    {"id":"U01","rule":"非真人内容涉及真实人物、公司、机器、产品、事件或资料，先主动检索；准确相关、可用、可看清时优先采用。抽象机制可图解，不硬配无关照片。","topics":["materials"],"implementation":"WORKFLOW.md / FACELESS.md / asset dependency checks"},
+    {"id":"U02","rule":"ThinkMesh 等约定手机演示的产品采用真实手机完整视口，作为整体中的一个元素；不能用横屏页面覆盖全幅，也不能只拼局部碎片冒充完整产品。","topics":["materials","composition"],"implementation":"EvidenceWindow / FullPage"},
+    {"id":"U03","rule":"删除无关品牌胶囊、演示账号说明、眉题和装饰状态字；不能因为参考片有就恢复。必要来源与限定仍就近保留。","topics":["composition","typography"],"implementation":"scene design and actual comparison"},
+    {"id":"U04","rule":"画面是整体；重排页面、说明和图解的体量与位置，处理失衡空区。不要为了填满空白添加无关信息。","topics":["composition"],"implementation":"scene design and target-size review"},
+    {"id":"U05","rule":"保留粗重、好看的中文字块，重新考虑字号和角色；已有粗字体不能替代对字号、断行和布局的设计。","topics":["typography"],"implementation":"Fonts / Type / actual comparison"},
+    {"id":"U06","rule":"按真实旁白语义触发，检查文字、条件与结果的先后；未经设计的文字抢跑要修正。","topics":["motion-rhythm","understanding"],"implementation":"native word cues / playback"},
+    {"id":"U07","rule":"去掉没有解释任务的停住等待；框内持续发生具体变化，克制微动可保留，但循环装饰不算内容推进。","topics":["motion-rhythm"],"implementation":"object behavior / playback"},
+    {"id":"U08","rule":"关联内容留在同一画面，通过模块补充和局部焦点推进；不要把节奏快实现成一句话切换多个整屏。","topics":["motion-rhythm","attention-continuity"],"implementation":"persistent objects / adjacent and film review"},
+    {"id":"U09","rule":"从具体物件与内部事件设计关系；不默认用抽象名词框和长连线铺满影片。真实网络、机械传递或局部指示可以用线。","topics":["objects","composition"],"implementation":"CRAFT.md / components"},
+    {"id":"U10","rule":"真实照片、原文与界面要按自身内容做边界、留白、裁切和局部质感处理；素材要有足够面积，标注跟随原图坐标，不能裸放或缩成来源角标。","topics":["materials","objects"],"implementation":"EvidenceWindow / ImageCard"},
+    {"id":"U11","rule":"不把统一风格做成固定标题、三卡和相同动作的反复换字；复用部件与行为，重新设计具体构图。","topics":["composition","attention-continuity"],"implementation":"prototype comparisons / film review"},
+    {"id":"U12","rule":"采用稿和已验收旁白按本期版本保留；不擅自改词、变速或重录。新片读取本机共同声音配置，沿用已确认的自动情绪、语速、BGM及音量依据，音效对应具体动作并实际听审。","topics":[],"implementation":"sound preset / native soundtrack / review.audio"},
+    {"id":"U13","rule":"审阅优先在对话中交付实际视频与关键画面，尤其用户用手机时；不要只给 localhost 网页或声称本机路径是手机可访问公网链接。以客户端实际媒体能力交付，不能播放时明确说明并提供可查看画面。","topics":[],"implementation":"studio capture.chatMarkdown / SKILL delivery"},
+    {"id":"U14","rule":"原片研究与 Dots 制作分开维护；按本期问题取已存参考与已认可复刻，不让用户反复补图，也不每次全量拉片。","topics":[],"implementation":"reference-study / studio reference"},
+    {"id":"U15","rule":"代表样片先完成美术和动态的实际对照再扩展；不省略已确认流程，不把字段齐全、渲染成功或自动检查当成审美通过。实际判断由制作主代理完成。","topics":[],"implementation":"native representative/review/assembly gates"}
+  ]
+}

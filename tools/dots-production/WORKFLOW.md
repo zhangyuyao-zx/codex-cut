@@ -8,6 +8,8 @@
 
 读取当前原生工程、采用稿、声音、用户覆盖/锁和未处理反馈。保留本期已确认参数；新内容使用本机当前声音配置。核对实际 projectDir/contentId、运行服务的 gateVersion，不凭旧聊天猜状态。
 
+使用 `studio standards` 读取当前完整采用标准（13条导演经验、9项美术设计和15项后续决定）。标准唯一维护在 `studio/standards.json`，部件及实片定位见 `studio/CRAFT.md`；不要从旧目录索引、历史复盘或聊天记忆选择另一套默认流程。运行服务的能力版本须为2；旧工程仍按保存的schema兼容读取。版本不一致时先完成空闲升级再新建制作，不以插件文件已更新代替服务更新。
+
 `production/production.json`（通过原生接口维护）负责分镜、词锚点、设计意图、参数、声音、反馈和用户版本。`production/authoring.json` 只保存未被原生工程承载的选材、参考、代表样片关系与实际观察。可运行场景代码负责具体造型和动作；不再另写同一动作状态表、全片脚本及词时间副本来证明代码“符合设计”。需要复杂状态机时可选用 1.3 的 `viewAt`，它是实现手段，非每段填表任务。
 
 ## 实际制作顺序
@@ -59,11 +61,15 @@ npm run dots -- studio capture --project /path/to/project --scene s01 --render a
 
 输出实际视频副本、所选真实帧、适用参考片段、`capture.json` 和空白 `review-draft.json`。缺省取帧只提供导航，观察关键过程时主动选择对应时点。`capture` 不修改工程，不自动填通过，不声称已看视频或听声音。看完后把本段观察放进唯一制作记录 `reviews.s01`；无需再维护审片规格、六项表、节奏说明等四份互相复制的文件。
 
-观察含 `capture` 路径、`playback:{from:0,to:实际时长,rate:1,observed}`、`targetWidth`、`findings:[{at,observed,decision,status}]`、`referenceComparisons:[{id,at,observed}]`、`audio:{status,observed}` 和 `verdict`。`status` 为 `retain / fixed / revise`，`verdict` 为 `unreviewed / revise / candidate`。只在处理所有本期关键差距后选 candidate。观察须落到具体物件、时刻和可见现象，不能批量复制“已按风格设计”。静帧、原速播放、抽帧序列和听辨分别如实记录；缺乏某种观察能力时保留未完成，不能靠填写范围补出事实。
+观察含 `capture` 路径、`playback:{from:0,to:实际时长,rate:1,observed}`、`targetWidth`、`findings:[{at,topics,observed,decision,status}]`、`referenceComparisons:[{id,at,topics,observed}]`、`audio:{status,observed}` 和 `verdict`。`topics` 对应 capture 给出的实际比较维度；一条观察可覆盖多项，不再另建质量表。参考比较须覆盖构图、字体、物件细部和运动，不仅比较解释含义。`status` 为 `retain / fixed / revise`，`verdict` 为 `unreviewed / revise / candidate`。只在处理所有本期关键差距后选 candidate。观察须落到具体物件、时刻和可见现象，不能复制问题或批量写“已按风格设计”。静帧、原速播放、抽帧序列和听辨分别如实记录；缺乏某种观察能力时保留未完成，不能靠填写范围补出事实。已有schema 2样片若缺新版对照提示，重新capture并实际补查即可，图片与声音未变时无需重渲染。
 
 素材、源代码、参考、原生段落或采用样片改变，会使相关身份失效；修改审阅措辞本身不会强制重渲染。用户认可仍由原生批准记录维护，作者不得写 `userAccepted:true`。
 
 相邻实片比较写入 `comparisons:[{scenes:[{sceneId,renderId,key},{sceneId,renderId,key}],observed}]`。同类新段落在记录中与其代表比较；如果实际表达已超出代表覆盖范围，把本段作为新代表试作。合成后同样用 `studio capture --scene film` 取当前整片证据，观察放进 `filmReview`；实际混音听辨完成后才可最终自检结束。
+
+## 对话审阅与交付
+
+用实际视频和关键画面直接在对话中交付审阅，沿用用户现有的逐段及整片认可。`studio capture` 返回 `media` 和可直接引用的 `chatMarkdown`，不增加审批节点。优先使用客户端支持的内嵌视频、图片或附件，说明版本和时长；网页只是辅助入口。用户在手机端时不能只给本机网页、`localhost`或磁盘路径，并声称手机可以访问。当前客户端确实无法播放或传递视频时如实说明，提供可查看的关键画面并保留动态审阅未完成；未获授权不把私人媒体上传公开服务。
 
 ## 哪些东西不再作为默认要求
 

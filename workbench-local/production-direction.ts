@@ -5,6 +5,7 @@ import {resolveProduction} from './production-binding';
 import {localSourceDependencies} from './source-dependencies';
 import {createContentDigester} from './cut-media-identity';
 import type {AuthoringRequirement} from './production-policy.mjs';
+import {reviewTopics,topicCoverage} from '../tools/dots-production/studio/standards.mjs';
 
 export type DirectionInput={plan:any;cut:any;modules:any[];reviews:any[];stage:'design'|'review'|'assembly'|'delivery';sceneId?:string;renderId?:string;job?:any};
 const text=(v:any)=>typeof v==='string'&&v.trim().length>0;
@@ -97,10 +98,13 @@ export function createDirectionGate(root:string,projectDir:string,observe?:(file
     if(!Array.isArray(capture.frames)||capture.frames.length<3)throw Error('缺起态/过程/终态实际帧');
     for(const f of capture.frames)if(!Number.isFinite(f.at)||f.at<0||f.at>=duration||await digest(file(f.file))!==f.sha256)throw Error('实际帧丢失、被改或越界');
     if(!same(capture.references,id==='film'?[]:entries[id].references))throw Error('对照参考已经变化');
+    const topics=reviewTopics({film:id==='film',real:id==='film'?book.scenes.some((s:any)=>s.mediaMode==='real'):entries[id].s.mediaMode==='real'});
+    if(!same(capture.reviewTopics,topics.map((t:any)=>t.id)))throw Error('当前样片缺完整美术对照提示；重新 studio capture，无需重渲染');
     if(!capture.viewedCopy||await digest(file(capture.viewedCopy.file))!==capture.viewedCopy.sha256||capture.viewedCopy.sha256!==capture.videoSha256)throw Error('实际播放副本已变化');
     for(const ref of capture.references){const copy=capture.referenceCopies?.find((c:any)=>c.id===ref.id);if(!copy||await digest(file(copy.file))!==copy.sha256)throw Error('参考播放副本已变化 '+ref.id);}
     if(!fullPlayback(review.playback,duration))throw Error('缺完整原速观察；抽帧不能替代动态审阅');
     if(!Array.isArray(review.findings)||!review.findings.length||review.findings.some((f:any)=>!Number.isFinite(f.at)||f.at<0||f.at>duration||!text(f.observed)||!text(f.decision)||!['retain','fixed'].includes(f.status)))throw Error('实际画面发现仍未处理');
+    const coverage=topicCoverage(review,topics);if(coverage.length)throw Error(coverage.join('；'));
     if(!Number.isFinite(review.targetWidth)||review.targetWidth<=0)throw Error('缺目标观看尺寸核对');
     if(!['listened','not-listened'].includes(review.audio?.status)||!text(review.audio?.observed))throw Error('声音观察范围不明');
     if(review.userAccepted!==undefined&&review.userAccepted!==false)throw Error('作者记录不能代写用户验收');

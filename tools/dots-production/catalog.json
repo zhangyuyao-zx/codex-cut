@@ -1,7 +1,14 @@
 {
   "schemaVersion": 1,
   "currentVersion": "1.3.0",
-  "defaultEntry": "README.md",
+  "defaultEntry": "WORKFLOW.md",
+  "versionScope": "currentVersion pins reusable visual source; it is not the production workflow version",
+  "productionProtocol": {
+    "authoringSchema": 2,
+    "serviceCapability": 2,
+    "standards": "studio/standards.json",
+    "entry": "studio"
+  },
   "baselines": [],
   "patterns": [
     {

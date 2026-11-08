@@ -20,9 +20,9 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 
 - `tools/reference-study/README.md`：读取分类清单和数据协议，用 `python3 tools/reference-study/validate.py <study.json>` 校验，再用 `build_viewer.py` 与 `serve.py` 浏览证据。需要 Python 3.9+，不自动转写、观看或生成结论。
 - `tools/dots-production/WORKFLOW.md`：新工程唯一制作流程；原生分镜 + 一份选材/观察记录。`npm run dots -- studio sync --project <工程>` 同步全片简表；`studio reference/asset` 登记实际参考和素材；`studio capture` 从原生渲染生成实际证据和空白观察；`studio resume` 接续当前依据。字段和具体命令只在 WORKFLOW 维护。
-- `tools/dots-production/studio/CRAFT.md`：具体观看任务对应的实现部件和真实实例；`media.jsx` 的页面取景、焦点和注意力部件不带默认整场布局。固定 1.3 源码仍可组合复用。
+- `tools/dots-production/studio/standards.json`：完整采用标准唯一来源，`studio standards/resume`直接返回；`CRAFT.md`连接具体部件和真实实例。`studio capture`将实际比较维度带入现有观察，并返回对话媒体引用。`media.jsx`的页面取景、焦点和注意力部件不带默认整场布局。固定1.3源码仍可组合复用。
 - `production.authoring` 的 technicalValidation 仅表示技术条件，nextAction 指当前缺口；authoringReviews/authoringDelivery 分别绑定当前样片及整片实际观察。新工程服务需 `productionAuthoringGateVersion:2`；已有 schema 1 工程按 `tools/dots-production/legacy/NATIVE_AUTHORING_V1.md` 保持兼容，不自动迁移。
-- 旧 `prepare/bind-native/check-film/review-pack` 是历史工程接口及可选底层工具，不叠加成新工程的必填材料。旧源码版本与对应作品继续固定；代码检查不代替实际视觉与声音检查。
+- 历史创建命令`prepare/bind-native/init/init-film`只在显式`legacy`命名空间开放；`bind-native`不能覆盖schema 2空记录。旧检查接口继续用于历史工程，不叠加成新工程必填材料。旧源码版本与对应作品继续固定；代码检查不代替实际视觉与声音检查。
 
 
 ## 工具

@@ -29,7 +29,7 @@
 5. 在源码根绑定本期文件：
 
 ```sh
-npm run dots -- bind-native --project /path/to/native-project --film /path/to/全片编排.json --preparation /path/to/制作依据.json
+npm run dots -- legacy bind-native --project /path/to/native-project --film /path/to/全片编排.json --preparation /path/to/制作依据.json
 ```
 
 绑定保存 `kitVersion`，以后目录默认版本更新仍按工程锁定版本核验，不自动迁移既有作品。早期绑定未写顶层版本时，读取已经复制到本期准备包里的固定版本，兼容现有工作。

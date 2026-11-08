@@ -23,3 +23,16 @@ test('native binding selects per-scene references, preserves authored files, nev
  await assert.rejects(bindNative(args),/populated/);
  assert.equal(await read('production/authoring.json'),original);
 });
+test('legacy binding cannot downgrade even an empty schema 2 book',async t=>{
+ const projectDir=await fs.mkdtemp(path.join(os.tmpdir(),'dots-no-downgrade-'));
+ t.after(()=>fs.rm(projectDir,{recursive:true,force:true}));
+ await fs.mkdir(path.join(projectDir,'production'));
+ const file=path.join(projectDir,'production/authoring.json');
+ const bytes=JSON.stringify({schemaVersion:2,method:'dots',scenes:[],reviews:{},assets:{},references:{}});
+ await fs.writeFile(file,bytes);
+ await fs.writeFile(path.join(projectDir,'content-project.json'),JSON.stringify({contentId:'test'}));
+ await fs.writeFile(path.join(projectDir,'film.json'),JSON.stringify({contentId:'test',scenes:[{sceneId:'s1',script:'unused.json',referenceIds:['ref']}]}));
+ await fs.writeFile(path.join(projectDir,'prep.json'),JSON.stringify({version:'1.3.0',brief:{contentId:'test'},referenceSources:[]}));
+ await assert.rejects(bindNative({projectDir,filmFile:path.join(projectDir,'film.json'),preparationFile:path.join(projectDir,'prep.json')}),/不能把 schema 2 降级/);
+ assert.equal(await fs.readFile(file,'utf8'),bytes);
+});

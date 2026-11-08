@@ -115,10 +115,10 @@ await test('CLI实际初始化、检查及拒绝覆盖',async()=>{
   const parent=await fs.mkdtemp(path.join(os.tmpdir(),'dots-production-check-'));
   try {
     const target=path.join(parent,'scene'),filmPath=path.join(parent,'film.json');
-    assert.equal(cli('init','--to',target).status,0);
+    assert.equal(cli('legacy','init','--to',target).status,0);
     assert.equal((await read(path.join(target,'dots-lock.json'))).version,catalog.currentVersion);
-    assert.equal(cli('init','--to',target).status,1);
-    assert.equal(cli('init-film','--to',filmPath).status,0);assert.equal(cli('init-film','--to',filmPath).status,1);
+    assert.equal(cli('legacy','init','--to',target).status,1);
+    assert.equal(cli('legacy','init-film','--to',filmPath).status,0);assert.equal(cli('legacy','init-film','--to',filmPath).status,1);
     assert.equal(cli('check',path.join(target,'画面动作脚本.json'),'--words',path.join(release,'examples/correction.words.json')).status,1);
     assert.equal(cli('check',path.join(release,'examples/correction.scene.json'),'--words',path.join(release,'examples/correction.words.json')).status,0);
     assert.equal(cli('check-film',path.join(release,'examples/film.json')).status,0);

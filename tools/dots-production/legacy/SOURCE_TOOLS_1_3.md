@@ -15,15 +15,15 @@
 ```bash
 npm run dots -- list
 npm run dots -- verify
-npm run dots -- prepare --brief /path/to/制作任务.json --references /path/to/本机参考注册表.json --to /path/to/新制作目录
-npm run dots -- init-film --to .cache/dots-film-demo.json
+npm run dots -- legacy prepare --brief /path/to/制作任务.json --references /path/to/本机参考注册表.json --to /path/to/旧协议开发副本
+npm run dots -- legacy init-film --to .cache/dots-film-demo.json
 ```
 
 制作任务和本机注册表的起点在 `templates/制作任务.json`、`templates/本机参考注册表示例.json`。注册表绑定已有本地视频的真实 SHA-256 与具体区间；按当前理解任务选一两组适用依据，需要时附相关失败样例。认可重建只代表它本身获认可，不转移给新作品。`sourceCode` 可记录原实现的本机位置。
 
 `prepare` 校验身份并截取可播放参考、生成入口页，复制固定源码与 `dots-lock.json`。所有参考和本机路径只留在项目制作目录，不提交公共仓库。需要现有 `ffmpeg`/`ffprobe`。只接受不存在的新目录，拒绝合并或覆盖；失败后的不完整目录也保留，排除原因后另建输出。
 
-`init` 仍可用作底层源码起点，但会明确返回 `referencePackMissing:true`；常规制作使用 `prepare`。全片起点同样拒绝覆盖。二者都不选择或改写活动工程。
+`legacy init` 可用于历史源码开发副本，但会明确返回 `referencePackMissing:true`；需要恢复旧参考包时用 `legacy prepare`。全片起点同样拒绝覆盖。它们都不选择或改写活动工程。新视频只使用 [当前制作流程](../WORKFLOW.md)，不以这些命令初始化。
 
 生成的 `Scene.jsx` 需要作者完成 `AuthoredObjects`，未实现时会明确报错。先填好本段理解目标、具体物件、子部件的职责与理由、空间关系和状态链，再编写画面。它不提供可误认成成片的通用默认布局。
 
@@ -60,7 +60,7 @@ npm run dots -- check-film /path/to/全片编排.json
 
 ## 版本与复用
 
-`releases/1.0.0` 至 `releases/1.3.0` 分开保留，每版 manifest 固定文件 SHA-256；`verify` 检查源码及当前模板是否一致。新项目默认采用 `catalog.currentVersion`（当前 1.3.0），已有作品继续使用自己复制的版本；更新仓库不批量改写既有作品。
+`releases/1.0.0` 至 `releases/1.3.0` 分开保留，每版 manifest 固定文件 SHA-256；`verify` 检查源码及当前模板是否一致。历史协议开发副本使用 `catalog.currentVersion` 固定视觉源码（当前 1.3.0）；这个号码不代表当前制作流程。已有作品继续使用自己的保存版本，更新仓库不批量改写既有作品。
 
 公共版不附参考原片、私人重建基准、产品页面、音轨或字体。`catalog.baselines` 因此为空，技术示例不代表已获审美认可。实际项目需要自己的材料、渲染与审阅证据。
 

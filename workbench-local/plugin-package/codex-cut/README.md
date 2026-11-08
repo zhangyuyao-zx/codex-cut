@@ -1,6 +1,8 @@
 # Codex Cut 插件 · 0.3.2
 
-0.3.2 接入配置仓库中的通用参考研究工具与 dots 固定版本制作源码：逐句、元素、动作证据与制作脚本分别维护。修复使用 CODEX_CUT_ROOT 时仍强制读取本机配置的问题；默认桥接测试无需私人配置，实际工程检查改为显式选择。工具入口见 Skill 的 references/operations.md。
+当前 Dots 制作唯一入口为配置仓库的 `tools/dots-production/WORKFLOW.md`。完整采用标准由 `studio/standards.json` 维护，通过 `studio standards/resume/capture` 带入选材、代表样片及实际对照。运行服务能力2兼容旧工程；新工程使用 authoring schema 2，不能通过历史命令降级。细则只在 Skill 和当前流程维护，不从旧版本说明恢复另一套默认步骤。
+
+0.3.2 最初接入通用参考研究与 Dots 固定视觉源码，并修复 CODEX_CUT_ROOT 配置优先级。1.0—1.3 是可复用视觉源码版本，不是新制作协议；历史作品继续读取自己的保存版本。默认桥接测试无需私人配置，实际工程检查显式选择。工具入口见 Skill 的 references/operations.md。
 
 0.3.1 增加独立工程选择与真实目录核对，以及完整混音进入预览、逐段渲染和整片合成。录制交接与声音安排由 Codex 维护；参考分析优先学习表达思路，按实际需要再提炼资产。操作见 Skill 的 references/operations.md。
 

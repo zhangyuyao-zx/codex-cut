@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {digest,probe,freshDirectory,html} from './production-pack.mjs';
+import {standards,reviewTopics} from './studio/standards.mjs';
 const read=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const run=args=>execFileSync('ffmpeg',['-v','error','-nostdin',...args],{stdio:'pipe'});
@@ -53,6 +54,7 @@ export async function captureReview({project,sceneId,renderId,out,times}){
  const chosen=times??[0,Math.min(duration/2,duration-1/30),Math.max(0,duration-1/30)];
  if(new Set(chosen).size<3||chosen.some(t=>!Number.isFinite(t)||t<0||t>=duration))throw Error('至少选择三个不同的有效时点，检查起态/过程/终态');
  const shot=book.scenes.find(s=>s.sceneId===sceneId);
+ const topics=reviewTopics({film:sceneId==='film',real:sceneId==='film'?book.scenes.some(s=>s.mediaMode==='real'):shot?.mediaMode==='real'});
  const references=sceneId==='film'?[]:(shot?.referenceIds??[]).map(id=>({id,...book.references[id]}));
  await freshDirectory(out);
  await fs.copyFile(video,path.join(out,'current.mp4'));
@@ -71,16 +73,19 @@ export async function captureReview({project,sceneId,renderId,out,times}){
   referenceCopies.push({id:ref.id,file:copied,sha256:await digest(copied)});
  }
  if(await digest(video)!==videoSha256)throw Error('原生视频在采集期间变化，产物仅供排查');
- const capture={schemaVersion:2,sceneId,renderId,key:render.key,design:sceneId==='film'?render.authoringDesign:{[sceneId]:render.authoringDesign[sceneId]},video,videoSha256,duration,frames,references,referenceCopies,viewedCopy:{file:path.resolve(out,'current.mp4'),sha256:videoSha256}};
+ const capture={schemaVersion:2,sceneId,renderId,key:render.key,design:sceneId==='film'?render.authoringDesign:{[sceneId]:render.authoringDesign[sceneId]},video,videoSha256,duration,frames,references,referenceCopies,viewedCopy:{file:path.resolve(out,'current.mp4'),sha256:videoSha256},reviewTopics:topics.map(t=>t.id)};
  await fs.writeFile(path.join(out,'capture.json'),JSON.stringify(capture,null,2)+'\n');
  const observation={capture:path.resolve(out,'capture.json'),verdict:'unreviewed',playback:null,targetWidth:null,findings:[],referenceComparisons:[],audio:{status:'not-listened',observed:'尚未听辨'},userAccepted:false};
  await fs.writeFile(path.join(out,'review-draft.json'),JSON.stringify(observation,null,2)+'\n');
- await fs.writeFile(path.join(out,'index.html'),html('实际样片与参考',`<p>先看完整动态与观看尺寸，再记录具体差距。文件生成不代表审阅完成。</p><video src="current.mp4" controls></video><div class="grid">${frames.map((f,i)=>`<figure><img src="frame-${i}.png"><figcaption>${f.at.toFixed(2)}s</figcaption></figure>`).join('')}</div><details><summary>展开参考对照</summary>${references.map((r,i)=>`<section><p>${esc(r.learn)}</p><video src="reference-${i}.mp4" controls></video><p>${esc(r.avoid)}</p></section>`).join('')}</details>`));
- return {capture:path.join(out,'capture.json'),reviewDraft:path.join(out,'review-draft.json'),visualJudgment:'unreviewed',userAccepted:false};
+ await fs.writeFile(path.join(out,'index.html'),html('实际样片与参考',`<p>先看完整动态与观看尺寸，再记录具体差距。文件生成不代表审阅完成。</p><video src="current.mp4" controls></video><div class="grid">${frames.map((f,i)=>`<figure><img src="frame-${i}.png"><figcaption>${f.at.toFixed(2)}s</figcaption></figure>`).join('')}</div><section><h2>本段实际对照</h2><p>在已有 findings 中用 topics 标注观察维度，一条观察可覆盖多项；不要复制问题作为观察。参考比较也标注 topics。没有实际看见就保留未审阅。</p>${topics.map(t=>`<p><strong>${esc(t.title)} · ${esc(t.id)}</strong><br>${esc(t.question)}</p>`).join('')}</section><details><summary>展开参考对照</summary>${references.map((r,i)=>`<section><p>${esc(r.learn)}</p><video src="reference-${i}.mp4" controls></video><p>${esc(r.avoid)}</p></section>`).join('')}</details>`));
+ const media={video:path.resolve(out,'current.mp4'),frames:frames.map(f=>({at:f.at,file:f.file}))};
+ const chatMarkdown=`实际视频（${sceneId} / ${renderId}，${duration.toFixed(2)}秒；验收状态以当前工程记录为准）：\n\n![实际样片](<${media.video}>)\n\n${frames.map(f=>`![${f.at.toFixed(2)}秒](<${f.file}>)`).join('\n\n')}`;
+ return {capture:path.join(out,'capture.json'),reviewDraft:path.join(out,'review-draft.json'),reviewTopics:topics,media,chatMarkdown,deliveryNote:'优先使用客户端的内嵌媒体或附件；本机路径不是公网地址。无法播放时明确说明，关键帧只供静态审阅。',visualJudgment:'unreviewed',userAccepted:false};
 }
 
 export async function studioCommand(args){
  const [action,...rest]=args;
+ if(action==='standards')return standards;
  const value=key=>{const n=rest.indexOf(key);if(n<0||!rest[n+1])throw Error('Missing '+key);return rest[n+1];};
  const project=path.resolve(value('--project'));
  if(action==='sync')return syncBook(project);
@@ -90,7 +95,7 @@ export async function studioCommand(args){
  if(action==='resume'){
   const {book,p}=await loadBook(project);
   const plan=(await read(path.join(project,'production/production.json'))).state;
-  return {entry:'tools/dots-production/WORKFLOW.md',record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes:book.scenes.map(s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,review:book.reviews?.[s.sceneId]??null})),note:'观察记录不自动等于当前有效；用 read_project 的 authoring 返回验证结果。'};
+  return {entry:'tools/dots-production/WORKFLOW.md',craftGuide:'tools/dots-production/studio/CRAFT.md',standards,record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes:book.scenes.map(s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,reviewTopics:reviewTopics({real:s.mediaMode==='real'}).map(t=>t.id),review:book.reviews?.[s.sceneId]??null})),note:'观察记录不自动等于当前有效；用 read_project 的 authoring 返回验证结果。'};
  }
- throw Error('studio supports sync, asset, reference, capture, resume');
+ throw Error('studio supports standards, sync, asset, reference, capture, resume');
 }

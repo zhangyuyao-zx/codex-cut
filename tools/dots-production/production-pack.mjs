@@ -44,8 +44,8 @@ export async function preparePack({briefFile,registryFile,target,kitRoot,version
   const manifest={schemaVersion:1,version,brief,registryFile,referenceSources:chosen,phase:'design-before-authoring',visualQuality:'unreviewed',userAccepted:false};
   await fs.writeFile(path.join(target,'制作依据.json'),JSON.stringify(manifest,null,2)+'\n');
   await fs.writeFile(path.join(target,'dots-lock.json'),JSON.stringify({version,files:release.files,referenceIds:chosen.map(r=>r.id),status:'authoring-candidate'},null,2)+'\n');
-  await fs.writeFile(path.join(target,'index.html'),html(brief.task,`<p>先看适用的小样，再确定本段具体对象、构图和动作。案例是比较依据，不能替代当前内容设计。</p>${cards.join('')}<p>检查对象和状态对应 → 实际渲染 → review-pack先观察后对照。所有新样片均待实际审阅。</p>`));
-  await fs.writeFile(path.join(target,'README.md'),`# ${brief.task}\n\n打开 index.html：已绑定真实参考区间、已认可重建或失败样例。\n\n固定版本 ${version}。objects.jsx提供可改造的物件，objects.mjs让同一实体的内容快照与位姿驱动实际画面；已有components.jsx与state.mjs继续可用。根据本段内容完成Scene.jsx，不默认生成整段卡片布局。\n\n实际渲染后使用 review-pack；先记录画面事实，再展开设计意图与参考。结构/证据完整与美术判断分别记录。用户确认继续在现有工作台完成。\n`);
+  await fs.writeFile(path.join(target,'index.html'),html(brief.task,`<p>历史协议参考包，仅供既有工程恢复和显式旧协议开发。新视频从 WORKFLOW.md 与 studio 开始。</p><p>先看适用的小样，再确定本段具体对象、构图和动作。案例是比较依据，不能替代当前内容设计。</p>${cards.join('')}<p>旧协议可继续使用 review-pack。所有新样片均待实际审阅，案例认可不转移。</p>`));
+  await fs.writeFile(path.join(target,'README.md'),`# ${brief.task}\n\n这是历史协议参考包，不是新视频的默认起点。新制作统一从 ${path.join(kitRoot,'WORKFLOW.md')} 与 studio 开始；本包只服务已有作品的恢复和显式旧协议开发。\n\n打开 index.html：已绑定真实参考区间、已认可重建或失败样例。固定视觉源码 ${version}，认可只属于对应实例。\n\n沿用本期实际词时间、原生参数和用户覆盖；旧协议可继续使用 review-pack。结构/证据完整与美术判断分别记录，用户确认继续在现有工作台完成。\n`);
   return {target,version,referenceIds:chosen.map(r=>r.id),index:path.join(target,'index.html'),visualQuality:'unreviewed',userAccepted:false};
 }
 

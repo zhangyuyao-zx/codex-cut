@@ -12,7 +12,7 @@ export async function bindNative({projectDir,filmFile,preparationFile}){
  const lock=await fs.open(target+'.bind-lock','wx');
  const temporary=target+'.'+randomUUID()+'.tmp';
  try{
- try{const old=await read(target);if(old.film||old.scenes?.length)throw Error('Existing authoring binding is populated; edit its current version instead of overwriting');}catch(e){if(e.code!=='ENOENT')throw e;}
+ try{const old=await read(target);if(old.schemaVersion===2)throw Error('新工程使用 studio 流程；不能把 schema 2 降级绑定为旧协议');if(old.film||old.scenes?.length)throw Error('Existing authoring binding is populated; edit its current version instead of overwriting');}catch(e){if(e.code!=='ENOENT')throw e;}
  const scenes=[];
  for(const entry of film.scenes){
   const script=path.resolve(path.dirname(filmFile),entry.script);await fs.access(script);
@@ -20,7 +20,7 @@ export async function bindNative({projectDir,filmFile,preparationFile}){
   if(!Array.isArray(referenceIds)||!referenceIds.length||referenceIds.some(id=>!prep.referenceSources.some(r=>r.id===id)))throw Error('Select this scene’s referenceIds in the film plan: '+entry.sceneId);
   scenes.push({sceneId:entry.sceneId,script,preparation:path.resolve(preparationFile),referenceIds});
  }
- // Existing files are only the empty new-project starter, checked above.
+ // Only an unbound legacy project can reach this point; schema 2 is never downgraded.
  await fs.writeFile(temporary,JSON.stringify({schemaVersion:1,method:'dots',kitVersion:prep.version,contentId:identity.contentId,film:path.resolve(filmFile),scenes},null,2)+'\n');
  await fs.rename(temporary,target);
  return {file:target,contentId:identity.contentId,scenes:scenes.length,checked:false,userAccepted:false,next:'Read native production.authoring; correct missing design and code binding before rendering.'};

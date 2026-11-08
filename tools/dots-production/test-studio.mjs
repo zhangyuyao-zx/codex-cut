@@ -4,9 +4,11 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {syncBook,registerAsset,captureReview} from './studio.mjs';
 import {digest} from './production-pack.mjs';
 import {mediaTransform,cameraAt} from './studio/media.mjs';
+import {reviewTopics,topicCoverage} from './studio/standards.mjs';
 const json=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const write=async(p,data)=>{await fs.mkdir(path.dirname(p),{recursive:true});await fs.writeFile(p,JSON.stringify(data));};
 
@@ -28,9 +30,31 @@ test('capture extracts real frames of the selected native output and never claim
  const result=await captureReview({project:p,sceneId:'s',renderId:'r1',out:path.join(p,'review')});
  const capture=await json(result.capture),draft=await json(result.reviewDraft);
  assert.equal(capture.frames.length,3);assert.equal(capture.videoSha256,await digest(video));assert.equal(capture.renderId,'r1');assert.equal(draft.verdict,'unreviewed');assert.equal(draft.playback,null);assert.equal(result.userAccepted,false);assert.equal(await digest(path.join(base,'authoring.json')),before);
+ assert.ok(capture.reviewTopics.includes('typography'));assert.ok(capture.reviewTopics.includes('objects'));assert.ok(!capture.reviewTopics.includes('materials'));
+ assert.equal(draft.findings.length,0);assert.equal(draft.referenceComparisons.length,0);
+ assert.equal(await digest(result.media.video),capture.videoSha256);assert.equal(result.media.frames.length,3);
+ assert.ok(result.chatMarkdown.includes(result.media.video));assert.ok(result.chatMarkdown.includes(result.media.frames[0].file));
+ const page=await fs.readFile(path.join(p,'review/index.html'),'utf8');assert.match(page,/字块与观看尺度/);assert.match(page,/框内物件与美术细部/);
  const image=capture.frames[0].file;await registerAsset({project:p,id:'frame',file:image,source:'synthetic fixture',supports:'technical test'});
  await assert.rejects(registerAsset({project:p,id:'frame',file:image,source:'x',supports:'y'}),/已存在/);
  await assert.rejects(captureReview({project:p,sceneId:'s',renderId:'unknown',out:path.join(p,'invalid')}),/原生样片/);
+});
+test('review prompts follow shot material and film scope without inventing observations',()=>{
+ const abstract=reviewTopics();assert.ok(!abstract.some(t=>t.id==='materials'));
+ const real=reviewTopics({real:true});assert.ok(real.some(t=>t.id==='materials'));
+ const film=reviewTopics({film:true,real:true});assert.ok(film.every(t=>!t.reference));
+ assert.ok(topicCoverage({findings:[],referenceComparisons:[]},real).some(e=>e.includes('字块')));
+ assert.ok(topicCoverage({findings:[{topics:['not-a-topic']}]},real).some(e=>e.includes('有效')));
+});
+test('the default CLI routes to studio and refuses implicit legacy creation before writing',async t=>{
+ const p=await fs.mkdtemp(path.join(os.tmpdir(),'dots-routing-'));t.after(()=>fs.rm(p,{recursive:true,force:true}));
+ const cli=fileURLToPath(new URL('./cli.mjs',import.meta.url));
+ const help=execFileSync(process.execPath,[cli],{encoding:'utf8'});assert.match(help,/studio standards/);assert.match(help,/WORKFLOW.md/);
+ for(const command of ['init','init-film','prepare','bind-native']){
+  assert.throws(()=>execFileSync(process.execPath,[cli,command,'--to',path.join(p,'output')],{encoding:'utf8',stdio:'pipe'}),e=>e.status===1&&String(e.stderr).includes('历史创建命令'));
+ }
+ assert.deepEqual(await fs.readdir(p),[]);
+ const data=JSON.parse(execFileSync(process.execPath,[cli,'studio','standards'],{encoding:'utf8'}));assert.equal(data.id,'dots-craft');
 });
 test('source crop is wholly visible, focus coordinates stay aligned, and camera seeking is deterministic',()=>{
  const t=mediaTransform({w:2000,h:1000},{w:300,h:300},{x:500,y:200,w:1000,h:500});

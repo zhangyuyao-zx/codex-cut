@@ -41,6 +41,8 @@
 
 **Dots 当前制作入口：材料与代表样片先行。** 新工程使用 [WORKFLOW](tools/dots-production/WORKFLOW.md)：全片简排、真实选材、代表样片、实际比较、扩展与整片审阅。原生分镜和代码负责实现，一份制作记录保存选材与观察；不用多套动作脚本证明同一件事。新工具提供真实媒体选区、标注、原生样片捕获以及[部件与实例索引](tools/dots-production/studio/CRAFT.md)。技术有效、作者观察和用户认可分别报告；[架构与验证范围](docs/implementation/2026-11-08-artifact-first-direction.md)说明具体边界。
 
+[完整采用标准](tools/dots-production/studio/standards.json)集中维护导演、美术和后续决定，通过 `studio standards/resume/capture` 进入实际制作。字体、框内物件、整体构图与运动的对照要在代表样片中完成；标准与流程不再散落维护多份。旧创建命令只在 `legacy` 命名空间，不能把 schema 2 工程降级；[本轮收口记录](docs/implementation/2026-11-08-dots-standards-consolidation.md)说明执行与兼容边界。
+
 参考拆解仍独立使用 [reference-study](tools/reference-study/README.md)。已保存作品继续读取其协议，1.0—1.3 固定源码和[历史接入协议](tools/dots-production/legacy/NATIVE_AUTHORING_V1.md)保留；更新公共入口不会强迁移在途影片。
 
 **2026-11-07 真人制作升级：** 新增人物与真实素材的连续交接、原图重点抽取、素材退为背景，以及原生可编辑场景；沿用现有工程与声音轨。见[制作入口](tools/talking-head-production/README.md)和[验证范围](docs/implementation/2026-11-07-talking-head-media.md)。
@@ -115,7 +117,7 @@ Codex Cut 是一个 **Codex 驱动、本地运行的视频剪辑与动画包装�
 
 它面向口播、访谈、教程和知识类视频。创作过程围绕真实文稿与口播节奏展开，让动画在说到对应内容时依次出现。
 
-> 当前版本：`v0.3.2` 预览版 · 本地优先 · 项目和媒体默认不进入 Git。技术验证、插件安装和用户作品认可分别记录，详见[当前更新记录](docs/implementation/2026-11-05-reference-and-dots-tools.md)。
+> 当前版本：`v0.3.2` 预览版 · 本地优先 · 项目和媒体默认不进入 Git。技术验证、插件安装和用户作品认可分别记录，制作侧当前更新见[标准与入口收口](docs/implementation/2026-11-08-dots-standards-consolidation.md)。
 
 ## 核心能力
 
@@ -130,7 +132,7 @@ Codex Cut 是一个 **Codex 驱动、本地运行的视频剪辑与动画包装�
 | **07** | 本地版本保护 | revision、哈希、原子保存、撤销、过期任务保护和已确认版本共同守住用户修改 |
 | **08** | 素材提需 | 缺失素材挂在对应段落，保留理想设计，同时允许继续处理其他段落 |
 | **09** | 参考研究工具 | 关联逐句声画、视觉段、元素与子部件、动作、转场及实际证据；可校验和浏览 |
-| **10** | dots 制作源码 | 固定版本的状态与运动部件、段落脚本和全片交接检查；构图按理解任务原创 |
+| **10** | dots 制作 | 材料与代表样片先行、统一采用标准、实际对照；固定视觉源码按任务复用 |
 
 ## 六步制作方法
 
@@ -192,9 +194,8 @@ flowchart TB
 研究示例是明确标注的合成图示；dots 公共套件不附私人参考原片、产品页面、音轨或字体，也不自动进入工作台可用视觉库。它们帮助记录与实现，完整运动、声音和审美仍需实际审阅。
 
 ```bash
-npm run dots -- list
-npm run dots -- verify
-npm run test:authoring
+npm run dots -- studio standards
+npm run dots -- studio resume --project /path/to/project
 ```
 
 ## 快速开始
@@ -309,7 +310,7 @@ Codex Cut 的项目原创代码以 [PolyForm Noncommercial License 1.0.0](LICENS
 
 - **当前版本**：`0.3.2` 预览版；新增参考研究和 dots 制作工具，保留独立工程接入、完整混音及历史 A—E 编辑升级。
 - **源码状态**：保留现有 Remotion、六步创作方法与逐段确认，加入共享对象命令、编辑外壳、时间线、事件同步及配套恢复；旧库只兼容历史引用。
-- **实际证据**：本版验证记录见[研究与制作工具更新](docs/implementation/2026-11-05-reference-and-dots-tools.md)。历史编辑、独立工程及混音的合成工程证据见 [v0.3.1 记录](docs/implementation/2026-10-29-project-and-soundtrack.md)。
+- **实际证据**：当前制作架构与标准见[架构重构](docs/implementation/2026-11-08-artifact-first-direction.md)和[标准收口](docs/implementation/2026-11-08-dots-standards-consolidation.md)。[早期研究与制作工具](docs/implementation/2026-11-05-reference-and-dots-tools.md)及 [v0.3.1 记录](docs/implementation/2026-10-29-project-and-soundtrack.md)只提供历史实施依据。
 - **用户验收**：真实影片审美、内容质量及长期使用仍由用户判断。工具检查、发布版本和具体作品认可分别记录；本次工具更新不重制或重新确认既有作品。
 - **授权状态**：PolyForm Noncommercial 1.0.0，允许个人与非商业使用；上游授权见上述说明。
 

@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {afterEach,expect,it} from 'vitest';
 import {createProductionAuthoringGate} from './production-authoring';
+import {reviewTopics} from '../tools/dots-production/studio/standards.mjs';
 const dirs:string[]=[];
 afterEach(async()=>{for(const d of dirs.splice(0))await rm(d,{recursive:true,force:true});});
 const write=async(p:string,data:any)=>{await mkdir(path.dirname(p),{recursive:true});await writeFile(p,JSON.stringify(data));};
@@ -29,8 +30,9 @@ async function fixture(){
   const frames=[];for(let i=0;i<3;i++){const f=path.join(base,`frame${i}.png`);await writeFile(f,`synthetic frame ${i}`);frames.push({at:i*.7,file:f,sha256:await digest(f)});}
   const render={id:'run',key:'native-key',sceneId:'a',from:0,end:60,status:'done',current:true,url:'/production-media/renders/run/review.mp4',authoringDesign:design};
   reviews.push({sceneId:'a',latest:render,history:[render]});
-  const capture=path.join(base,'capture.json');await write(capture,{schemaVersion:2,sceneId:'a',renderId:'run',key:'native-key',design:{a:design.a},video,videoSha256:await digest(video),duration:2,frames,references:[{id:'ref',...book.references.ref}],viewedCopy:{file:video,sha256:await digest(video)},referenceCopies:[{id:'ref',file:ref,sha256:await digest(ref)}]});
-  book.reviews.a={capture,verdict:'candidate',playback:{rate:1,from:0,to:2,observed:'Synthetic test declaration, not real viewing'},findings:[{at:1,observed:'test',decision:'test',status:'retain'}],referenceComparisons:[{id:'ref',at:1,observed:'test'}],targetWidth:390,audio:{status:'not-listened',observed:'Synthetic fixture'},userAccepted:false};
+  const topics=reviewTopics({real:true});
+  const capture=path.join(base,'capture.json');await write(capture,{schemaVersion:2,sceneId:'a',renderId:'run',key:'native-key',design:{a:design.a},video,videoSha256:await digest(video),duration:2,frames,references:[{id:'ref',...book.references.ref}],viewedCopy:{file:video,sha256:await digest(video)},referenceCopies:[{id:'ref',file:ref,sha256:await digest(ref)}],reviewTopics:topics.map(t=>t.id)});
+  book.reviews.a={capture,verdict:'candidate',playback:{rate:1,from:0,to:2,observed:'Synthetic test declaration, not real viewing'},findings:[{at:1,topics:topics.map(t=>t.id),observed:'Synthetic fixture, not art judgment',decision:'test',status:'retain'}],referenceComparisons:[{id:'ref',at:1,topics:topics.filter(t=>t.reference).map(t=>t.id),observed:'Synthetic fixture'}],targetWidth:390,audio:{status:'not-listened',observed:'Synthetic fixture'},userAccepted:false};
   return {render,video,capture};
  }
  return {root,project,book,plan,modules,reviews,inspect,reviewA,asset,ref,code};
@@ -67,4 +69,21 @@ it('cannot substitute static frames for playback or merge author judgment into u
 it('reference/playback copies stay bound to actual bytes',async()=>{
  const f=await fixture();const r=await f.reviewA();await writeFile(r.video,'changed output');
  expect((await f.inspect('review')).errors.join()).toContain('视频身份失效');
+});
+it('a semantic-only review cannot stand in for typography, object detail and motion comparison',async()=>{
+ const f=await fixture();await f.reviewA();
+ f.book.reviews.a.findings[0].topics=['understanding'];
+ f.book.reviews.a.referenceComparisons[0].topics=['composition'];
+ const result=await f.inspect('review');expect(result.ok).toBe(false);
+ expect(result.errors.join()).toContain('字块与观看尺度');
+ expect(result.errors.join()).toContain('框内物件与美术细部');
+ expect(result.errors.join()).toContain('内部动作、触感与节奏');
+});
+it('older schema 2 captures need refreshed prompts, not a forced rerender',async()=>{
+ const f=await fixture();const {capture}=await f.reviewA();
+ const before=(await f.inspect()).sceneHashes;
+ const evidence=JSON.parse(await readFile(capture,'utf8'));delete evidence.reviewTopics;await write(capture,evidence);
+ const result=await f.inspect('review');expect(result.ok).toBe(false);
+ expect(result.errors.join()).toContain('重新 studio capture');
+ expect((await f.inspect()).sceneHashes).toEqual(before);
 });
