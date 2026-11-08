@@ -49,7 +49,10 @@ export function createProductionAuthoringGate(root:string,projectDir:string,obse
    if(film.contentId!==requirement.contentId)throw Error('全片编排属于其他内容');
    const resolved=resolveProduction(input.plan,input.cut);
    if(resolved.stale||resolved.issues.length)throw Error('制作依据与当前粗剪不一致：'+resolved.issues.join('；'));
-   const {catalog,version,direction}=await checkedKit(binding.kitVersion);
+   // Early bindings already pin the copied preparation package. Keep that
+   // identity when adopting the explicit top-level pin; never use a new default.
+   const pinnedVersion=binding.kitVersion??(await json(resolveFile(binding.scenes[0]?.preparation))).version;
+   const {catalog,version,direction}=await checkedKit(pinnedVersion);
    const scripts:any[]=[],entries:any[]=[];
    for(const b of binding.scenes){
     const file=resolveFile(b.script),script=await json(file),scriptHash=await digest(file);

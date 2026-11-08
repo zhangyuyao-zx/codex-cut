@@ -134,6 +134,8 @@ it('a future catalog default does not upgrade or invalidate a pinned production 
  const f=await fixture();const file=path.join(f.root,'tools/dots-production/catalog.json'),catalog=await json(file);
  catalog.currentVersion='9.9.9';await write(file,catalog);
  expect((await f.inspect()).errors).toEqual([]);
+ delete f.binding.kitVersion;await write(path.join(f.project,'production/authoring.json'),f.binding);
+ expect((await f.inspect()).errors).toEqual([]);
 });
 
 it('assembly requires adjacent and similar scenes to be compared against current selected renders',async()=>{

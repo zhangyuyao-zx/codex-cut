@@ -30,7 +30,7 @@
 npm run dots -- bind-native --project /path/to/native-project --film /path/to/全片编排.json --preparation /path/to/制作依据.json
 ```
 
-绑定保存 `kitVersion`，以后目录默认版本更新仍按工程锁定版本核验，不自动迁移既有作品。
+绑定保存 `kitVersion`，以后目录默认版本更新仍按工程锁定版本核验，不自动迁移既有作品。早期绑定未写顶层版本时，读取已经复制到本期准备包里的固定版本，兼容现有工作。
 
 命令仅填充新工程的空绑定；已填绑定拒绝覆盖，后续按当前文件局部修改。它不会替作者填设计、选参考、标记通过或写用户接受。多准备包情况直接维护绑定中每段的 `preparation`。路径相对于绑定文件，也可以使用绝对路径。
 
