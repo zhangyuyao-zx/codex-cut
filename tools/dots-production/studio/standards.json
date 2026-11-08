@@ -1,6 +1,6 @@
 {
   "id": "dots-craft",
-  "version": 1,
+  "version": 2,
   "scope": "Dots 方向的制作与实际审阅；不改变其他风格，也不追溯改写已验收作品",
   "topics": [
     {"id":"understanding","title":"导演与声画分工","question":"观众多懂了什么？旁白、主字、字幕与可见事件各承担什么？前提、依据、动作和结果是否一致？","film":true},
@@ -52,6 +52,7 @@
     {"id":"U12","rule":"采用稿和已验收旁白按本期版本保留；不擅自改词、变速或重录。新片读取本机共同声音配置，沿用已确认的自动情绪、语速、BGM及音量依据，音效对应具体动作并实际听审。","topics":[],"implementation":"sound preset / native soundtrack / review.audio"},
     {"id":"U13","rule":"审阅优先在对话中交付实际视频与关键画面，尤其用户用手机时；不要只给 localhost 网页或声称本机路径是手机可访问公网链接。以客户端实际媒体能力交付，不能播放时明确说明并提供可查看画面。","topics":[],"implementation":"studio capture.chatMarkdown / SKILL delivery"},
     {"id":"U14","rule":"原片研究与 Dots 制作分开维护；按本期问题取已存参考与已认可复刻，不让用户反复补图，也不每次全量拉片。","topics":[],"implementation":"reference-study / studio reference"},
-    {"id":"U15","rule":"代表样片先完成美术和动态的实际对照再扩展；不省略已确认流程，不把字段齐全、渲染成功或自动检查当成审美通过。实际判断由制作主代理完成。","topics":[],"implementation":"native representative/review/assembly gates"}
+    {"id":"U15","rule":"代表样片先完成美术和动态的实际对照再扩展；不省略已确认流程，不把字段齐全、渲染成功或自动检查当成审美通过。实际判断由制作主代理完成。","topics":[],"implementation":"native representative/review/assembly gates"},
+    {"id":"U16","rule":"每段先用正式素材和共用场景导出一张能代表最终效果的静态图，实际检查后在对话中给用户审阅；可几段一起发，按明确通过的段落与图片版本推进动画。静态图与视频共用实现，不先做完整动画再补审图。修改主要视觉方案重新审图，图片确认不替代带声样片和整片验收；不追补已验收旧作品。","topics":["composition","typography","objects"],"implementation":"WORKFLOW.md / authoring.storyboardFrames / studio frame, approve-frame, resume / native render gate"}
   ]
 }

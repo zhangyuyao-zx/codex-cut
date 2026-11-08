@@ -19,9 +19,9 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 以下命令均在 `workbench_status` 返回的配置源码根运行，不能在插件缓存目录猜相对路径。研究输入和生成物放入独立研究/内容项目目录。
 
 - `tools/reference-study/README.md`：读取分类清单和数据协议，用 `python3 tools/reference-study/validate.py <study.json>` 校验，再用 `build_viewer.py` 与 `serve.py` 浏览证据。需要 Python 3.9+，不自动转写、观看或生成结论。
-- `tools/dots-production/WORKFLOW.md`：新工程唯一制作流程；原生分镜 + 一份选材/观察记录。`npm run dots -- studio sync --project <工程>` 同步全片简表；`studio reference/asset` 登记实际参考和素材；`studio capture` 从原生渲染生成实际证据和空白观察；`studio resume` 接续当前依据。字段和具体命令只在 WORKFLOW 维护。
+- `tools/dots-production/WORKFLOW.md`：新工程唯一制作流程；原生分镜 + 一份选材/观察记录。`npm run dots -- studio sync --project <工程>` 同步全片简表；`studio reference/asset` 登记实际参考和素材；`studio frame`登记共用场景导出的每段一张实际静态图，用户明确确认后用`studio approve-frame`记录具体版本，再推进动画；可成组送审、按段通过。`studio capture` 从原生渲染生成动态证据和空白观察；`studio resume` 接续当前依据及按段图片状态。字段和具体命令只在 WORKFLOW 维护。
 - `tools/dots-production/studio/standards.json`：完整采用标准唯一来源，`studio standards/resume`直接返回；`CRAFT.md`连接具体部件和真实实例。`studio capture`将实际比较维度带入现有观察，并返回对话媒体引用。`media.jsx`的页面取景、焦点和注意力部件不带默认整场布局。固定1.3源码仍可组合复用。
-- `production.authoring` 的 technicalValidation 仅表示技术条件，nextAction 指当前缺口；authoringReviews/authoringDelivery 分别绑定当前样片及整片实际观察。新工程服务需 `productionAuthoringGateVersion:2`；已有 schema 1 工程按 `tools/dots-production/legacy/NATIVE_AUTHORING_V1.md` 保持兼容，不自动迁移。
+- `production.authoring` 的 technicalValidation 仅表示技术条件，nextAction 指当前缺口，storyboard展示每段静态图确认；authoringReviews/authoringDelivery 分别绑定当前样片及整片实际观察。新工程服务需 `productionAuthoringGateVersion:3`，视频渲染检查当前段落图片确认；已有 schema 1 工程按 `tools/dots-production/legacy/NATIVE_AUTHORING_V1.md` 保持兼容，不追补已渲染旧作品。
 - 历史创建命令`prepare/bind-native/init/init-film`只在显式`legacy`命名空间开放；`bind-native`不能覆盖schema 2空记录。旧检查接口继续用于历史工程，不叠加成新工程必填材料。旧源码版本与对应作品继续固定；代码检查不代替实际视觉与声音检查。
 
 
@@ -29,7 +29,7 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 
 - `open_workbench {}` 只启动/复用服务并返回 URL，不切换素材。使用 `open_in_codex` 等现有浏览器面板能力展示该 URL。
 - `read_project {section:"summary"}` 是常规入口。`production` 返回完整方案；带 `sceneId` 只返回该段与编辑信息。`cut` 返回剪辑及词时间。
-- `read_project {section:"storyboard"}` 返回整片真实关键帧、当前/历史样片标记、画面观察及设计描述相似提示。读取不会生成画面；没有关键帧时先执行下表的 production/storyboard。图片在本机返回的 frame.url，先实际查看再记录观察。
+- `read_project {section:"storyboard"}` 返回已有视频的真实关键帧、当前/历史样片标记、画面观察及设计描述相似提示，供动态制作后的整片对照；制作前的静态图确认用上面的studio命令。读取不会生成画面；没有关键帧时先执行下表的 production/storyboard。图片在本机返回的 frame.url，先实际查看再记录观察。
 - `read_project {section:"visual-library",query?}` 读取新资产、风格包、参考、favorites、活动任务及当前可用的 replacementMedia。候选和可用资源分开看状态。`references` 只返回参考列表和进展；query 按用途、名称等文字筛选。
 - `read_project {section:"visual-asset",member:{id,version}}` 读资产与真实模块详情；`style-pack` 用相同 member 读风格包。也可改用独立 `id`、`version`，两种写法不能混用。
 - `read_project {section:"animations"}` 读取「我的动画」目录，包含保存版本、模块与按顺序排列的 cue；不是旧组件目录。

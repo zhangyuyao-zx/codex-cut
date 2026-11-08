@@ -5,12 +5,34 @@ import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {syncBook,registerAsset,captureReview} from './studio.mjs';
+import {syncBook,registerAsset,captureReview,registerStoryboardFrame,approveStoryboardFrame,studioCommand} from './studio.mjs';
 import {digest} from './production-pack.mjs';
 import {mediaTransform,cameraAt} from './studio/media.mjs';
 import {reviewTopics,topicCoverage} from './studio/standards.mjs';
 const json=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const write=async(p,data)=>{await fs.mkdir(path.dirname(p),{recursive:true});await fs.writeFile(p,JSON.stringify(data));};
+
+test('static frame registration and explicit confirmation stay separate from video approval and native edits',async t=>{
+ const p=await fs.mkdtemp(path.join(os.tmpdir(),'studio-still-'));t.after(()=>fs.rm(p,{recursive:true,force:true}));
+ const native=path.join(p,'production/production.json'),book=path.join(p,'production/authoring.json'),image=path.join(p,'actual.png');
+ const plan={state:{scenes:[{id:'a',title:'静态构图',program:{moduleId:'shot',parameters:{}}},{id:'b'}]}};
+ await write(native,plan);await write(book,{schemaVersion:2,contentId:'C20261108-001',assets:{},references:{},scenes:[{sceneId:'a',visualTask:'查看图中主体'},{sceneId:'b',visualTask:'下一段'}],reviews:{a:{userAccepted:false}},comparisons:[]});
+ execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=orange:s=160x90','-frames:v','1','-update','1',image]);
+ const nativeBefore=await digest(native);
+ const register=()=>registerStoryboardFrame({project:p,sceneId:'a',file:image,reason:'技术测试的静态画面，不代表真实审美验收',source:'synthetic fixture for shared scene export'});
+ const result=await register();assert.equal(result.animationApproved,false);assert.equal(result.frame.width,160);assert.match(result.chatMarkdown,/待确认/);assert.ok(result.chatMarkdown.includes(result.frame.file));
+ const resume=()=>studioCommand(['resume','--project',p]);
+ assert.equal((await resume()).scenes[0].storyboardStatus.status,'pending');
+ await assert.rejects(approveStoryboardFrame({project:p,sceneId:'a',sha256:'wrong',basis:'synthetic user approval'}),/不能确认/);
+ await assert.rejects(approveStoryboardFrame({project:p,sceneId:'a',sha256:result.frame.sha256,basis:''}),/用户明确确认/);
+ const approval=await approveStoryboardFrame({project:p,sceneId:'a',sha256:result.frame.sha256,basis:'Synthetic test approval, not a real user confirmation'});
+ assert.equal(approval.staticFrameApproved,true);assert.equal(approval.videoApproved,false);
+ let resumed=await resume();assert.equal(resumed.scenes[0].storyboardStatus.status,'approved');assert.equal(resumed.scenes[1].storyboardStatus.status,'missing');
+ assert.equal((await json(book)).reviews.a.userAccepted,false);assert.equal(await digest(native),nativeBefore);
+ const old=await json(book);await register();resumed=await resume();assert.equal(resumed.scenes[0].storyboardStatus.status,'pending');assert.notEqual(resumed.scenes[0].storyboardFrame.file,old.storyboardFrames.a.file);assert.equal(await digest(old.storyboardFrames.a.file),old.storyboardFrames.a.sha256);
+ const history=await fs.readdir(path.join(p,'production/direction-history'));assert.ok(history.length>=3);
+ await fs.writeFile(resumed.scenes[0].storyboardFrame.file,'changed');assert.equal((await resume()).scenes[0].storyboardStatus.status,'stale');
+});
 
 test('sync preserves authored decisions and archives removed shots without editing the native plan',async t=>{
  const p=await fs.mkdtemp(path.join(os.tmpdir(),'studio-sync-'));t.after(()=>fs.rm(p,{recursive:true,force:true}));

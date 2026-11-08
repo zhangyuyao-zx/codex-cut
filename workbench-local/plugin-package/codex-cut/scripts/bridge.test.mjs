@@ -16,7 +16,8 @@ const {projectDirectory}=await import(pathToFileURL(resolve(root,'workbench-loca
 const digest=async f=>createHash('sha256').update(await readFile(resolve(root,f))).digest('hex');
 test('runtime mismatch is explicit without restarting or claiming new capability',()=>{
  assert.equal(productionRuntimeStatus({productionAuthoringGateVersion:1}).compatibleWithNewWorkflow,false);
- assert.equal(productionRuntimeStatus({productionAuthoringGateVersion:2}).compatibleWithNewWorkflow,true);
+ assert.equal(productionRuntimeStatus({productionAuthoringGateVersion:2}).compatibleWithNewWorkflow,false);
+ assert.equal(productionRuntimeStatus({productionAuthoringGateVersion:3}).compatibleWithNewWorkflow,true);
  assert.equal(productionRuntimeStatus({}).actual,0);
 });
 test('seven discoverable tools and exact argument validation',async()=>{

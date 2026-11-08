@@ -608,7 +608,7 @@ export async function productionRoutes(
     const gated=Object.assign(result,{authoring,authoringReviews,authoringDelivery});
     return Object.defineProperties(gated,{renderInputs:{value:externalInputs},runtimeIdentity:{value:runtimeHash}}) as typeof gated&{renderInputs:typeof externalInputs;runtimeIdentity:string|null};
   }
-  async function enforceAuthoring(c:any,stage:'design'|'review'|'assembly'|'delivery',sceneId?:string,renderId?:string){
+  async function enforceAuthoring(c:any,stage:'design'|'render'|'review'|'assembly'|'delivery',sceneId?:string,renderId?:string){
     return authoringGate.assert({plan:await store.get(),cut:c.cut,modules:c.sceneModules,reviews:c.segmentReviews,stage,sceneId,renderId,job:c.job});
   }
   async function context(sceneId?:string){
@@ -1594,7 +1594,7 @@ export async function productionRoutes(
       if (c.resolved.stale || c.resolved.issues.length)
         throw Error(c.resolved.issues.join("\n") || "请先同步剪辑时间");
       if (!c.plan.scenes.length) throw Error("请先设计段落");
-      await enforceAuthoring(c,'design',sceneId);
+      await enforceAuthoring(c,'render',sceneId);
       if (!c.props) throw Error(c.programError);
       if (
         !sceneId &&

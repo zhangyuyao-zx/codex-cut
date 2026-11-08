@@ -19,7 +19,7 @@ export function createProductionAuthoringGate(root:string,projectDir:string,obse
     if(book.schemaVersion===2)return direction.inspect(input,book,requirement);
     if(book.schemaVersion!==1)throw Error('不支持的制作记录版本；不能自动降级或覆盖');
    }
-   const result=await legacy.inspect(input);
+   const result=await legacy.inspect({...input,stage:input.stage==='render'?'design':input.stage});
    return {...result,workflow:'legacy-v1',technicalValidation:result.ok?'valid':'blocked',
     visualJudgment:'not-automatically-assessed',nextAction:'既有工程按保存的协议继续；新工程从 tools/dots-production/WORKFLOW.md 开始。'};
   }catch(e:any){return {required:true,ok:false,errors:[e.message],sceneHashes:{},technicalValidation:'blocked',visualJudgment:'not-automatically-assessed'};}

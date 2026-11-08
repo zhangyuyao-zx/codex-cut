@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import {digest,probe,freshDirectory,html} from './production-pack.mjs';
 import {standards,reviewTopics} from './studio/standards.mjs';
+import {storyboardKey,storyboardStatus} from './studio/storyboard.mjs';
 const read=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const run=args=>execFileSync('ffmpeg',['-v','error','-nostdin',...args],{stdio:'pipe'});
@@ -43,6 +45,36 @@ export async function importReference({project,registry,id}){
  if(state.book.references[id])throw Error('参考 id 已存在，不静默替换');
  state.book.references[id]={file,sha256:r.media.sha256,from:r.media.fromSeconds,to:r.media.toSeconds,learn:r.learn,avoid:r.avoid};
  return saveBook(state);
+}
+export async function registerStoryboardFrame({project,sceneId,file,reason,source}){
+ if(!reason?.trim()||!source?.trim())throw Error('说明这张图代表本段的理由及实际导出来源');
+ const state=await loadBook(project),nativeFile=path.join(project,'production/production.json');
+ const nativeBytes=await fs.readFile(nativeFile,'utf8'),plan=JSON.parse(nativeBytes).state;
+ const visualKey=storyboardKey(state.book,plan,sceneId);
+ if(!plan.scenes.find(s=>s.id===sceneId)?.program)throw Error('先完成本段共用场景的静态排版，再导出代表画面');
+ const input=path.resolve(file),info=JSON.parse(execFileSync('ffprobe',['-v','error','-show_entries','stream=codec_type,codec_name,width,height:format=format_name','-of','json',input],{encoding:'utf8'})),stream=info.streams?.find(s=>s.codec_type==='video');
+ const ext={png:'png',mjpeg:'jpg',webp:'webp'}[stream?.codec_name];
+ if(!ext||!['png_pipe','jpeg_pipe','webp_pipe','image2'].includes(info.format?.format_name)||!(stream.width>0&&stream.height>0))throw Error('分镜送审需要实际PNG/JPEG/WebP静态图片，不能用视频或文字计划代替');
+ const sha256=await digest(input),destination=path.join(project,'production/design-frames',randomUUID(),'frame.'+ext);
+ await fs.mkdir(path.dirname(destination),{recursive:true});await fs.copyFile(input,destination);
+ if(await digest(destination)!==sha256)throw Error('图片在复制时变化，请重新导出');
+ if(await fs.readFile(nativeFile,'utf8')!==nativeBytes)throw Error('原生设计在登记期间变化，重新读取后再送审');
+ const frame={sceneId,file:destination,sha256,width:stream.width,height:stream.height,visualKey,reason,source,createdAt:new Date().toISOString(),approval:null};
+ state.book.storyboardFrames??={};state.book.storyboardFrames[sceneId]=frame;
+ await saveBook(state);
+ return {sceneId,frame,status:'pending-user-review',animationApproved:false,chatMarkdown:`${sceneId} · 分镜静态图（待确认）\n\n![${sceneId} 分镜](<${destination}>)\n\n${reason}`};
+}
+export async function approveStoryboardFrame({project,sceneId,sha256,basis}){
+ if(!basis?.trim())throw Error('仅在用户明确确认具体图片后，记录对应消息或原话；制作流程同意不算图片确认');
+ const state=await loadBook(project),nativeFile=path.join(project,'production/production.json');
+ const nativeBytes=await fs.readFile(nativeFile,'utf8'),plan=JSON.parse(nativeBytes).state;
+ const status=await storyboardStatus({book:state.book,plan,sceneId,digest,resolveFile:f=>path.resolve(path.dirname(state.p),f)});
+ const frame=state.book.storyboardFrames?.[sceneId];
+ if(!frame||frame.sha256!==sha256||!['pending','approved'].includes(status.status))throw Error('不能确认过期或未送审的静态图：'+status.reason);
+ frame.approval={kind:'user',sceneId,sha256,visualKey:frame.visualKey,basis,at:new Date().toISOString()};
+ if(await fs.readFile(nativeFile,'utf8')!==nativeBytes)throw Error('原生设计已变化，重新读取后再确认');
+ await saveBook(state);
+ return {sceneId,staticFrameApproved:true,videoApproved:false,next:'仅推进本段动画；带声样片仍需按原流程审阅'};
 }
 export async function captureReview({project,sceneId,renderId,out,times}){
  const {book}=await loadBook(project),root=path.join(project,'production');
@@ -91,11 +123,14 @@ export async function studioCommand(args){
  if(action==='sync')return syncBook(project);
  if(action==='asset')return registerAsset({project,id:value('--id'),file:path.resolve(value('--file')),source:value('--source'),supports:value('--supports')});
  if(action==='reference')return importReference({project,registry:path.resolve(value('--registry')),id:value('--id')});
+ if(action==='frame')return registerStoryboardFrame({project,sceneId:value('--scene'),file:value('--file'),reason:value('--reason'),source:value('--source')});
+ if(action==='approve-frame')return approveStoryboardFrame({project,sceneId:value('--scene'),sha256:value('--sha256'),basis:value('--basis')});
  if(action==='capture')return captureReview({project,sceneId:value('--scene'),renderId:value('--render'),out:path.resolve(value('--out')),times:rest.includes('--times')?value('--times').split(',').map(Number):undefined});
  if(action==='resume'){
   const {book,p}=await loadBook(project);
   const plan=(await read(path.join(project,'production/production.json'))).state;
-  return {entry:'tools/dots-production/WORKFLOW.md',craftGuide:'tools/dots-production/studio/CRAFT.md',standards,record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes:book.scenes.map(s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,reviewTopics:reviewTopics({real:s.mediaMode==='real'}).map(t=>t.id),review:book.reviews?.[s.sceneId]??null})),note:'观察记录不自动等于当前有效；用 read_project 的 authoring 返回验证结果。'};
+  const scenes=await Promise.all(book.scenes.map(async s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,storyboardFrame:book.storyboardFrames?.[s.sceneId]??null,storyboardStatus:await storyboardStatus({book,plan,sceneId:s.sceneId,digest,resolveFile:f=>path.resolve(path.dirname(p),f)}),reviewTopics:reviewTopics({real:s.mediaMode==='real'}).map(t=>t.id),review:book.reviews?.[s.sceneId]??null})));
+  return {entry:'tools/dots-production/WORKFLOW.md',craftGuide:'tools/dots-production/studio/CRAFT.md',standards,record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes,note:'每段静态图先经用户确认再做动画；图片确认不等于视频验收。动态观察仍用 read_project 的 authoring 验证。'};
  }
- throw Error('studio supports standards, sync, asset, reference, capture, resume');
+ throw Error('studio supports standards, sync, asset, reference, frame, approve-frame, capture, resume');
 }

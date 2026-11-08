@@ -5,7 +5,7 @@
   "versionScope": "currentVersion pins reusable visual source; it is not the production workflow version",
   "productionProtocol": {
     "authoringSchema": 2,
-    "serviceCapability": 2,
+    "serviceCapability": 3,
     "standards": "studio/standards.json",
     "entry": "studio"
   },

@@ -27,7 +27,7 @@ try {
   if(legacyCreators.has(command)&&!legacy)throw Error('历史创建命令已移入 legacy；新工程从 WORKFLOW.md 和 studio 开始。仅恢复旧协议时显式使用 legacy '+command+'。');
   const catalog=await read(path.join(root,'catalog.json'));
   if(!command||command==='help'||command==='--help') {
-    console.log('Dots 当前制作入口：tools/dots-production/WORKFLOW.md\n命令：studio standards | studio sync/reference/asset/resume/capture --project PROJECT_DIR\n素材与参考实例：studio/CRAFT.md\n可选诊断：list | verify | compare-frames\n已有 schema 1 工程：legacy/NATIVE_AUTHORING_V1.md；历史创建工具只在 legacy 命名空间。');
+    console.log('Dots 当前制作入口：tools/dots-production/WORKFLOW.md\n命令：studio standards | studio sync/reference/asset/frame/approve-frame/resume/capture --project PROJECT_DIR\n素材与参考实例：studio/CRAFT.md\n可选诊断：list | verify | compare-frames\n已有 schema 1 工程：legacy/NATIVE_AUTHORING_V1.md；历史创建工具只在 legacy 命名空间。');
   } else if(command==='studio') {
     const {studioCommand}=await import('./studio.mjs');
     console.log(JSON.stringify(await studioCommand(args),null,2));

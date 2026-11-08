@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {afterEach,expect,it} from 'vitest';
 import {createProductionAuthoringGate} from './production-authoring';
 import {reviewTopics} from '../tools/dots-production/studio/standards.mjs';
+import {storyboardKey} from '../tools/dots-production/studio/storyboard.mjs';
 const dirs:string[]=[];
 afterEach(async()=>{for(const d of dirs.splice(0))await rm(d,{recursive:true,force:true});});
 const write=async(p:string,data:any)=>{await mkdir(path.dirname(p),{recursive:true});await writeFile(p,JSON.stringify(data));};
@@ -86,4 +87,27 @@ it('older schema 2 captures need refreshed prompts, not a forced rerender',async
  const result=await f.inspect('review');expect(result.ok).toBe(false);
  expect(result.errors.join()).toContain('重新 studio capture');
  expect((await f.inspect()).sceneHashes).toEqual(before);
+});
+it('render waits for the exact segment image while design preparation and existing video review remain available',async()=>{
+ const f=await fixture();expect((await f.inspect('design')).ok).toBe(true);
+ expect((await f.inspect('render')).errors.join()).toContain('一张能代表最终效果');
+ const visualKey=storyboardKey(f.book,f.plan,'a'),sha256=await digest(f.asset);
+ const frame:any={sceneId:'a',file:f.asset,sha256,visualKey,width:160,height:90,reason:'Synthetic identity fixture',source:'Synthetic static export'};
+ f.book.storyboardFrames={a:frame};expect((await f.inspect('render')).errors.join()).toContain('等待用户明确确认');
+ frame.approval={kind:'user',sceneId:'a',sha256,visualKey,at:new Date().toISOString(),basis:'Synthetic approval, not user acceptance'};
+ expect((await f.inspect('render')).ok).toBe(true);expect((await f.inspect('review')).ok).toBe(false);
+ f.plan.scenes[1].program=f.plan.scenes[0].program;f.book.scenes[1]={...f.book.scenes[0],sceneId:'b',prototypeSceneId:'b'};
+ expect((await f.inspect('render','b')).ok).toBe(false);
+ f.book.storyboardFrames.b=frame;expect((await f.inspect('render','b')).storyboard.b.status).toBe('stale');
+ frame.approval.sha256='wrong';expect((await f.inspect('render')).ok).toBe(false);frame.approval.sha256=sha256;
+ await f.reviewA();delete f.book.storyboardFrames;expect((await f.inspect('review')).ok).toBe(true);
+});
+it('static design changes invalidate image acceptance, while implementing motion does not',async()=>{
+ const f=await fixture();const visualKey=storyboardKey(f.book,f.plan,'a'),sha256=await digest(f.asset);
+ f.book.storyboardFrames={a:{sceneId:'a',file:f.asset,sha256,visualKey,width:160,height:90,reason:'Synthetic fixture',source:'Synthetic export',approval:{kind:'user',sceneId:'a',sha256,visualKey,at:new Date().toISOString(),basis:'Synthetic approval'}}};
+ f.modules[0].sourceHash='motion-implementation';f.plan.scenes[0].program.cueBindings={reveal:'a1'};f.plan.scenes[0].beats=[{wordId:'a1',label:'reveal'}];
+ expect((await f.inspect('render')).ok).toBe(true);
+ f.plan.scenes[0].program.styleDefaults={titleSize:90};expect((await f.inspect('render')).storyboard.a.status).toBe('stale');delete f.plan.scenes[0].program.styleDefaults;
+ f.plan.scenes[0].program.parameters={title:'Changed visible wording'};expect((await f.inspect('render')).ok).toBe(false);f.plan.scenes[0].program.parameters={};
+ await writeFile(f.asset,'modified source and image bytes');expect((await f.inspect('render')).ok).toBe(false);
 });

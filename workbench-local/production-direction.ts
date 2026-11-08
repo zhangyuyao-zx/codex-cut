@@ -6,8 +6,9 @@ import {localSourceDependencies} from './source-dependencies';
 import {createContentDigester} from './cut-media-identity';
 import type {AuthoringRequirement} from './production-policy.mjs';
 import {reviewTopics,topicCoverage} from '../tools/dots-production/studio/standards.mjs';
+import {storyboardStatus} from '../tools/dots-production/studio/storyboard.mjs';
 
-export type DirectionInput={plan:any;cut:any;modules:any[];reviews:any[];stage:'design'|'review'|'assembly'|'delivery';sceneId?:string;renderId?:string;job?:any};
+export type DirectionInput={plan:any;cut:any;modules:any[];reviews:any[];stage:'design'|'render'|'review'|'assembly'|'delivery';sceneId?:string;renderId?:string;job?:any};
 const text=(v:any)=>typeof v==='string'&&v.trim().length>0;
 const hash=(v:any)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const same=(a:any,b:any)=>JSON.stringify(a)===JSON.stringify(b);
@@ -19,7 +20,7 @@ export function createDirectionGate(root:string,projectDir:string,observe?:(file
  const digest=async(file:string)=>{observe?.(file);return contentDigest(file);};
  const json=async(file:string)=>{observe?.(file);return JSON.parse(await readFile(file,'utf8'));};
  async function inspect(input:DirectionInput,book:any,requirement:AuthoringRequirement){
-  const errors:string[]=[],sceneHashes:Record<string,string>={},sceneStates:Record<string,string>={};
+  const errors:string[]=[],sceneHashes:Record<string,string>={},sceneStates:Record<string,string>={},storyboard:Record<string,{status:string;approved:boolean;reason:string}>={};
   const base=path.dirname(requirement.file),target=input.sceneId;
   const file=(s:any)=>{if(!text(s))throw Error('缺少文件路径');return path.resolve(base,s);};
   const fail=(message:string)=>errors.push(message);
@@ -51,6 +52,7 @@ export function createDirectionGate(root:string,projectDir:string,observe?:(file
    // Only the requested shot needs detailed implementation. Other shots may remain a coarse plan.
    for(const {s,module,assets,references} of Object.values(entries)){
     if(!selected(s.sceneId))continue;
+    storyboard[s.sceneId]=await storyboardStatus({book,plan:input.plan,sceneId:s.sceneId,digest,resolveFile:file});
     if(!module){fail(s.sceneId+'：尚未接入场景代码');continue;}
     if(!['real','illustration','abstract'].includes(s.mediaMode)||!text(s.selectionReason))fail(s.sceneId+'：先选择具体真实素材或说明抽象/示意表达的依据');
     if(s.mediaMode==='real'&&!assets.length)fail(s.sceneId+'：真实素材选择尚未落到文件');
@@ -110,7 +112,8 @@ export function createDirectionGate(root:string,projectDir:string,observe?:(file
     if(review.userAccepted!==undefined&&review.userAccepted!==false)throw Error('作者记录不能代写用户验收');
    }
    if(!errors.length){
-    if(input.stage==='design'){
+    if(input.stage==='design'||input.stage==='render'){
+     if(input.stage==='render')for(const [id,status] of Object.entries(storyboard))if(!status.approved)fail(id+'：'+status.reason+'；图片确认后再制作动画与带声样片');
      // A first prototype is renderable without inventing reviews. Expansion requires actual calibration.
      const prototypes=[...new Set(book.scenes.filter((s:any)=>selected(s.sceneId)&&(!target||s.prototypeSceneId!==s.sceneId)).map((s:any)=>s.prototypeSceneId))] as string[];
      for(const p of prototypes)for(const e of await checkReview(p))fail('先校准代表样片，随后扩展。'+e);
@@ -133,9 +136,9 @@ export function createDirectionGate(root:string,projectDir:string,observe?:(file
     }
    }
   }catch(e:any){fail(e.message);}
-  return {...requirement,gateVersion:2,workflow:'artifact-first-v2',ok:!errors.length,errors,sceneHashes,sceneStates,
+  return {...requirement,gateVersion:3,workflow:'artifact-first-v2',ok:!errors.length,errors,sceneHashes,sceneStates,storyboard,
    technicalValidation:errors.length?'blocked':'valid',visualJudgment:'not-automatically-assessed',userAccepted:false,
-   nextAction:errors[0]??(input.stage==='design'?'渲染当前段，实际对照造型、动作和注意力；技术有效不代表视觉通过。':'记录已绑定当前输出；用户验收沿用原生入口。')};
+   nextAction:errors[0]??((input.stage==='design'||input.stage==='render')?(Object.values(storyboard).find(s=>!s.approved)?.reason??'本段静态图已确认，继续动画与带声样片；图片认可不等于视频验收。'):'记录已绑定当前输出；用户验收沿用原生入口。')};
  }
  return {inspect};
 }
