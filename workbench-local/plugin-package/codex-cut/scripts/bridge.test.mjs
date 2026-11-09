@@ -11,7 +11,7 @@ const root=resolve(plugin,'../../..');
 const previousRoot=process.env.CODEX_CUT_ROOT;
 process.env.CODEX_CUT_ROOT=root;
 after(()=>{if(previousRoot===undefined)delete process.env.CODEX_CUT_ROOT;else process.env.CODEX_CUT_ROOT=previousRoot;});
-const {invoke,tools,productionRuntimeStatus}=await import('./bridge.mjs');
+const {invoke,tools,productionRuntimeStatus,sceneNarration}=await import('./bridge.mjs');
 const {projectDirectory}=await import(pathToFileURL(resolve(root,'workbench-local/project-location.mjs')).href);
 const digest=async f=>createHash('sha256').update(await readFile(resolve(root,f))).digest('hex');
 test('runtime mismatch is explicit without restarting or claiming new capability',()=>{
@@ -94,6 +94,23 @@ test('production reads preserve authoring gates and scope single-scene checks to
  assert.equal(detail.scene.id,'s01');assert.deepEqual(detail.authoring,scopedProduction.authoring);assert.deepEqual(detail.authoringReviews,scopedProduction.authoringReviews);assert.deepEqual(detail.authoringDelivery,scopedProduction.authoringDelivery);
  assert(calls.some(call=>call.path==='/api/production/context'&&call.query==='?sceneId=s01'));
  assert(!calls.some(call=>call.method!=='GET'));
+});
+
+test('scoped production puts the actual retained speech and local timing beside the scene without making edits',async t=>{
+ const production={plan:{revision:7,scenes:[{id:'s01'}],requests:[],feedback:[]},cut:{revision:13},resolved:{scenes:[{id:'s01',startMs:1010,endMs:2200}],words:[
+  {sourceId:'outside',text:'前段',startMs:0,endMs:1000},
+  {sourceId:'retained-a',text:'发送',startMs:1010,endMs:1300},
+  {sourceId:'retained-b',text:'失败',startMs:1810,endMs:2100},
+  {sourceId:'next',text:'后段',startMs:2200,endMs:2400},
+ ]},sceneEditors:{s01:{}},segmentReviews:[]};
+ const {calls}=mockService(t,{production});
+ const result=await invoke('read_project',{section:'production',sceneId:'s01'});
+ assert.equal(result.narration.available,true);assert.equal(result.narration.text,'发送失败');
+ assert.deepEqual(result.narration.words.map(w=>[w.id,w.atMs,w.frame]),[['retained-a',0,0],['retained-b',800,24]]);
+ assert.equal(result.narration.durationMs,1190);assert(!calls.some(c=>c.method!=='GET'));
+ assert.equal(sceneNarration({resolved:{scenes:[{id:'s01',startMs:null,endMs:null}]}},'s01').available,false);
+ production.resolved.words[1].endMs=NaN;
+ assert.equal(sceneNarration(production,'s01').available,false);
 });
 
 test('same repository with a different active project is rejected before reads or mutations',async t=>{

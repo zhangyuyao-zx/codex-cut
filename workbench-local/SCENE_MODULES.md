@@ -40,7 +40,7 @@
 - mediaSrc：实际粗剪视频；使用 OffthreadVideo 时 trimBefore={from}，声音静音。
 - materials：本段已补充素材的 id/src/kind。只有声明 acceptsMaterials=true 且代码确实实现展示时才能使用；未实现素材展示的模块不能接收已提供的素材。
 
-动画由 useCurrentFrame 驱动。按 beats[i].frame 开始动作，不把所有重点同时显示。不使用随机数、墙上时钟或CSS动画决定画面。参数和口播文本不能写死回代码；设计说明不是画面文字。
+动画由 useCurrentFrame 驱动。按 beats[i].frame 开始动作，不把所有重点同时显示。beats先按实际口播的语义推进设计，绑定几个有效词ID不代表整段覆盖；不能按duration百分比均分主要事件，也不能先播完后等旁白。不使用随机数、墙上时钟或CSS动画决定画面。参数和口播文本不能写死回代码；设计说明不是画面文字。
 
 C 编辑器以 `scene.beats[].durationFrames` 显式声明该动作时长可编辑。`scene.editor.eventTimings` 可选，键为 `beat:<原始词ID>` 或视觉资产的 `cue:<cueID>`，值 `{offsetFrames,durationFrames?}`。每次从当前词时间重算，不保存绝对开始帧；被删词或越界调整需重新绑定。用 `production/event-edit` 窄接口修改，不绕开用户草稿或覆盖别的 editor 字段。
 

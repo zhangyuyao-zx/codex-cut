@@ -1,6 +1,6 @@
 # Codex Cut 插件 · 0.3.2
 
-当前 Dots 制作唯一入口为配置仓库的 `tools/dots-production/WORKFLOW.md`。完整采用标准由 `studio/standards.json` 维护，通过 `studio standards/resume/capture` 带入选材、代表样片及实际对照。每段先审一张实际静态图，通过后再做该段动画；可成组送审、按段记录，图片认可不等于视频验收。运行服务能力3兼容旧工程；新工程使用 authoring schema 2，不能通过历史命令降级。细则只在 Skill 和当前流程维护，不从旧版本说明恢复另一套默认步骤。
+当前 Dots 制作唯一入口为配置仓库的 `tools/dots-production/WORKFLOW.md`。完整采用标准由 `studio/standards.json` 维护，通过 `studio standards/resume/capture` 带入选材、代表样片及实际对照。先按实际口播的意思推进组织视觉段落，审图前想清动作节点；单段读取同时返回口播原文与词时间，动画按讲述接力。每段先审一张实际静态图，通过后再做该段动画；可成组送审、按段记录，图片认可不等于视频验收。运行服务能力3兼容旧工程；新工程使用 authoring schema 2，不能通过历史命令降级。细则只在 Skill 和当前流程维护，不从旧版本说明恢复另一套默认步骤。
 
 0.3.2 最初接入通用参考研究与 Dots 固定视觉源码，并修复 CODEX_CUT_ROOT 配置优先级。1.0—1.3 是可复用视觉源码版本，不是新制作协议；历史作品继续读取自己的保存版本。默认桥接测试无需私人配置，实际工程检查显式选择。工具入口见 Skill 的 references/operations.md。
 

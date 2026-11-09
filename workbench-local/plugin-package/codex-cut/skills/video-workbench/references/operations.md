@@ -28,7 +28,7 @@ node workbench-local/select-project.mjs --path "/absolute/content-project/video/
 ## 工具
 
 - `open_workbench {}` 只启动/复用服务并返回 URL，不切换素材。使用 `open_in_codex` 等现有浏览器面板能力展示该 URL。
-- `read_project {section:"summary"}` 是常规入口。`production` 返回完整方案；带 `sceneId` 只返回该段与编辑信息。`cut` 返回剪辑及词时间。
+- `read_project {section:"summary"}` 是常规入口。`production` 返回完整方案；带 `sceneId` 返回该段与编辑信息，并在 `narration` 提供当前保留口播原文、词ID及段内毫秒/30fps帧时间，和 `resolved.beats` 一起用于按讲述设计动画。时间来自当前粗剪解析，不按字数推算；不可用时先核对实际声音与词时间。旧插件进程尚无此字段时，读取完整 production 的 resolved.words 同范围词即可。`cut` 返回剪辑及词时间。
 - `read_project {section:"storyboard"}` 返回已有视频的真实关键帧、当前/历史样片标记、画面观察及设计描述相似提示，供动态制作后的整片对照；制作前的静态图确认用上面的studio命令。读取不会生成画面；没有关键帧时先执行下表的 production/storyboard。图片在本机返回的 frame.url，先实际查看再记录观察。
 - `read_project {section:"visual-library",query?}` 读取新资产、风格包、参考、favorites、活动任务及当前可用的 replacementMedia。候选和可用资源分开看状态。`references` 只返回参考列表和进展；query 按用途、名称等文字筛选。
 - `read_project {section:"visual-asset",member:{id,version}}` 读资产与真实模块详情；`style-pack` 用相同 member 读风格包。也可改用独立 `id`、`version`，两种写法不能混用。

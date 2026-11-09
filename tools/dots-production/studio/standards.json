@@ -1,13 +1,13 @@
 {
   "id": "dots-craft",
-  "version": 2,
+  "version": 3,
   "scope": "Dots 方向的制作与实际审阅；不改变其他风格，也不追溯改写已验收作品",
   "topics": [
     {"id":"understanding","title":"导演与声画分工","question":"观众多懂了什么？旁白、主字、字幕与可见事件各承担什么？前提、依据、动作和结果是否一致？","film":true},
     {"id":"composition","title":"整幅构图与框的排布","question":"同尺度比较整体重心、色块面积、框的大小组合、对齐、留白和读序；是否有无意义空区或固定顶标题套壳？","reference":true,"film":true},
     {"id":"typography","title":"字块与观看尺度","question":"比较主字墨量、字号、断行、行距、正文与辅助字层级；在目标观看尺寸，字形有力度且关键条件可读吗？","reference":true},
     {"id":"objects","title":"框内物件与美术细部","question":"比较具体物件、内外轮廓、圆角层级、内边距、线宽端点、光学对齐、贴附状态、局部阴影与质感；是否仍只是图标加词条？","reference":true},
-    {"id":"motion-rhythm","title":"内部动作、触感与节奏","question":"看建立、触发、执行、反馈和落稳；是否有整卡慢淡入、文字抢跑、无效等待、重复推拉或过快整屏切换？有关联的内容能否同屏推进？","reference":true,"film":true},
+    {"id":"motion-rhythm","title":"内部动作、触感与节奏","question":"原速带声逐个核对口播的对象、动作、条件、转折和结果：说到这里，画面具体接上了什么？有无先全亮后空等、意思已推进而主体仍停旧状态、均分段长或沿用旧时序？建立、执行、反馈和落稳是否贴合讲述与重音？阅读保持是否正在解释当前材料？无关循环、字幕变化和动作数量不算叙事推进。","reference":true,"film":true},
     {"id":"attention-continuity","title":"注意力、转场与整片变化","question":"当前重点、旧对象退让、同一物件的身份与终态是否可追踪？前段末态怎样接后段初态？相似段落是继续解释还是只换文字？","film":true},
     {"id":"materials","title":"真实材料与画面融合","question":"真实对象、年代或产品版本是否对应？页面先有完整视口身份，裁切和标注保留关键条件吗？照片、原文、界面是否以合适边界、留白和面积融入整体，而非裸放或缩成角标？","realOnly":true,"film":true}
   ],
@@ -43,8 +43,8 @@
     {"id":"U03","rule":"删除无关品牌胶囊、演示账号说明、眉题和装饰状态字；不能因为参考片有就恢复。必要来源与限定仍就近保留。","topics":["composition","typography"],"implementation":"scene design and actual comparison"},
     {"id":"U04","rule":"画面是整体；重排页面、说明和图解的体量与位置，处理失衡空区。不要为了填满空白添加无关信息。","topics":["composition"],"implementation":"scene design and target-size review"},
     {"id":"U05","rule":"保留粗重、好看的中文字块，重新考虑字号和角色；已有粗字体不能替代对字号、断行和布局的设计。","topics":["typography"],"implementation":"Fonts / Type / actual comparison"},
-    {"id":"U06","rule":"按真实旁白语义触发，检查文字、条件与结果的先后；未经设计的文字抢跑要修正。","topics":["motion-rhythm","understanding"],"implementation":"native word cues / playback"},
-    {"id":"U07","rule":"去掉没有解释任务的停住等待；框内持续发生具体变化，克制微动可保留，但循环装饰不算内容推进。","topics":["motion-rhythm"],"implementation":"object behavior / playback"},
+    {"id":"U06","rule":"动画必须跟着实际口播的意思和节奏推进：先听口播、识别语义推进再组织视觉段落，静态图审阅前想清说到哪里看见什么，通过后按这些节点实现动画。讲对象对应出现或聚焦，讲动作对应过程，讲条件和转折对应边界或状态变化，讲结果对应反馈。主要变化绑定并消费当前词时间；不能均分段长、先播完动画等旁白或照搬旧时序。相关内容同屏递进，不逐字配图或逐句强制换场。原速带声检查，每个新的意思都有相应视觉承接。","topics":["motion-rhythm","understanding"],"implementation":"native word cues / playback"},
+    {"id":"U07","rule":"去掉没有解释任务的停住等待；框内按口播持续推进具体内容。旁白仍在解释当前材料时可以稳定阅读，进入新对象或新结论时视觉须接上；不能批量用阅读停留标签掩盖未设计的空档。克制微动可保留，装饰循环不算内容推进，不设固定动作频率。","topics":["motion-rhythm"],"implementation":"object behavior / playback"},
     {"id":"U08","rule":"关联内容留在同一画面，通过模块补充和局部焦点推进；不要把节奏快实现成一句话切换多个整屏。","topics":["motion-rhythm","attention-continuity"],"implementation":"persistent objects / adjacent and film review"},
     {"id":"U09","rule":"从具体物件与内部事件设计关系；不默认用抽象名词框和长连线铺满影片。真实网络、机械传递或局部指示可以用线。","topics":["objects","composition"],"implementation":"CRAFT.md / components"},
     {"id":"U10","rule":"真实照片、原文与界面要按自身内容做边界、留白、裁切和局部质感处理；素材要有足够面积，标注跟随原图坐标，不能裸放或缩成来源角标。","topics":["materials","objects"],"implementation":"EvidenceWindow / ImageCard"},

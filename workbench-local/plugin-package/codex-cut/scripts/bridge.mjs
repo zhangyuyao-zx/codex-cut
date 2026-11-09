@@ -29,7 +29,7 @@ const member=obj({id:memberId,version:memberVersion},['id','version']);
 export const tools=[
  {name:'workbench_status',description:'Check this machine’s configured Codex Cut workbench and running service. Does not start it or modify a project.',inputSchema:obj({}),annotations:{readOnlyHint:true}},
  {name:'open_workbench',description:'Start/reuse the existing local workbench and return its URL. Open that URL in the Codex browser panel. Never imports or resets a project.',inputSchema:obj({}),annotations:{readOnlyHint:false,destructiveHint:false}},
- {name:'read_project',description:'Read project state, storyboard, visual resources, saved animations or references. animations reads the existing saved-animation catalog with cue definitions. visual-asset/style-pack require member:{id,version} (or id and version). library contains new ready assets/packs; component is historical compatibility. checkpoints reads paired code/project backups and task status. Read summary before edits.',inputSchema:obj({section:{type:'string',enum:['summary','cut','production','library','component','visual-library','visual-asset','style-pack','references','storyboard','animations','checkpoints']},sceneId:str,query:{type:'string'},componentId:str,member,id:memberId,version:memberVersion}),annotations:{readOnlyHint:true}},
+ {name:'read_project',description:'Read project state, storyboard, visual resources, saved animations or references. Scoped production includes the actual narration text and local word timings beside scene beats. animations reads the existing saved-animation catalog with cue definitions. visual-asset/style-pack require member:{id,version} (or id and version). library contains new ready assets/packs; component is historical compatibility. checkpoints reads paired code/project backups and task status. Read summary before edits.',inputSchema:obj({section:{type:'string',enum:['summary','cut','production','library','component','visual-library','visual-asset','style-pack','references','storyboard','animations','checkpoints']},sceneId:str,query:{type:'string'},componentId:str,member,id:memberId,version:memberVersion}),annotations:{readOnlyHint:true}},
  {name:'update_project',description:'Apply an allowlisted revision-checked change. Read expectedRevision from the same domain: cut, production, or visual-library. Production edits preserve user drafts/locks; library writes do not replace local drafts. Asset visual/reuse checks are receipts, not user acceptance; ready status is selected only by the user in the workbench. checkpoints/create names a paired saved version; verify/restore use its id, and restore always creates a new copy. Checkpoint operations use production revision. No arbitrary HTTP/shell commands.',inputSchema:obj({operation:{type:'string',enum:operations},expectedRevision:rev,data:{type:'object'}},['operation','expectedRevision','data']),annotations:{readOnlyHint:false,destructiveHint:true}},
  {name:'render_segment',description:'Render one authored visual paragraph with narration. Dots schema 2 requires explicit user approval of its current static design image first; see WORKFLOW studio frame/approve-frame. Returns a background task; poll read_project. Does not approve the video.',inputSchema:obj({sceneId:str,expectedRevision:rev},['sceneId','expectedRevision']),annotations:{readOnlyHint:false,destructiveHint:false}},
  {name:'approve_segment',description:'Record the USER’s explicit acceptance of this exact rendered version. Never use for self-review, inferred approval, tests on the real project, or approval of a plan instead of its movie.',inputSchema:obj({sceneId:str,key:str,renderId:str,userConfirmed:{type:'boolean',const:true}},['sceneId','key','renderId','userConfirmed']),annotations:{readOnlyHint:false,destructiveHint:false}},
@@ -49,6 +49,22 @@ async function healthy(){
  return h;
 }
 function summary(c,h){return {workbenchRoot:root,projectDir:h.projectDir,contentId:h.contentId??null,projectName:h.projectName??null,url:base,productionRuntime:productionRuntimeStatus(h),revision:c.plan.revision,cutRevision:c.cut.revision,asset:c.cut.asset,selection:c.selection,capabilities:c.capabilities,soundtrackStatus:c.soundtrackStatus,editorSnapshot:c.editorSnapshot,editorHistory:c.editorHistory,stylePackInfo:c.stylePackInfo,durationMs:c.resolved.durationMs,issues:c.resolved.issues,stale:c.resolved.stale,programError:c.programError,timelineEvents:c.timelineEvents,assemblyReady:c.assemblyReady,authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,scenes:c.plan.scenes.map(s=>({id:s.id,title:s.title,intent:s.intent,implemented:!!s.program,design:c.designStatus[s.id]})),segmentReviews:c.segmentReviews,requests:c.plan.requests,feedback:c.plan.feedback,job:c.job,previousReview:c.previousReview};}
+// Keep speech beside the scene's existing beats; never infer timing from character count.
+export function sceneNarration(context,sceneId){
+ const scene=context.resolved?.scenes?.find(s=>s.id===sceneId);
+ const from=scene?.startMs,to=scene?.endMs;
+ if(!Number.isFinite(from)||!Number.isFinite(to)||to<=from||!Array.isArray(context.resolved?.words))return {available:false,reason:'本段缺当前口播词时间，先定位实际声音；不能按段落长度均分动作'};
+ const selected=context.resolved.words.filter(w=>w.startMs>=from&&w.startMs<to);
+ if(!selected.length||selected.some(w=>typeof w.sourceId!=='string'||!Number.isFinite(w.endMs)||w.endMs<w.startMs))return {available:false,reason:'本段口播词时间不完整，先核对实际声音与转写'};
+ const startFrame=Math.round(from*30/1000);
+ const words=selected.map(w=>({
+  id:w.sourceId,text:w.text,atMs:w.startMs-from,endMs:w.endMs-from,
+  frame:Math.round(w.startMs*30/1000)-startFrame,endFrame:Math.round(w.endMs*30/1000)-startFrame,
+ }));
+ return {available:words.length>0,text:words.map(w=>w.text).join(''),durationMs:to-from,
+  timebase:'scene-local; frames at 30fps',words,
+  note:'从实际口播的意思推进安排本段可见变化；现有 resolved.beats 是已绑定动作，不代表讲述已完整覆盖。原速听看后判断声画节奏。'};
+}
 async function context(sceneId){return json(sceneId?'/api/production/context?sceneId='+encodeURIComponent(sceneId):'/api/production');}
 async function mutate(path,data,{domain='production'}={}){
  const identity=await healthy();
@@ -124,7 +140,7 @@ export async function invoke(name,args={}){
   }
   if(args.section==='component'){if(!args.componentId)throw Error('请提供 componentId');return {...await json('/api/library/detail/'+encodeURIComponent(args.componentId)),legacyCompatibility:true};}
   const c=await context(args.section==='production'?args.sceneId:undefined);
-  if(args.section==='production'&&args.sceneId){const scene=c.plan.scenes.find(s=>s.id===args.sceneId);if(!scene)throw Error('段落不存在');return {revision:c.plan.revision,cutRevision:c.cut.revision,selection:c.selection,source:c.plan.source,stylePackInfo:c.stylePackInfo,scene,resolved:c.resolved.scenes.find(s=>s.id===args.sceneId),editor:c.sceneEditors[args.sceneId],review:c.segmentReviews.find(s=>s.sceneId===args.sceneId),authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,requests:c.plan.requests.filter(s=>s.sceneId===args.sceneId),feedback:c.plan.feedback.filter(s=>s.sceneId===args.sceneId)};}
+  if(args.section==='production'&&args.sceneId){const scene=c.plan.scenes.find(s=>s.id===args.sceneId);if(!scene)throw Error('段落不存在');return {revision:c.plan.revision,cutRevision:c.cut.revision,selection:c.selection,source:c.plan.source,stylePackInfo:c.stylePackInfo,scene,narration:sceneNarration(c,args.sceneId),resolved:c.resolved.scenes.find(s=>s.id===args.sceneId),editor:c.sceneEditors[args.sceneId],review:c.segmentReviews.find(s=>s.sceneId===args.sceneId),authoring:c.authoring,authoringReviews:c.authoringReviews,authoringDelivery:c.authoringDelivery,requests:c.plan.requests.filter(s=>s.sceneId===args.sceneId),feedback:c.plan.feedback.filter(s=>s.sceneId===args.sceneId)};}
   return args.section==='production'?{...c,projectDir:identity.projectDir,contentId:identity.contentId??null}:summary(c,identity);
  }
  if(name==='update_project'){
