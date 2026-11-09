@@ -1,7 +1,7 @@
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {readFile,mkdtemp,copyFile,rm} from 'node:fs/promises';
+import {readFile,mkdtemp,copyFile,rm,mkdir,writeFile,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -111,6 +111,26 @@ test('scoped production puts the actual retained speech and local timing beside 
  assert.equal(sceneNarration({resolved:{scenes:[{id:'s01',startMs:null,endMs:null}]}},'s01').available,false);
  production.resolved.words[1].endMs=NaN;
  assert.equal(sceneNarration(production,'s01').available,false);
+});
+
+test('scoped production reads the selected reference implementation without changing its project',async t=>{
+ const project=await mkdtemp(resolve(tmpdir(),'codex-cut-reference-'));
+ const previous=process.env.WORKBENCH_PROJECT_DIR;
+ process.env.WORKBENCH_PROJECT_DIR=project;
+ t.after(async()=>{if(previous===undefined)delete process.env.WORKBENCH_PROJECT_DIR;else process.env.WORKBENCH_PROJECT_DIR=previous;await rm(project,{recursive:true,force:true});});
+ await mkdir(resolve(project,'production'));
+ const video=resolve(project,'reference.mp4'),source=resolve(project,'reference.jsx'),book=resolve(project,'production/authoring.json');
+ await writeFile(video,'synthetic media identity');await writeFile(source,'export const Shot=()=>null;');
+ const original=JSON.stringify({schemaVersion:2,references:{reference:{file:video,sha256:await digest(video),from:0,to:1,learn:'concrete operation',avoid:'generic motion',sourceCode:source,sourceExport:'Shot'}},scenes:[{sceneId:'s01',referenceIds:['reference']}],reviews:{}});
+ await writeFile(book,original);
+ const production={plan:{revision:7,scenes:[{id:'s01'}],requests:[],feedback:[]},cut:{revision:13},resolved:{scenes:[{id:'s01'}]},sceneEditors:{s01:{}},segmentReviews:[]};
+ const {calls}=mockService(t,{production});
+ const result=await invoke('read_project',{section:'production',sceneId:'s01'});
+ assert.equal(result.referenceStudy.readOnly,true);
+ assert.equal(result.referenceStudy.references[0].source.entryExport,'Shot');
+ assert.equal(result.referenceStudy.references[0].source.files[0].file,await realpath(source));
+ assert(!Object.hasOwn(result.referenceStudy.references[0].source.files[0],'code'));
+ assert.equal(await readFile(book,'utf8'),original);assert(calls.every(c=>c.method==='GET'));
 });
 
 test('same repository with a different active project is rejected before reads or mutations',async t=>{

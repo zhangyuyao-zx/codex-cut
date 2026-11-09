@@ -39,7 +39,7 @@
 
 演示仅使用原创几何和通用内容，不含私人参考画面、人物、逐字稿或音乐。它是静音技术演示；资产入库选择与用户影片的原声审阅分别进行。新安装的视觉库为空，示例需明确导入。
 
-**Dots 当前制作入口：材料与代表样片先行。** 新工程使用 [WORKFLOW](tools/dots-production/WORKFLOW.md)：全片简排、真实选材、代表样片、实际比较、扩展与整片审阅。原生分镜和代码负责实现，一份制作记录保存选材与观察；不用多套动作脚本证明同一件事。新工具提供真实媒体选区、标注、原生样片捕获以及[部件与实例索引](tools/dots-production/studio/CRAFT.md)。技术有效、作者观察和用户认可分别报告；[架构与验证范围](docs/implementation/2026-11-08-artifact-first-direction.md)说明具体边界。
+**Dots 当前制作入口：从具体镜头改编。** 新工程使用 [WORKFLOW](tools/dots-production/WORKFLOW.md)：按实际口播组织物件与事件，选择真实材料与具体参考实现，改编构图；每段一张代表静态图经用户确认后，按本期词时间实现内部动作，再与参考实际对照和扩展。`studio study` 只读提供对应片段、源码、依赖与改编要点，[CRAFT](tools/dots-production/studio/CRAFT.md)按表达任务定位；不把同一种布局套满全片。原生分镜和代码负责实现，一份制作记录保存选材与观察；不用多套动作脚本证明同一件事。技术有效、作者观察和用户认可分别报告；[架构与验证范围](docs/implementation/2026-11-08-artifact-first-direction.md)说明具体边界。
 
 [完整采用标准](tools/dots-production/studio/standards.json)集中维护导演、美术和后续决定，通过 `studio standards/resume/capture` 进入实际制作。字体、框内物件、整体构图与运动的对照要在代表样片中完成；标准与流程不再散落维护多份。旧创建命令只在 `legacy` 命名空间，不能把 schema 2 工程降级；[本轮收口记录](docs/implementation/2026-11-08-dots-standards-consolidation.md)说明执行与兼容边界。
 

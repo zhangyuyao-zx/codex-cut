@@ -46,7 +46,7 @@ test('capture extracts real frames of the selected native output and never claim
  const p=await fs.mkdtemp(path.join(os.tmpdir(),'studio-capture-'));t.after(()=>fs.rm(p,{recursive:true,force:true}));
  const base=path.join(p,'production'),video=path.join(base,'renders/r1/review.mp4');await fs.mkdir(path.dirname(video),{recursive:true});
  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=orange:s=160x90:r=30:d=2','-c:v','libx264','-pix_fmt','yuv420p',video]);
- await write(path.join(base,'authoring.json'),{schemaVersion:2,assets:{},references:{},scenes:[{sceneId:'s',referenceIds:[]}],reviews:{}});
+ await write(path.join(base,'authoring.json'),{schemaVersion:2,assets:{},references:{ref:{file:video,sha256:await digest(video),from:0,to:1,learn:'synthetic example',avoid:'fixture is not a visual standard',sourceCode:'fixture.jsx',sourceExport:'Shot'}},scenes:[{sceneId:'s',referenceIds:['ref']}],reviews:{}});
  await write(path.join(base,'segment-reviews.json'),{renders:[{id:'r1',sceneId:'s',status:'done',url:'/production-media/renders/r1/review.mp4',from:0,end:60,key:'key',authoringDesign:{s:'design'}}]});
  const before=await digest(path.join(base,'authoring.json'));
  const result=await captureReview({project:p,sceneId:'s',renderId:'r1',out:path.join(p,'review')});
@@ -55,8 +55,10 @@ test('capture extracts real frames of the selected native output and never claim
  assert.ok(capture.reviewTopics.includes('typography'));assert.ok(capture.reviewTopics.includes('objects'));assert.ok(!capture.reviewTopics.includes('materials'));
  assert.equal(draft.findings.length,0);assert.equal(draft.referenceComparisons.length,0);
  assert.equal(await digest(result.media.video),capture.videoSha256);assert.equal(result.media.frames.length,3);
+ assert.equal(capture.referenceCopies.length,1);assert.equal(capture.referenceCopies[0].sha256,await digest(capture.referenceCopies[0].file));
  assert.ok(result.chatMarkdown.includes(result.media.video));assert.ok(result.chatMarkdown.includes(result.media.frames[0].file));
  const page=await fs.readFile(path.join(p,'review/index.html'),'utf8');assert.match(page,/字块与观看尺度/);assert.match(page,/框内物件与美术细部/);
+ assert.match(page,/<video src="reference-0.mp4"/);assert(!page.includes('<details>'));assert.match(page,/fixture.jsx/);assert.match(result.chatMarkdown,/内部检查样片/);
  const image=capture.frames[0].file;await registerAsset({project:p,id:'frame',file:image,source:'synthetic fixture',supports:'technical test'});
  await assert.rejects(registerAsset({project:p,id:'frame',file:image,source:'x',supports:'y'}),/已存在/);
  await assert.rejects(captureReview({project:p,sceneId:'s',renderId:'unknown',out:path.join(p,'invalid')}),/原生样片/);

@@ -1,13 +1,13 @@
 {
   "id": "dots-craft",
-  "version": 3,
+  "version": 4,
   "scope": "Dots 方向的制作与实际审阅；不改变其他风格，也不追溯改写已验收作品",
   "topics": [
     {"id":"understanding","title":"导演与声画分工","question":"观众多懂了什么？旁白、主字、字幕与可见事件各承担什么？前提、依据、动作和结果是否一致？","film":true},
     {"id":"composition","title":"整幅构图与框的排布","question":"同尺度比较整体重心、色块面积、框的大小组合、对齐、留白和读序；是否有无意义空区或固定顶标题套壳？","reference":true,"film":true},
     {"id":"typography","title":"字块与观看尺度","question":"比较主字墨量、字号、断行、行距、正文与辅助字层级；在目标观看尺寸，字形有力度且关键条件可读吗？","reference":true},
     {"id":"objects","title":"框内物件与美术细部","question":"比较具体物件、内外轮廓、圆角层级、内边距、线宽端点、光学对齐、贴附状态、局部阴影与质感；是否仍只是图标加词条？","reference":true},
-    {"id":"motion-rhythm","title":"内部动作、触感与节奏","question":"原速带声逐个核对口播的对象、动作、条件、转折和结果：说到这里，画面具体接上了什么？有无先全亮后空等、意思已推进而主体仍停旧状态、均分段长或沿用旧时序？建立、执行、反馈和落稳是否贴合讲述与重音？阅读保持是否正在解释当前材料？无关循环、字幕变化和动作数量不算叙事推进。","reference":true,"film":true},
+    {"id":"motion-rhythm","title":"内部动作、触感与节奏","question":"不依赖字幕，具体物件是否真的经历了操作与变化？原速带声逐句检查：讲到对象、动作、条件、转折和结果时，哪一个可见事件接上？长句内部是否继续推进？与具体参考比较建立、执行、反馈和落稳的轻重、速度与触感。有无先全亮后空等、整句静止、均分段长或沿用旧时序？游走光标、划线描框、字幕变化及像素变化不能充当内容动作。","reference":true,"film":true},
     {"id":"attention-continuity","title":"注意力、转场与整片变化","question":"当前重点、旧对象退让、同一物件的身份与终态是否可追踪？前段末态怎样接后段初态？相似段落是继续解释还是只换文字？","film":true},
     {"id":"materials","title":"真实材料与画面融合","question":"真实对象、年代或产品版本是否对应？页面先有完整视口身份，裁切和标注保留关键条件吗？照片、原文、界面是否以合适边界、留白和面积融入整体，而非裸放或缩成角标？","realOnly":true,"film":true}
   ],
@@ -43,16 +43,16 @@
     {"id":"U03","rule":"删除无关品牌胶囊、演示账号说明、眉题和装饰状态字；不能因为参考片有就恢复。必要来源与限定仍就近保留。","topics":["composition","typography"],"implementation":"scene design and actual comparison"},
     {"id":"U04","rule":"画面是整体；重排页面、说明和图解的体量与位置，处理失衡空区。不要为了填满空白添加无关信息。","topics":["composition"],"implementation":"scene design and target-size review"},
     {"id":"U05","rule":"保留粗重、好看的中文字块，重新考虑字号和角色；已有粗字体不能替代对字号、断行和布局的设计。","topics":["typography"],"implementation":"Fonts / Type / actual comparison"},
-    {"id":"U06","rule":"动画必须跟着实际口播的意思和节奏推进：先听口播、识别语义推进再组织视觉段落，静态图审阅前想清说到哪里看见什么，通过后按这些节点实现动画。讲对象对应出现或聚焦，讲动作对应过程，讲条件和转折对应边界或状态变化，讲结果对应反馈。主要变化绑定并消费当前词时间；不能均分段长、先播完动画等旁白或照搬旧时序。相关内容同屏递进，不逐字配图或逐句强制换场。原速带声检查，每个新的意思都有相应视觉承接。","topics":["motion-rhythm","understanding"],"implementation":"native word cues / playback"},
-    {"id":"U07","rule":"去掉没有解释任务的停住等待；框内按口播持续推进具体内容。旁白仍在解释当前材料时可以稳定阅读，进入新对象或新结论时视觉须接上；不能批量用阅读停留标签掩盖未设计的空档。克制微动可保留，装饰循环不算内容推进，不设固定动作频率。","topics":["motion-rhythm"],"implementation":"object behavior / playback"},
+    {"id":"U06","rule":"动画必须跟着实际口播的意思和节奏推进。先听口播，逐句识别对象、动作、条件、转折和结果，明确对应的可见事件，再组织视觉段落与构图；长句在句内继续推进物件、字段、操作或反馈。静态图审阅前想清事件，通过后实现动画。主要变化绑定并消费当前词时间；不能均分段长、先播完动画等旁白或按比例拉伸参考旧时序。相关内容同屏递进，不逐字配图或逐句强制换场。原速带声逐句检查，每句都有对应语义的画面动作。","topics":["motion-rhythm","understanding"],"implementation":"native word cues / object events / playback"},
+    {"id":"U07","rule":"去掉页面建立后整句停住的空等；每个事件有清楚的建立、执行、反馈和落稳。短暂落稳用于看清当前结果，不能以阅读停留放行整句静止，也不能补游走光标、横线、描框、沿线标签或整卡漂浮凑动静。点击、边界和连接只有实际解释任务需要才使用。不设每几秒动一下或最大静止时长的审美配额；像素差异只辅助排错，不证明节奏通过。","topics":["motion-rhythm"],"implementation":"reference implementation / object behavior / playback"},
     {"id":"U08","rule":"关联内容留在同一画面，通过模块补充和局部焦点推进；不要把节奏快实现成一句话切换多个整屏。","topics":["motion-rhythm","attention-continuity"],"implementation":"persistent objects / adjacent and film review"},
     {"id":"U09","rule":"从具体物件与内部事件设计关系；不默认用抽象名词框和长连线铺满影片。真实网络、机械传递或局部指示可以用线。","topics":["objects","composition"],"implementation":"CRAFT.md / components"},
     {"id":"U10","rule":"真实照片、原文与界面要按自身内容做边界、留白、裁切和局部质感处理；素材要有足够面积，标注跟随原图坐标，不能裸放或缩成来源角标。","topics":["materials","objects"],"implementation":"EvidenceWindow / ImageCard"},
-    {"id":"U11","rule":"不把统一风格做成固定标题、三卡和相同动作的反复换字；复用部件与行为，重新设计具体构图。","topics":["composition","attention-continuity"],"implementation":"prototype comparisons / film review"},
+    {"id":"U11","rule":"复用已完成镜头的合适物件、细部与动作方法，按本期语义重组；不把统一风格做成固定标题、三卡和相同动作的反复换字。并列小演示、嵌套任务板、单个控件、真实材料取景分别有适用任务，不能选一种铺满全片。","topics":["composition","attention-continuity"],"implementation":"CRAFT.md / referenceStudy / prototype comparisons / film review"},
     {"id":"U12","rule":"采用稿和已验收旁白按本期版本保留；不擅自改词、变速或重录。新片读取本机共同声音配置，沿用已确认的自动情绪、语速、BGM及音量依据，音效对应具体动作并实际听审。","topics":[],"implementation":"sound preset / native soundtrack / review.audio"},
     {"id":"U13","rule":"审阅优先在对话中交付实际视频与关键画面，尤其用户用手机时；不要只给 localhost 网页或声称本机路径是手机可访问公网链接。以客户端实际媒体能力交付，不能播放时明确说明并提供可查看画面。","topics":[],"implementation":"studio capture.chatMarkdown / SKILL delivery"},
-    {"id":"U14","rule":"原片研究与 Dots 制作分开维护；按本期问题取已存参考与已认可复刻，不让用户反复补图，也不每次全量拉片。","topics":[],"implementation":"reference-study / studio reference"},
-    {"id":"U15","rule":"代表样片先完成美术和动态的实际对照再扩展；不省略已确认流程，不把字段齐全、渲染成功或自动检查当成审美通过。实际判断由制作主代理完成。","topics":[],"implementation":"native representative/review/assembly gates"},
+    {"id":"U14","rule":"原片研究与 Dots 制作分开维护。制作按当前表达任务先打开具体参考片段及已认可实现，用实际物件、框内细部和事件做改编起点；不能只读结论或复制配色。studio study提供对应源码、依赖、适用范围、沿用与替换要点，旧工程可只读回查，不要求迁移。不让用户反复补图，不每次全量拉片；无合适实例时明确原创部分并实际验证。","topics":[],"implementation":"reference-study / studio reference, study / read_project.referenceStudy"},
+    {"id":"U15","rule":"代表样片交用户和扩展前，制作主代理先把本期实际输出与适用参考同尺度对照，检查整幅构图、字块、框内造型细部和完整动态；先看物件做了什么，再原速带声逐句核对。实际差距进入既有观察并修正。未观察只保留内部检查稿，不称自查通过；字段齐全、渲染成功、静帧或像素检测不能代替美术与动态判断。","topics":[],"implementation":"studio capture comparison / native representative/review/assembly gates"},
     {"id":"U16","rule":"每段先用正式素材和共用场景导出一张能代表最终效果的静态图，实际检查后在对话中给用户审阅；可几段一起发，按明确通过的段落与图片版本推进动画。静态图与视频共用实现，不先做完整动画再补审图。修改主要视觉方案重新审图，图片确认不替代带声样片和整片验收；不追补已验收旧作品。","topics":["composition","typography","objects"],"implementation":"WORKFLOW.md / authoring.storyboardFrames / studio frame, approve-frame, resume / native render gate"}
   ]
 }

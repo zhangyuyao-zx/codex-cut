@@ -2,9 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
+import {isDeepStrictEqual} from 'node:util';
 import {digest,probe,freshDirectory,html} from './production-pack.mjs';
 import {standards,reviewTopics} from './studio/standards.mjs';
 import {storyboardKey,storyboardStatus} from './studio/storyboard.mjs';
+import {referenceFromRegistry,sceneReferenceStudy,registryReferenceStudy} from './studio/reference.mjs';
 const read=async p=>JSON.parse(await fs.readFile(p,'utf8'));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const run=args=>execFileSync('ffmpeg',['-v','error','-nostdin',...args],{stdio:'pipe'});
@@ -37,14 +39,19 @@ export async function registerAsset({project,id,file,source,supports}){
  state.book.assets[id]={file:path.resolve(file),sha256:await digest(file),source,supports};
  return saveBook(state);
 }
-export async function importReference({project,registry,id}){
- const state=await loadBook(project),r=(await read(registry)).entries.find(r=>r.id===id);
- if(!r?.media||!r.learn||!r.avoid)throw Error('参考注册项不存在或没有适用边界');
- const file=path.resolve(path.dirname(registry),r.media.file);
- if(await digest(file)!==r.media.sha256)throw Error('参考身份已变化');
- if(state.book.references[id])throw Error('参考 id 已存在，不静默替换');
- state.book.references[id]={file,sha256:r.media.sha256,from:r.media.fromSeconds,to:r.media.toSeconds,learn:r.learn,avoid:r.avoid};
- return saveBook(state);
+export async function importReference({project,registry,id,sceneId}){
+ const state=await loadBook(project),reference=await referenceFromRegistry(registry,id);
+ const shot=sceneId?state.book.scenes.find(s=>s.sceneId===sceneId):null;
+ if(sceneId&&!shot)throw Error('未知段落 '+sceneId);
+ const existing=state.book.references[id];
+ if(existing){
+  if(!shot||!isDeepStrictEqual(existing,reference))throw Error('参考 id 已存在，不静默替换；原条目可用 study 只读核对');
+  if(shot.referenceIds?.includes(id))return {file:state.p,unchanged:true,userAccepted:false,reference:existing,study:await sceneReferenceStudy({project,sceneId})};
+ }
+ state.book.references[id]=reference;
+ if(shot)shot.referenceIds=[...new Set([...(shot.referenceIds??[]),id])];
+ const result=await saveBook(state);
+ return {...result,reference,...(sceneId?{study:await sceneReferenceStudy({project,sceneId})}:{})};
 }
 export async function registerStoryboardFrame({project,sceneId,file,reason,source}){
  if(!reason?.trim()||!source?.trim())throw Error('说明这张图代表本段的理由及实际导出来源');
@@ -109,9 +116,9 @@ export async function captureReview({project,sceneId,renderId,out,times}){
  await fs.writeFile(path.join(out,'capture.json'),JSON.stringify(capture,null,2)+'\n');
  const observation={capture:path.resolve(out,'capture.json'),verdict:'unreviewed',playback:null,targetWidth:null,findings:[],referenceComparisons:[],audio:{status:'not-listened',observed:'尚未听辨'},userAccepted:false};
  await fs.writeFile(path.join(out,'review-draft.json'),JSON.stringify(observation,null,2)+'\n');
- await fs.writeFile(path.join(out,'index.html'),html('实际样片与参考',`<p>先看完整动态与观看尺寸，再记录具体差距。文件生成不代表审阅完成。</p><video src="current.mp4" controls></video><div class="grid">${frames.map((f,i)=>`<figure><img src="frame-${i}.png"><figcaption>${f.at.toFixed(2)}s</figcaption></figure>`).join('')}</div><section><h2>本段实际对照</h2><p>在已有 findings 中用 topics 标注观察维度，一条观察可覆盖多项；不要复制问题作为观察。参考比较也标注 topics。没有实际看见就保留未审阅。</p>${topics.map(t=>`<p><strong>${esc(t.title)} · ${esc(t.id)}</strong><br>${esc(t.question)}</p>`).join('')}</section><details><summary>展开参考对照</summary>${references.map((r,i)=>`<section><p>${esc(r.learn)}</p><video src="reference-${i}.mp4" controls></video><p>${esc(r.avoid)}</p></section>`).join('')}</details>`));
+ await fs.writeFile(path.join(out,'index.html'),html('实际样片与参考',`<p>这是作者内部检查页。先原速带声看本期，再同尺度看对应参考；两片时长不同，不同步拉伸。尚未完成实际审查时，不作为已自查的用户送审稿。</p><div class="grid"><section><h2>本期实际输出</h2><video src="current.mp4" controls></video></section>${references.map((r,i)=>`<section><h2>${esc(r.label??r.id)}</h2><video src="reference-${i}.mp4" controls></video><p>${esc(r.learn)}</p><p>${esc(r.avoid)}</p>${r.sourceCode?`<p>改编源码：<code>${esc(r.sourceCode)}</code> · ${esc(r.sourceExport??'')}</p>`:''}</section>`).join('')}</div><div class="grid">${frames.map((f,i)=>`<figure><img src="frame-${i}.png"><figcaption>${f.at.toFixed(2)}s</figcaption></figure>`).join('')}</div><section><h2>本段实际对照</h2><p>先遮住字幕检查对象和事件，再带声检查时点、轻重与接力。与参考比较字块、容器、物件细部、运动触感。把实际差距写入现有 findings 与 referenceComparisons；像素变化和动作数量不能填写成节奏通过。</p>${topics.map(t=>`<p><strong>${esc(t.title)} · ${esc(t.id)}</strong><br>${esc(t.question)}</p>`).join('')}</section>`));
  const media={video:path.resolve(out,'current.mp4'),frames:frames.map(f=>({at:f.at,file:f.file}))};
- const chatMarkdown=`实际视频（${sceneId} / ${renderId}，${duration.toFixed(2)}秒；验收状态以当前工程记录为准）：\n\n![实际样片](<${media.video}>)\n\n${frames.map(f=>`![${f.at.toFixed(2)}秒](<${f.file}>)`).join('\n\n')}`;
+ const chatMarkdown=`内部检查样片（${sceneId} / ${renderId}，${duration.toFixed(2)}秒；本次采集不代表作者已完成动态审查或用户验收）：\n\n![实际样片](<${media.video}>)\n\n${frames.map(f=>`![${f.at.toFixed(2)}秒](<${f.file}>)`).join('\n\n')}`;
  return {capture:path.join(out,'capture.json'),reviewDraft:path.join(out,'review-draft.json'),reviewTopics:topics,media,chatMarkdown,deliveryNote:'优先使用客户端的内嵌媒体或附件；本机路径不是公网地址。无法播放时明确说明，关键帧只供静态审阅。',visualJudgment:'unreviewed',userAccepted:false};
 }
 
@@ -119,18 +126,26 @@ export async function studioCommand(args){
  const [action,...rest]=args;
  if(action==='standards')return standards;
  const value=key=>{const n=rest.indexOf(key);if(n<0||!rest[n+1])throw Error('Missing '+key);return rest[n+1];};
+ if(action==='study'){
+  const withCode=rest.includes('--with-code'),registry=rest.includes('--registry')?path.resolve(value('--registry')):undefined;
+  if(rest.includes('--project'))return sceneReferenceStudy({project:path.resolve(value('--project')),sceneId:value('--scene'),registry,withCode});
+  if(!registry)throw Error('study 需要 --project/--scene 或 --registry/--id');
+  return registryReferenceStudy({registry,id:value('--id'),withCode});
+ }
  const project=path.resolve(value('--project'));
  if(action==='sync')return syncBook(project);
  if(action==='asset')return registerAsset({project,id:value('--id'),file:path.resolve(value('--file')),source:value('--source'),supports:value('--supports')});
- if(action==='reference')return importReference({project,registry:path.resolve(value('--registry')),id:value('--id')});
+ if(action==='reference')return importReference({project,registry:path.resolve(value('--registry')),id:value('--id'),sceneId:rest.includes('--scene')?value('--scene'):undefined});
  if(action==='frame')return registerStoryboardFrame({project,sceneId:value('--scene'),file:value('--file'),reason:value('--reason'),source:value('--source')});
  if(action==='approve-frame')return approveStoryboardFrame({project,sceneId:value('--scene'),sha256:value('--sha256'),basis:value('--basis')});
  if(action==='capture')return captureReview({project,sceneId:value('--scene'),renderId:value('--render'),out:path.resolve(value('--out')),times:rest.includes('--times')?value('--times').split(',').map(Number):undefined});
  if(action==='resume'){
   const {book,p}=await loadBook(project);
   const plan=(await read(path.join(project,'production/production.json'))).state;
-  const scenes=await Promise.all(book.scenes.map(async s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,storyboardFrame:book.storyboardFrames?.[s.sceneId]??null,storyboardStatus:await storyboardStatus({book,plan,sceneId:s.sceneId,digest,resolveFile:f=>path.resolve(path.dirname(p),f)}),reviewTopics:reviewTopics({real:s.mediaMode==='real'}).map(t=>t.id),review:book.reviews?.[s.sceneId]??null})));
-  return {entry:'tools/dots-production/WORKFLOW.md',craftGuide:'tools/dots-production/studio/CRAFT.md',standards,record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes,note:'每段静态图先经用户确认再做动画；图片确认不等于视频验收。动态观察仍用 read_project 的 authoring 验证。'};
+  const sceneId=rest.includes('--scene')?value('--scene'):null;
+  if(sceneId&&!book.scenes.some(s=>s.sceneId===sceneId))throw Error('未知段落 '+sceneId);
+  const scenes=await Promise.all(book.scenes.filter(s=>!sceneId||s.sceneId===sceneId).map(async s=>({sceneId:s.sceneId,visualTask:s.visualTask,prototypeSceneId:s.prototypeSceneId,assets:s.assetIds,references:(s.referenceIds??[]).map(id=>({id,...book.references[id]})),storyboardFrame:book.storyboardFrames?.[s.sceneId]??null,storyboardStatus:await storyboardStatus({book,plan,sceneId:s.sceneId,digest,resolveFile:f=>path.resolve(path.dirname(p),f)}),reviewTopics:reviewTopics({real:s.mediaMode==='real'}).map(t=>t.id),review:book.reviews?.[s.sceneId]??null})));
+  return {entry:'tools/dots-production/WORKFLOW.md',craftGuide:'tools/dots-production/studio/CRAFT.md',standards,record:p,sourceOfTruth:'native production/cut, scene code, actual media',revision:plan.revision,soundtrack:plan.soundtrack??null,scenes,...(sceneId?{referenceStudy:await sceneReferenceStudy({project,sceneId})}:{}),note:'从适合本段的具体镜头与源码改编对象和事件，再审代表静态图。图片确认后做动画；带声实际对照完成后才扩展。'};
  }
- throw Error('studio supports standards, sync, asset, reference, frame, approve-frame, capture, resume');
+ throw Error('studio supports standards, sync, asset, reference, study, frame, approve-frame, capture, resume');
 }
