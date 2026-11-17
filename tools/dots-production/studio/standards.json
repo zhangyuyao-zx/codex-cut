@@ -1,6 +1,6 @@
 {
   "id": "dots-craft",
-  "version": 4,
+  "version": 5,
   "scope": "Dots 方向的制作与实际审阅；不改变其他风格，也不追溯改写已验收作品",
   "topics": [
     {"id":"understanding","title":"导演与声画分工","question":"观众多懂了什么？旁白、主字、字幕与可见事件各承担什么？前提、依据、动作和结果是否一致？","film":true},
@@ -53,6 +53,6 @@
     {"id":"U13","rule":"审阅优先在对话中交付实际视频与关键画面，尤其用户用手机时；不要只给 localhost 网页或声称本机路径是手机可访问公网链接。以客户端实际媒体能力交付，不能播放时明确说明并提供可查看画面。","topics":[],"implementation":"studio capture.chatMarkdown / SKILL delivery"},
     {"id":"U14","rule":"原片研究与 Dots 制作分开维护。制作按当前表达任务先打开具体参考片段及已认可实现，用实际物件、框内细部和事件做改编起点；不能只读结论或复制配色。studio study提供对应源码、依赖、适用范围、沿用与替换要点，旧工程可只读回查，不要求迁移。不让用户反复补图，不每次全量拉片；无合适实例时明确原创部分并实际验证。","topics":[],"implementation":"reference-study / studio reference, study / read_project.referenceStudy"},
     {"id":"U15","rule":"代表样片交用户和扩展前，制作主代理先把本期实际输出与适用参考同尺度对照，检查整幅构图、字块、框内造型细部和完整动态；先看物件做了什么，再原速带声逐句核对。实际差距进入既有观察并修正。未观察只保留内部检查稿，不称自查通过；字段齐全、渲染成功、静帧或像素检测不能代替美术与动态判断。","topics":[],"implementation":"studio capture comparison / native representative/review/assembly gates"},
-    {"id":"U16","rule":"每段先用正式素材和共用场景导出一张能代表最终效果的静态图，实际检查后在对话中给用户审阅；可几段一起发，按明确通过的段落与图片版本推进动画。静态图与视频共用实现，不先做完整动画再补审图。修改主要视觉方案重新审图，图片确认不替代带声样片和整片验收；不追补已验收旧作品。","topics":["composition","typography","objects"],"implementation":"WORKFLOW.md / authoring.storyboardFrames / studio frame, approve-frame, resume / native render gate"}
+    {"id":"U16","rule":"动画前先统筹并完成全片所有视觉段的静态设计，每段用正式素材和共用场景导出一张代表最终效果的图。制作主代理逐张检查，并实际比较全套相邻及同类画面，处理差距后在同一轮交齐全部图片；不得只做少量代表图就停下等确认。用户明确要求片段范围时从其范围。全套交齐后按明确通过的段落与图片版本推进动画；代表样片用于后续校准带声动态，不能缩小静态交付范围。静态图与视频共用实现，不先做完整动画再补审图。修改主要视觉方案重新审图，图片确认不替代带声样片和整片验收；不追补已验收旧作品。","topics":["composition","typography","objects"],"implementation":"WORKFLOW.md / authoring.storyboardFrames / studio frame, approve-frame, resume / native render gate"}
   ]
 }
